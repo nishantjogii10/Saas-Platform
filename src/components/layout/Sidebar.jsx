@@ -1,0 +1,479 @@
+import React from 'react';
+import { NavLink, Link, useLocation } from 'react-router-dom';
+import { useApp } from '../../context/AppContext';
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  CreditCard,
+  BarChart3,
+  FileText,
+  LifeBuoy,
+  Boxes,
+  ClockAlert,
+  Truck,
+  ShoppingBag,
+  History,
+  Bell,
+  Settings,
+  ChefHat,
+  Scale,
+  Trash2,
+  AlertCircle,
+  PackageCheck,
+  Building,
+  Store,
+  Shield,
+  ShieldCheck,
+  CalendarCheck,
+  Receipt,
+  TrendingUp,
+  ArrowLeftRight,
+  GitBranch,
+  Layers,
+  Sparkles,
+  LogOut,
+  UserCog,
+  QrCode,
+  RotateCcw,
+} from 'lucide-react';
+
+export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
+  const location = useLocation();
+  const {
+    currentUser,
+    currentRestaurant,
+    restaurantAlerts,
+    logout,
+    openProfileModal,
+    branches,
+    currentBranchId,
+    currentBranch,
+    switchBranch,
+    ownerNotifications,
+  } = useApp();
+
+  const getHomeRoute = () => {
+    switch (currentUser?.role) {
+      case 'super_admin':
+        return '/admin/dashboard';
+      case 'supplier':
+        return '/supplier';
+      case 'kitchen_staff':
+        return '/kitchen';
+      default:
+        return '/dashboard';
+    }
+  };
+
+  const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
+  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
+
+  // Define nav links by role
+  const getNavLinks = () => {
+    switch (currentUser?.role) {
+      case 'super_admin':
+        return [
+          {
+            section: 'Platform Administration',
+            items: [
+              { to: '/admin/dashboard', label: 'Admin Dashboard', icon: LayoutDashboard },
+              { to: '/admin/restaurants', label: 'Restaurants', icon: Building2 },
+              { to: '/admin/users', label: 'Platform Users', icon: Users },
+              { to: '/admin/plans', label: 'Subscription Plans', icon: CreditCard },
+              { to: '/admin/analytics', label: 'Platform Analytics', icon: BarChart3 },
+              { to: '/admin/logs', label: 'Activity Logs', icon: FileText },
+              { to: '/admin/support', label: 'Support & Settings', icon: LifeBuoy },
+            ],
+          },
+          {
+            section: 'Platform Control',
+            items: [
+              { to: '/admin/role-matrix', label: 'Role Matrix', icon: ShieldCheck, badge: 'RBAC' },
+            ],
+          },
+          {
+            section: 'Platform Finance',
+            items: [
+              { to: '/admin/finance/payments', label: 'Payments', icon: CreditCard, badge: '₹' },
+              { to: '/admin/finance/subscriptions', label: 'Subscriptions', icon: CalendarCheck },
+              { to: '/admin/finance/invoices', label: 'Invoices & Receipts', icon: Receipt },
+              { to: '/admin/finance/revenue', label: 'Revenue Reports', icon: TrendingUp },
+            ],
+          },
+        ];
+
+      case 'restaurant_owner':
+        return [
+          {
+            section: 'Kitchen & Operations',
+            items: [
+              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+              { to: '/inventory', label: 'Inventory Items', icon: Boxes },
+              { to: '/expiry-tracking', label: 'Expiry Tracking', icon: ClockAlert },
+              { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
+              { to: '/batch-tracking', label: 'QR & Batch Matrix', icon: QrCode },
+              { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
+              { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
+              { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/stock-movements', label: 'Stock Movements', icon: History },
+              {
+                to: '/alerts',
+                label: 'Alerts & Notices',
+                icon: Bell,
+                badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
+              },
+            ],
+          },
+          {
+            section: 'Branch & Plan Management',
+            items: [
+              { to: '/branches/overview', label: 'Branch Overview', icon: Store },
+              { to: '/branches', label: 'Branches', icon: Building2 },
+              { to: '/branch-subscriptions', label: 'Branch Subscriptions', icon: CalendarCheck },
+              { to: '/branch-plans', label: 'Plan & Billing', icon: Sparkles },
+              { to: '/branch-staff', label: 'Staff & Managers', icon: Users },
+              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              {
+                to: '/notifications',
+                label: 'Notifications',
+                icon: Bell,
+                badge: unreadOwnerNotifs > 0 ? unreadOwnerNotifs : null,
+              },
+            ],
+          },
+          {
+            section: 'Business & Team',
+            items: [
+              { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
+              { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
+              { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
+            ],
+          },
+        ];
+
+      case 'inventory_manager':
+        return [
+          {
+            section: 'Inventory & Receiving Control',
+            items: [
+              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+              { to: '/inventory', label: 'Inventory Items', icon: Boxes },
+              { to: '/expiry-tracking', label: 'Expiry & FEFO', icon: ClockAlert },
+              { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
+              { to: '/batch-tracking', label: 'QR & Batch Matrix', icon: QrCode },
+              { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
+              { to: '/supplier-billing', label: 'Supplier Invoices', icon: Receipt },
+              { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
+              { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/stock-movements', label: 'Stock Movements', icon: History },
+              {
+                to: '/alerts',
+                label: 'Alerts & Notices',
+                icon: Bell,
+                badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
+              },
+              { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+            ],
+          },
+        ];
+
+      case 'kitchen_staff':
+        return [
+          {
+            section: 'Kitchen Station',
+            items: [
+              { to: '/kitchen', label: 'Staff Dashboard', icon: LayoutDashboard },
+              { to: '/kitchen/ingredients', label: 'Available Stock', icon: Boxes },
+              { to: '/kitchen/usage', label: 'Record Ingredient Usage', icon: Scale },
+              { to: '/kitchen/wastage', label: 'Record Food Wastage', icon: Trash2 },
+              { to: '/kitchen/report-stock', label: 'Report Low Stock', icon: AlertCircle },
+            ],
+          },
+        ];
+
+      case 'supplier':
+        return [
+          {
+            section: 'Supplier Portal',
+            items: [
+              { to: '/supplier', label: 'Supplier Dashboard', icon: LayoutDashboard },
+              { to: '/supplier/orders', label: 'Assigned Orders', icon: ShoppingBag },
+              { to: '/supplier/invoices', label: 'Invoices & Receivables', icon: Receipt },
+              { to: '/supplier/returns', label: 'Returns & Credit Claims', icon: RotateCcw },
+              { to: '/supplier/history', label: 'Order History', icon: PackageCheck },
+              { to: '/supplier/profile', label: 'Supplier Profile', icon: Building },
+            ],
+          },
+        ];
+
+      default:
+        return [];
+    }
+  };
+
+  const navSections = getNavLinks();
+  const allNavItems = navSections.flatMap((sec) => sec.items);
+
+  // Exact & Hierarchical Route Active Resolution:
+  // 1. Exact match takes highest priority.
+  // 2. If another menu item matches the current URL exactly, this item is NOT active
+  //    (preventing parent routes like "/branches" from activating when on "/branches/overview").
+  // 3. For nested sub-pages not explicitly listed in the sidebar (e.g. "/branches/123"),
+  //    the closest parent prefix match is highlighted.
+  const isRouteActive = (itemTo, currentPath) => {
+    if (!currentPath || !itemTo) return false;
+
+    const cleanCurrent = currentPath.length > 1 && currentPath.endsWith('/')
+      ? currentPath.slice(0, -1)
+      : currentPath;
+    const cleanTo = itemTo.length > 1 && itemTo.endsWith('/')
+      ? itemTo.slice(0, -1)
+      : itemTo;
+
+    // 1. Exact match
+    if (cleanCurrent === cleanTo) {
+      return true;
+    }
+
+    // Direct alias mappings (e.g. /branch-overview -> /branches/overview, /branch -> /branches)
+    if (cleanTo === '/branches/overview' && cleanCurrent === '/branch-overview') {
+      return true;
+    }
+    if (cleanTo === '/branches' && cleanCurrent === '/branch') {
+      return true;
+    }
+
+    // 2. If another sidebar item matches the current location exactly, do not match as prefix
+    const hasExactMatchElsewhere = allNavItems.some((other) => {
+      const otherClean = other.to.length > 1 && other.to.endsWith('/')
+        ? other.to.slice(0, -1)
+        : other.to;
+      return (
+        otherClean === cleanCurrent ||
+        (otherClean === '/branches/overview' && cleanCurrent === '/branch-overview') ||
+        (otherClean === '/branches' && cleanCurrent === '/branch')
+      );
+    });
+
+    if (hasExactMatchElsewhere) {
+      return false;
+    }
+
+    // 3. For nested / child routes without their own sidebar entry (e.g. /branches/123 or /inventory/new)
+    if (cleanCurrent.startsWith(cleanTo + '/')) {
+      const candidateMatches = allNavItems.filter((other) => {
+        const otherClean = other.to.length > 1 && other.to.endsWith('/')
+          ? other.to.slice(0, -1)
+          : other.to;
+        return cleanCurrent.startsWith(otherClean + '/');
+      });
+
+      const bestCandidate = candidateMatches.reduce((best, curr) => {
+        return curr.to.length > (best?.to?.length || 0) ? curr : best;
+      }, null);
+
+      return bestCandidate?.to === itemTo;
+    }
+
+    return false;
+  };
+
+  // Role-specific active link styling
+  const getActiveNavClass = (isActive) => {
+    if (!isActive) return 'text-slate-300 hover:bg-slate-800/70 hover:text-white';
+    switch (currentUser?.role) {
+      case 'super_admin':
+        return 'bg-indigo-600 text-white shadow-xs font-semibold';
+      case 'supplier':
+        return 'bg-sky-600 text-white shadow-xs font-semibold';
+      case 'kitchen_staff':
+        return 'bg-amber-600 text-white shadow-xs font-semibold';
+      case 'inventory_manager':
+        return 'bg-teal-700 text-white shadow-xs font-semibold';
+      case 'restaurant_owner':
+      default:
+        return 'bg-emerald-700 text-white shadow-xs font-semibold';
+    }
+  };
+
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
+          onClick={onCloseMobile}
+        />
+      )}
+
+      {/* Dynamic Role Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 shrink-0 ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Brand / Logo + Scope Context Header */}
+        <div className="shrink-0">
+          <Link
+            to={getHomeRoute()}
+            title="StockMate Workspace"
+            className="h-16 flex items-center px-5 border-b border-slate-800 gap-3 hover:bg-slate-800/50 transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-900/40 group-hover:scale-105 transition-transform">
+              <Boxes className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-base tracking-tight text-white group-hover:text-emerald-300 transition-colors">
+                  StockMate
+                </span>
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                  SaaS
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-none mt-0.5">
+                Restaurant Inventory
+              </p>
+            </div>
+          </Link>
+
+          {/* Context Badge (Current Restaurant or Admin/Supplier scope) */}
+          <div className="px-3 py-3 border-b border-slate-800/80">
+            {currentUser?.role === 'super_admin' ? (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-indigo-950/60 border border-indigo-800/40 text-indigo-200">
+                <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-semibold text-white">Platform Owner</div>
+                  <div className="text-[11px] text-indigo-300">All Restaurants Scope</div>
+                </div>
+              </div>
+            ) : currentUser?.role === 'supplier' ? (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-sky-950/60 border border-sky-800/40 text-sky-200">
+                <Truck className="w-4 h-4 text-sky-400 shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-semibold text-white truncate">{currentUser?.supplierName || 'Supplier Partner'}</div>
+                  <div className="text-[11px] text-sky-300">Supplier Portal</div>
+                </div>
+              </div>
+            ) : currentUser?.role === 'kitchen_staff' ? (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-amber-950/50 border border-amber-800/40 text-amber-200">
+                <ChefHat className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-semibold text-white truncate">{currentRestaurant?.name}</div>
+                  <div className="text-[11px] text-amber-300 font-medium">Kitchen Terminal</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-800/30 text-emerald-200">
+                <span className="text-lg">{currentRestaurant?.logo || '🌿'}</span>
+                <div className="truncate">
+                  <div className="text-xs font-semibold text-white truncate">{currentRestaurant?.name}</div>
+                  <div className="text-[11px] text-emerald-400 capitalize">{currentUser?.role?.replace('_', ' ')}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable Navigation Items */}
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto min-h-0">
+          {navSections.map((sec, secIdx) => (
+            <div key={secIdx}>
+              <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {sec.section}
+              </div>
+              <div className="space-y-0.5">
+                {sec.items.map((item, itemIdx) => {
+                  const Icon = item.icon;
+                  const isActive = isRouteActive(item.to, location.pathname);
+
+                  return (
+                    <NavLink
+                      key={itemIdx}
+                      to={item.to}
+                      end
+                      onClick={onCloseMobile}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={() =>
+                        `flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150 ${getActiveNavClass(
+                          isActive
+                        )}`
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          className={`w-4 h-4 shrink-0 transition-colors ${
+                            isActive
+                              ? 'text-white'
+                              : 'text-slate-400 group-hover:text-white'
+                          }`}
+                        />
+                        <span>{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white">
+                          {item.badge}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Fixed Footer: User Profile summary & Actions */}
+        <div className="shrink-0 p-3 border-t border-slate-800 bg-slate-900/90">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-800/80 transition-colors">
+            <button
+              type="button"
+              onClick={openProfileModal}
+              title="Click to Edit Personal Profile"
+              className="flex items-center gap-2.5 min-w-0 text-left flex-1 group"
+            >
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                alt={currentUser?.name || 'User'}
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/40 shrink-0 group-hover:ring-emerald-400 transition-all"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">
+                  {currentUser?.name}
+                </div>
+                <div className="text-[10px] text-slate-400 capitalize truncate">
+                  {currentUser?.role?.replace('_', ' ')}
+                </div>
+              </div>
+            </button>
+
+            <div className="flex items-center gap-0.5 shrink-0 ml-1">
+              <button
+                type="button"
+                onClick={openProfileModal}
+                title="Edit Personal Profile"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700/80 transition-colors"
+              >
+                <UserCog className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  window.location.hash = '#/login';
+                }}
+                title="Log out and terminate session"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-700/80 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+};
+

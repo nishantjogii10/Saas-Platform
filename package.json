@@ -1,0 +1,30 @@
+{
+  "name": "stockmate-saas",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "setup-wasm": "node -e \"const fs = require('fs'); fs.cpSync('node_modules/@rollup/wasm-node', 'node_modules/rollup', {recursive: true, force: true}); console.log('Wasm rollup synced');\"",
+    "postinstall": "npm run setup-wasm"
+  },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@rollup/wasm-node": "^4.64.12",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.17",
+    "vite": "^5.4.11"
+  }
+}
