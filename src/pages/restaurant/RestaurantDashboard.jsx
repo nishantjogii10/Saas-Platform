@@ -16,6 +16,11 @@ import {
   Layers,
   History,
   Store,
+  Clock,
+  CheckCircle2,
+  UserCheck,
+  Calendar,
+  Users,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -48,8 +53,17 @@ export const RestaurantDashboard = () => {
     restaurantOrders,
     restaurantMovements,
     restaurantAlerts,
+    attendanceRecords,
+    leaveRequests,
+    reviewLeaveRequest,
+    branchStaff,
+    currentBranch,
     currentUser,
   } = useApp();
+
+  const activeStaffAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
+  const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
+  const totalStaffCount = branchStaff?.length || 0;
 
   // Metrics calculations for the current restaurant tenant
   const totalIngredients = restaurantIngredients.length;
@@ -193,6 +207,160 @@ export const RestaurantDashboard = () => {
           onClick={() => navigate('/expiry-tracking')}
         />
       </div>
+
+      {/* Pending Staff Leave Requests Approval Alert */}
+      {pendingLeaves.length > 0 && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">
+                  Staff Leave Requests Awaiting Your Approval ({pendingLeaves.length})
+                </h4>
+                <p className="text-xs text-slate-600">
+                  Review time-off applications from kitchen line staff and adjust shift scheduling.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => navigate('/branch-staff?tab=leave')}
+            >
+              Open Leave Console →
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {pendingLeaves.map((leave) => (
+              <div
+                key={leave.id}
+                className="p-3.5 rounded-xl bg-white border border-amber-200 shadow-2xs flex flex-col justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-slate-900 text-xs">{leave.staffName}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                      {leave.leaveType}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-emerald-800 mt-1">
+                    📅 {leave.startDate} to {leave.endDate} ({leave.durationDays} days)
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 line-clamp-2 italic">
+                    "{leave.reason}"
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    icon={XCircle}
+                    onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Declined due to kitchen shift coverage requirements')}
+                    className="text-rose-600 hover:bg-rose-50"
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="brand"
+                    size="xs"
+                    icon={CheckCircle2}
+                    onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager. Have a safe leave!')}
+                  >
+                    Accept / Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Live Kitchen Staff Attendance Widget for Managers */}
+      <Card padding={false} className="border border-emerald-100">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  Live Kitchen Staff Attendance &amp; Shift Monitor
+                </h3>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                  {activeStaffAttendance.length} On Duty
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time punch clock status across stations for {currentRestaurant?.name}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="xs"
+              icon={Users}
+              onClick={() => navigate('/branch-staff')}
+            >
+              Full Staff Roster &amp; Timesheets →
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          {activeStaffAttendance.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
+              No staff members are currently punched in. Station time clocks are inactive.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {activeStaffAttendance.map((rec) => {
+                const inTime = new Date(rec.punchInTime);
+                const diffHrs = Math.max(0.1, Number(((Date.now() - inTime.getTime()) / (1000 * 60 * 60)).toFixed(1)));
+
+                return (
+                  <div
+                    key={rec.id}
+                    className="p-3.5 rounded-xl border border-emerald-200/80 bg-white hover:shadow-xs transition-all flex items-start gap-3"
+                  >
+                    <img
+                      src={rec.staffAvatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'}
+                      alt={rec.staffName}
+                      className="w-10 h-10 rounded-full object-cover border border-emerald-300 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs text-slate-900 truncate">
+                          {rec.staffName}
+                        </span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                          {diffHrs}h active
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">{rec.staffRole}</div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-emerald-800 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                        <span>Station: {rec.station}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                        Clocked in: {inTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Analytics Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

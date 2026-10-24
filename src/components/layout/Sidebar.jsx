@@ -146,6 +146,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Business & Team',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
               { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
               { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
@@ -175,6 +176,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
             ],
           },
         ];

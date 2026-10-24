@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Users,
@@ -21,6 +21,15 @@ import {
   Calendar,
   AlertTriangle,
   Lock,
+  Clock,
+  IndianRupee,
+  Receipt,
+  XCircle,
+  Eye,
+  Send,
+  Sparkles,
+  Timer,
+  Check,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -30,9 +39,14 @@ import { Modal } from '../../components/common/Modal';
 import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { FormInput } from '../../components/common/FormInput';
 import { BRANCH_PLANS_CONFIG } from '../../data/branchData';
+import { formatINR } from '../../data/financeData';
+import { ProcessSalaryModal } from '../../components/restaurant/ProcessSalaryModal';
+import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
 
 export const BranchStaffPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const {
     branches,
     currentBranchId,
@@ -40,19 +54,38 @@ export const BranchStaffPage = () => {
     addBranchStaffMember,
     removeBranchStaffMember,
     assignBranchManager,
+    attendanceRecords,
+    leaveRequests,
+    reviewLeaveRequest,
+    salaryPayments,
+    STAFF_SALARY_PROFILES,
     addToast,
   } = useApp();
+
+  // Active Tab from query param or default to roster
+  const initialTab = searchParams.get('tab') || 'roster';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'roster' | 'attendance' | 'leave' | 'payroll'
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [leaveStatusFilter, setLeaveStatusFilter] = useState('all');
 
   // Modals
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [isAssignMgrOpen, setIsAssignMgrOpen] = useState(false);
   const [staffToRemove, setStaffToRemove] = useState(null);
   const [selectedStaffDetails, setSelectedStaffDetails] = useState(null);
+
+  // Salary & Slip Modals
+  const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
+  const [salaryTargetStaff, setSalaryTargetStaff] = useState(null);
+  const [viewingSalarySlip, setViewingSalarySlip] = useState(null);
+
+  // Quick rejection review modal
+  const [rejectingLeave, setRejectingLeave] = useState(null);
+  const [rejectReason, setRejectReason] = useState('Kitchen line coverage constraint during peak rush');
 
   // Add Staff Form
   const [addForm, setAddForm] = useState({
@@ -73,10 +106,15 @@ export const BranchStaffPage = () => {
     managerId: '',
   });
 
+  // Live active attendance
+  const activeAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
+  const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
+
   // KPI calculations
   const totalEmployees = branchStaff.length;
-  const totalManagers = branchStaff.filter((s) => s.isManager).length;
-  const kitchenStaffCount = branchStaff.filter((s) => s.role === 'kitchen_staff').length;
+  const totalOnDuty = activeAttendance.length;
+  const pendingLeavesCount = pendingLeaves.length;
+  const totalMonthlyPayrollDisbursed = salaryPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   // Filtered staff
   const filteredStaff = useMemo(() => {
@@ -97,6 +135,15 @@ export const BranchStaffPage = () => {
     });
   }, [branchStaff, searchTerm, branchFilter, roleFilter]);
 
+  // Filtered leave requests
+  const filteredLeaves = useMemo(() => {
+    return leaveRequests.filter((l) => {
+      const matchesStatus = leaveStatusFilter === 'all' || l.status === leaveStatusFilter;
+      const matchesBranch = branchFilter === 'all' || l.branchId === branchFilter;
+      return matchesStatus && matchesBranch;
+    });
+  }, [leaveRequests, leaveStatusFilter, branchFilter]);
+
   // Handle Add Staff Submit
   const handleAddSubmit = (e) => {
     e.preventDefault();
@@ -105,7 +152,6 @@ export const BranchStaffPage = () => {
       return;
     }
 
-    // Check branch quota
     const targetBranch = branches.find((b) => b.id === addForm.branchId);
     const planConfig = BRANCH_PLANS_CONFIG[targetBranch?.planId] || BRANCH_PLANS_CONFIG['plan-starter'];
     const currentStaffCount = branchStaff.filter((s) => s.branchId === addForm.branchId).length;
@@ -166,14 +212,30 @@ export const BranchStaffPage = () => {
     }
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
-        title="Branch Staff & Manager Roster"
-        subtitle="Manage outlet-specific staff assignments, appoint general managers, and enforce role-based module security."
-        action={
-          <div className="flex items-center gap-2">
+        title="Branch Staff, Attendance &amp; Payroll"
+        subtitle="Manage outlet staff assignments, track live punch clock attendance, approve leave requests, and disburse salaries."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={IndianRupee}
+              onClick={() => {
+                setSalaryTargetStaff(null);
+                setIsSalaryModalOpen(true);
+              }}
+            >
+              Disburse Salary
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -191,7 +253,7 @@ export const BranchStaffPage = () => {
               Appoint Manager
             </Button>
             <Button
-              variant="primary"
+              variant="brand"
               size="sm"
               icon={Plus}
               onClick={() => setIsAddStaffOpen(true)}
@@ -207,218 +269,762 @@ export const BranchStaffPage = () => {
         <StatCard
           title="Total Employees"
           value={totalEmployees}
-          subtitle="Across All 5 Branches"
+          subtitle="Across All Outlets"
           icon={Users}
           variant="default"
         />
         <StatCard
-          title="Branch Managers"
-          value={totalManagers}
-          subtitle="Designated Leads"
-          icon={UserCheck}
-          variant="success"
+          title="Live On Duty Now"
+          value={totalOnDuty}
+          subtitle="Punched In at Station"
+          icon={Clock}
+          variant={totalOnDuty > 0 ? 'success' : 'default'}
         />
         <StatCard
-          title="Kitchen & Line Staff"
-          value={kitchenStaffCount}
-          subtitle="Chefs, Prep & Cooks"
-          icon={Store}
-          variant="default"
+          title="Leave Requests"
+          value={pendingLeavesCount}
+          subtitle={pendingLeavesCount > 0 ? 'Requires Manager Review' : 'All Clear'}
+          icon={Calendar}
+          variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
+          onClick={() => handleTabChange('leave')}
         />
         <StatCard
-          title="Active Capacity"
-          value="Healthy"
-          subtitle="All Quotas Satisfied"
-          icon={ShieldCheck}
+          title="Payroll Disbursed"
+          value={formatINR(totalMonthlyPayrollDisbursed)}
+          subtitle="Recent Settlements"
+          icon={IndianRupee}
           variant="default"
+          onClick={() => handleTabChange('payroll')}
         />
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search staff by name, title, email, phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
-          </div>
+      {/* Navigation Tabs */}
+      <div className="border-b border-slate-200">
+        <nav className="flex space-x-6 overflow-x-auto">
+          <button
+            onClick={() => handleTabChange('roster')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'roster'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Staff Roster &amp; Outlets ({branchStaff.length})</span>
+          </button>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Branch Filter */}
-            <select
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            >
-              <option value="all">All Outlets ({branchStaff.length})</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+          <button
+            onClick={() => handleTabChange('attendance')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'attendance'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Live Attendance &amp; Timesheets</span>
+            {totalOnDuty > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                {totalOnDuty} On Duty
+              </span>
+            )}
+          </button>
 
-            {/* Role Filter */}
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            >
-              <option value="all">All Roles</option>
-              <option value="manager">Managers Only</option>
-              <option value="kitchen">Kitchen Staff Only</option>
-            </select>
-          </div>
-        </div>
+          <button
+            onClick={() => handleTabChange('leave')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'leave'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Leave Requests Management</span>
+            {pendingLeavesCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                {pendingLeavesCount} Pending
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabChange('payroll')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'payroll'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <IndianRupee className="w-4 h-4" />
+            <span>Salary &amp; Payroll Management</span>
+          </button>
+        </nav>
       </div>
 
-      {/* Staff Roster Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3.5 px-4">Employee</th>
-                <th className="py-3.5 px-4">Role &amp; Responsibilities</th>
-                <th className="py-3.5 px-4">Assigned Branch Outlet</th>
-                <th className="py-3.5 px-4">Module Access</th>
-                <th className="py-3.5 px-4">Contact &amp; PIN</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredStaff.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-slate-500">
-                    No staff members match the selected search or filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredStaff.map((staff) => {
-                  const branchObj = branches.find((b) => b.id === staff.branchId);
+      {/* TAB 1: STAFF ROSTER & OUTLETS */}
+      {activeTab === 'roster' && (
+        <div className="space-y-4">
+          {/* Filter and Search Bar */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search staff by name, title, email, phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
 
-                  return (
-                    <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* Name & Avatar */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={staff.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                            alt={staff.name}
-                            className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
-                          />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900">{staff.name}</span>
-                              {staff.isManager && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                                  <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
-                                  Manager
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-500">{staff.email}</div>
-                          </div>
-                        </div>
-                      </td>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="all">All Outlets ({branchStaff.length})</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
 
-                      {/* Role & Title */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{staff.roleLabel}</div>
-                        <div className="text-[10px] text-slate-400 capitalize">
-                          {staff.role.replace('_', ' ')}
-                        </div>
-                      </td>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="manager">Managers Only</option>
+                  <option value="kitchen">Kitchen Staff Only</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-                      {/* Branch Assignment */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">
-                          {staff.branchName || branchObj?.name || 'Unassigned'}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {branchObj?.code}
-                        </div>
-                      </td>
-
-                      {/* Modules Accessible */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {staff.assignedModules?.map((mod, i) => (
-                            <span
-                              key={i}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200"
-                            >
-                              {mod}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-
-                      {/* Phone & PIN */}
-                      <td className="py-3.5 px-4">
-                        <div className="text-slate-800">{staff.phone || '+91 98200 XXXXX'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          PIN: {staff.pin ? '••••' : 'N/A'}
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4">
-                        <Badge status={staff.status || 'active'} size="sm" />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => {
-                              navigate('/staff-transfers');
-                            }}
-                            title="Request Branch Transfer"
-                            className="text-emerald-700 hover:bg-emerald-50"
-                          >
-                            <ArrowLeftRight className="w-3.5 h-3.5 mr-1" />
-                            Transfer
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setSelectedStaffDetails(staff)}
-                            className="text-slate-600 hover:bg-slate-100"
-                          >
-                            Details
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setStaffToRemove(staff)}
-                            className="text-rose-600 hover:bg-rose-50"
-                            title="Remove staff"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
+          {/* Staff Roster Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Role &amp; Title</th>
+                    <th className="py-3.5 px-4">Assigned Outlet</th>
+                    <th className="py-3.5 px-4">Live Attendance Status</th>
+                    <th className="py-3.5 px-4">Module Access</th>
+                    <th className="py-3.5 px-4">Contact</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStaff.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-xs text-slate-500">
+                        No staff members match the selected search or filter criteria.
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  ) : (
+                    filteredStaff.map((staff) => {
+                      const branchObj = branches.find((b) => b.id === staff.branchId);
+                      const activeShift = attendanceRecords.find(
+                        (r) => r.staffId === staff.id && r.status === 'active'
+                      );
 
-      {/* Add Staff Modal */}
+                      return (
+                        <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={staff.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
+                                alt={staff.name}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                              />
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900">{staff.name}</span>
+                                  {staff.isManager && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                      <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                                      Manager
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500">{staff.email}</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-900">{staff.roleLabel}</div>
+                            <div className="text-[10px] text-slate-400 capitalize">
+                              {staff.role.replace('_', ' ')}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-800">
+                              {staff.branchName || branchObj?.name || 'Unassigned'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {branchObj?.code}
+                            </div>
+                          </td>
+
+                          {/* Live Attendance Status Column */}
+                          <td className="py-3.5 px-4">
+                            {activeShift ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                  On Duty
+                                </span>
+                                <div className="text-[10px] text-slate-500 mt-0.5">
+                                  {activeShift.station} • since{' '}
+                                  {new Date(activeShift.punchInTime).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                Off Duty
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {staff.assignedModules?.map((mod, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200"
+                                >
+                                  {mod}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="text-slate-800">{staff.phone || '+91 98200 XXXXX'}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              PIN: {staff.pin ? '••••' : 'N/A'}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => {
+                                  setSalaryTargetStaff(staff);
+                                  setIsSalaryModalOpen(true);
+                                }}
+                                title="Disburse salary and send notification"
+                                className="text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+                              >
+                                <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                                Pay
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => navigate('/staff-transfers')}
+                                title="Request Branch Transfer"
+                                className="text-slate-600 hover:bg-slate-100"
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setSelectedStaffDetails(staff)}
+                                className="text-slate-600 hover:bg-slate-100"
+                              >
+                                Details
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setStaffToRemove(staff)}
+                                className="text-rose-600 hover:bg-rose-50"
+                                title="Remove staff"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: LIVE ATTENDANCE & TIMESHEETS */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-6">
+          {/* Live Station Board */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
+                  Live On-Duty Station Attendance Board
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Currently active shifts clocked in via terminal time clocks across outlets.
+                </p>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                {activeAttendance.length} Staff Clocked In Right Now
+              </span>
+            </div>
+
+            {activeAttendance.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
+                No staff members currently punched in.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeAttendance.map((rec) => {
+                  const inTime = new Date(rec.punchInTime);
+                  const diffHrs = Math.max(0.1, Number(((Date.now() - inTime.getTime()) / (1000 * 60 * 60)).toFixed(1)));
+
+                  return (
+                    <div
+                      key={rec.id}
+                      className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 flex items-start gap-3 shadow-2xs"
+                    >
+                      <img
+                        src={rec.staffAvatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'}
+                        alt={rec.staffName}
+                        className="w-10 h-10 rounded-full object-cover border border-emerald-300 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900 truncate">
+                            {rec.staffName}
+                          </span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                            {diffHrs}h elapsed
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">{rec.staffRole}</div>
+                        <div className="text-[11px] font-semibold text-emerald-900 mt-1">
+                          📍 {rec.station}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          In: {inTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {rec.branchName}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Complete Attendance Timesheets Ledger */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-sm">Historical Shift Attendance Logs</h4>
+              <span className="text-xs text-slate-400">{attendanceRecords.length} Total Logs</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Outlet / Branch</th>
+                    <th className="py-3 px-4">Station</th>
+                    <th className="py-3 px-4">Punch In</th>
+                    <th className="py-3 px-4">Punch Out</th>
+                    <th className="py-3 px-4">Hours</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {attendanceRecords.map((rec) => (
+                    <tr key={rec.id} className="hover:bg-slate-50/70">
+                      <td className="py-3 px-4 font-medium text-slate-800">{rec.date}</td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-900 block">{rec.staffName}</span>
+                        <span className="text-[10px] text-slate-400">{rec.staffRole}</span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{rec.branchName}</td>
+                      <td className="py-3 px-4 font-medium text-slate-800">{rec.station}</td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        {new Date(rec.punchInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        {rec.punchOutTime
+                          ? new Date(rec.punchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {rec.totalHours ? `${rec.totalHours} hrs` : <span className="text-emerald-600">Active</span>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            rec.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {rec.status === 'active' ? 'Active' : 'Completed'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-[11px] text-slate-500 truncate max-w-xs">{rec.notes || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: LEAVE REQUESTS MANAGEMENT */}
+      {activeTab === 'leave' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Staff Leave Requisitions &amp; Approvals</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Accept or reject employee leave applications. Approved dates will reflect in roster scheduling.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={leaveStatusFilter}
+                onChange={(e) => setLeaveStatusFilter(e.target.value)}
+                className="text-xs font-semibold py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="all">All Applications ({leaveRequests.length})</option>
+                <option value="pending">Pending Review ({pendingLeaves.length})</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3.5 px-4">Staff Member</th>
+                    <th className="py-3.5 px-4">Category &amp; Outlet</th>
+                    <th className="py-3.5 px-4">Leave Duration &amp; Dates</th>
+                    <th className="py-3.5 px-4">Reason for Request</th>
+                    <th className="py-3.5 px-4">Applied Date</th>
+                    <th className="py-3.5 px-4">Current Status</th>
+                    <th className="py-3.5 px-4 text-right">Manager Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredLeaves.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                        No leave requests found matching filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLeaves.map((leave) => (
+                      <tr key={leave.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={leave.staffAvatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'}
+                              alt={leave.staffName}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 block">{leave.staffName}</span>
+                              <span className="text-[10px] text-slate-500">{leave.staffRole}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className="font-semibold text-slate-800 block">{leave.leaveType}</span>
+                          <span className="text-[10px] text-slate-400">{leave.branchName}</span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-slate-900">
+                            {leave.startDate} ➔ {leave.endDate}
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            {leave.durationDays} Days
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 max-w-xs text-slate-700">
+                          {leave.reason}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-500 text-[11px] font-mono">
+                          {new Date(leave.appliedDate).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          {leave.status === 'pending' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              Pending Approval
+                            </span>
+                          ) : leave.status === 'approved' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Approved
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              Rejected
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          {leave.status === 'pending' ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Kitchen coverage constraints during service')}
+                                className="text-rose-600 hover:bg-rose-50"
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                variant="brand"
+                                size="xs"
+                                onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager')}
+                              >
+                                Accept
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">
+                              Reviewed by {leave.reviewedBy || 'Manager'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: SALARY & PAYROLL MANAGEMENT */}
+      {activeTab === 'payroll' && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Staff Payroll &amp; Remuneration Console
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Disburse monthly employee compensation, award performance bonuses, and dispatch instant salary credit alerts.
+              </p>
+            </div>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={IndianRupee}
+              onClick={() => {
+                setSalaryTargetStaff(null);
+                setIsSalaryModalOpen(true);
+              }}
+            >
+              Disburse Salary &amp; Send Alert
+            </Button>
+          </div>
+
+          {/* Staff Pay Profiles Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-sm">Staff Compensation Roster</h4>
+              <span className="text-xs text-slate-400">{branchStaff.length} Employees</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Outlet</th>
+                    <th className="py-3 px-4">Base Wage</th>
+                    <th className="py-3 px-4">Designated Bank Account</th>
+                    <th className="py-3 px-4">Last Disbursed Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {branchStaff.map((staff) => {
+                    const profile = STAFF_SALARY_PROFILES?.[staff.id];
+                    const lastPayment = salaryPayments.find((p) => p.staffId === staff.id);
+
+                    return (
+                      <tr key={staff.id} className="hover:bg-slate-50/70">
+                        <td className="py-3.5 px-4">
+                          <span className="font-bold text-slate-900 block">{staff.name}</span>
+                          <span className="text-[10px] text-slate-500">{staff.roleLabel}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">{staff.branchName || 'Pune Central'}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                          {formatINR(profile?.baseSalary || 35000)}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {profile?.bankAccount || 'HDFC Bank •••• 4421'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {lastPayment ? (
+                            <div>
+                              <span className="text-emerald-700 font-semibold">
+                                {formatINR(lastPayment.amount)} for {lastPayment.payPeriod}
+                              </span>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                UTR: {lastPayment.referenceNumber}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Not disbursed this month</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            icon={IndianRupee}
+                            onClick={() => {
+                              setSalaryTargetStaff(staff);
+                              setIsSalaryModalOpen(true);
+                            }}
+                          >
+                            Disburse
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Salary Settlement History */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-sm">Disbursed Salary Ledger History</h4>
+              <span className="text-xs text-slate-400">{salaryPayments.length} Transactions</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Pay Period</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Transaction UTR</th>
+                    <th className="py-3 px-4">Disbursed Date</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Pay Slip</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {salaryPayments.map((sal) => (
+                    <tr key={sal.id} className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-slate-900 block">{sal.staffName}</span>
+                        <span className="text-[10px] text-slate-400">{sal.staffRole}</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-800 font-medium">{sal.payPeriod}</td>
+                      <td className="py-3.5 px-4 font-extrabold font-mono text-emerald-800">
+                        {formatINR(sal.amount)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">
+                        {sal.referenceNumber}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                        {new Date(sal.processedAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          {sal.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Eye}
+                          onClick={() => setViewingSalarySlip(sal)}
+                        >
+                          View Slip
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disburse Salary Modal */}
+      <ProcessSalaryModal
+        isOpen={isSalaryModalOpen}
+        onClose={() => {
+          setIsSalaryModalOpen(false);
+          setSalaryTargetStaff(null);
+        }}
+        selectedStaff={salaryTargetStaff}
+      />
+
+      {/* Salary Slip Detail Modal */}
+      <SalarySlipModal
+        isOpen={!!viewingSalarySlip}
+        onClose={() => setViewingSalarySlip(null)}
+        payment={viewingSalarySlip}
+      />
+
+      {/* Existing Add Staff Modal */}
       <Modal
         isOpen={isAddStaffOpen}
         onClose={() => setIsAddStaffOpen(false)}
@@ -498,52 +1104,55 @@ export const BranchStaffPage = () => {
                       val === 'inventory_manager'
                         ? 'Assistant Branch Manager'
                         : val === 'kitchen_staff'
-                        ? 'Kitchen Cook'
-                        : 'Staff',
+                        ? 'Line Cook'
+                        : 'Staff User',
+                    isManager: val === 'inventory_manager',
                   });
                 }}
                 className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
-                <option value="kitchen_staff">Kitchen Staff</option>
-                <option value="inventory_manager">Branch Manager / Inventory Lead</option>
+                <option value="kitchen_staff">Kitchen Staff (Line Cook, Chef, Prep)</option>
+                <option value="inventory_manager">Branch / Inventory Manager</option>
               </select>
             </div>
           </div>
 
-          <FormInput
-            label="Designation / Role Title"
-            placeholder="e.g. Line Cook, Sous Chef, Pastry Chef"
-            value={addForm.roleLabel}
-            onChange={(e) => setAddForm({ ...addForm, roleLabel: e.target.value })}
-          />
+          <div>
+            <FormInput
+              label="Job Title / Role Label"
+              placeholder="e.g. Head Pastry Chef, Senior Line Cook"
+              value={addForm.roleLabel}
+              onChange={(e) => setAddForm({ ...addForm, roleLabel: e.target.value })}
+            />
+          </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <Button variant="outline" size="sm" onClick={() => setIsAddStaffOpen(false)}>
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit">
-              Save Staff Member
+              Add Staff Member
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Appoint Branch Manager Modal */}
+      {/* Existing Assign Manager Modal */}
       <Modal
         isOpen={isAssignMgrOpen}
         onClose={() => setIsAssignMgrOpen(false)}
-        title="Appoint Branch General Manager"
+        title="Appoint Branch Manager"
         maxWidth="max-w-md"
       >
         <form onSubmit={handleAssignManagerSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Select Branch
+              Select Branch *
             </label>
             <select
               value={assignMgrForm.branchId}
               onChange={(e) => setAssignMgrForm({ ...assignMgrForm, branchId: e.target.value })}
-              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800"
+              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -555,75 +1164,82 @@ export const BranchStaffPage = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Select Staff Member to Appoint as Manager
+              Select Qualified Manager / Lead *
             </label>
             <select
               value={assignMgrForm.managerId}
               onChange={(e) => setAssignMgrForm({ ...assignMgrForm, managerId: e.target.value })}
-              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800"
+              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               required
             >
-              <option value="">Choose an employee...</option>
-              {branchStaff.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name} — {staff.roleLabel} ({staff.branchName?.split('—')[1] || 'Staff'})
+              <option value="">-- Choose Staff Member --</option>
+              {branchStaff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.roleLabel} • {s.branchName})
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-            <strong>Note:</strong> Appointing a manager promotes this employee to Inventory Manager with access to stock purchases, wastage audits, and employee scheduling for that branch.
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <Button variant="outline" size="sm" onClick={() => setIsAssignMgrOpen(false)}>
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit">
-              Appoint Manager
+              Confirm Appointment
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Staff Details Modal */}
+      {/* Existing Staff Details Modal */}
       {selectedStaffDetails && (
         <Modal
           isOpen={!!selectedStaffDetails}
           onClose={() => setSelectedStaffDetails(null)}
-          title={`Staff Profile: ${selectedStaffDetails.name}`}
+          title="Staff Member Profile"
           maxWidth="max-w-md"
         >
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
               <img
-                src={selectedStaffDetails.avatar}
+                src={
+                  selectedStaffDetails.avatar ||
+                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+                }
                 alt={selectedStaffDetails.name}
                 className="w-12 h-12 rounded-full object-cover border"
               />
               <div>
-                <h4 className="font-bold text-slate-900">{selectedStaffDetails.name}</h4>
-                <p className="text-xs text-slate-500">{selectedStaffDetails.roleLabel}</p>
-                <div className="mt-1">
-                  <Badge status={selectedStaffDetails.status} size="xs" />
+                <h4 className="font-bold text-slate-900 text-sm">{selectedStaffDetails.name}</h4>
+                <p className="text-xs text-slate-500">{selectedStaffDetails.email}</p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <Badge status={selectedStaffDetails.role} size="xs" />
+                  {selectedStaffDetails.isManager && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                      General Manager
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                <span className="text-slate-400 block text-[10px]">Assigned Branch</span>
-                <strong className="text-slate-900">{selectedStaffDetails.branchName}</strong>
+              <div className="flex justify-between py-1.5 border-b">
+                <span className="text-slate-500">Assigned Branch:</span>
+                <span className="font-semibold text-slate-900">{selectedStaffDetails.branchName}</span>
               </div>
-              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                <span className="text-slate-400 block text-[10px]">Email &amp; Phone</span>
-                <div className="text-slate-800">{selectedStaffDetails.email}</div>
-                <div className="text-slate-600">{selectedStaffDetails.phone}</div>
+              <div className="flex justify-between py-1.5 border-b">
+                <span className="text-slate-500">Phone:</span>
+                <span className="font-semibold text-slate-900">{selectedStaffDetails.phone}</span>
               </div>
-              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                <span className="text-slate-400 block text-[10px]">Accessible Modules</span>
-                <div className="flex flex-wrap gap-1 mt-1">
+              <div className="flex justify-between py-1.5 border-b">
+                <span className="text-slate-500">Quick PIN:</span>
+                <span className="font-mono text-slate-900">{selectedStaffDetails.pin || 'None'}</span>
+              </div>
+              <div className="pt-2">
+                <span className="text-slate-500 block mb-1.5">Assigned Modules:</span>
+                <div className="flex flex-wrap gap-1">
                   {selectedStaffDetails.assignedModules?.map((mod, i) => (
                     <span
                       key={i}
@@ -660,4 +1276,3 @@ export const BranchStaffPage = () => {
     </div>
   );
 };
-

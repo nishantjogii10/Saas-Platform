@@ -498,7 +498,7 @@ function App() {
             path="/branch-staff"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <BranchStaffPage />
                 </RoleGuard>
               </AppLayout>
@@ -670,3 +670,4 @@ function App() {
 
 
 export default App;
+

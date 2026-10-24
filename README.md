@@ -203,3 +203,4 @@ In this frontend-only demonstration, multi-tenancy is simulated through applicat
 ## 📄 License
 
 Built for demonstration and evaluation purposes. All sample company names and credentials are simulated mock data.
+
