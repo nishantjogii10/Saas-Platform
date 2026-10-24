@@ -41,16 +41,48 @@ import {
   initialSupplierPayments,
 } from '../data/inventoryBillingData';
 
+import {
+  initialAttendanceRecords,
+  initialLeaveRequests,
+  initialSalaryPayments,
+  initialStaffNotifications,
+  LEAVE_TYPES,
+  KITCHEN_STATIONS,
+  STAFF_SALARY_PROFILES,
+} from '../data/staffAttendanceData';
+
 const AppContext = createContext(null);
 
 const STORAGE_KEY = 'stockmate_saas_v1';
 
 export const AppProvider = ({ children }) => {
-  // Load from localStorage or fallback to defaults
+  // Load from localStorage or fallback to defaults (with seed merge for newly added records)
   const loadStored = (key, fallback) => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_${key}`);
-      return saved ? JSON.parse(saved) : fallback;
+      if (!saved) return fallback;
+      const parsed = JSON.parse(saved);
+
+      // If both parsed and fallback are arrays, ensure newly added seed items (e.g. Vikram Desai) are merged
+      if (Array.isArray(parsed) && Array.isArray(fallback)) {
+        const parsedKeySet = new Set(
+          parsed.map(item => String(item?.email || item?.id || item?.key || '').toLowerCase())
+        );
+        const missing = fallback.filter(item => {
+          const identifier = String(item?.email || item?.id || item?.key || '').toLowerCase();
+          return identifier && !parsedKeySet.has(identifier);
+        });
+
+        if (missing.length > 0) {
+          const merged = [...parsed, ...missing];
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_${key}`, JSON.stringify(merged));
+          } catch (err) {}
+          return merged;
+        }
+      }
+
+      return parsed;
     } catch (e) {
       console.warn(`Error reading localStorage for ${key}`, e);
       return fallback;
@@ -87,6 +119,12 @@ export const AppProvider = ({ children }) => {
   const [creditNotes, setCreditNotes] = useState(() => loadStored('creditNotes', initialCreditNotes));
   const [supplierPayments, setSupplierPayments] = useState(() => loadStored('supplierPayments', initialSupplierPayments));
   const [supplierAgreements, setSupplierAgreements] = useState(() => loadStored('supplierAgreements', initialSupplierAgreements));
+
+  // Staff Attendance, Leave Requests & Payroll Notifications States
+  const [attendanceRecords, setAttendanceRecords] = useState(() => loadStored('attendanceRecords', initialAttendanceRecords));
+  const [leaveRequests, setLeaveRequests] = useState(() => loadStored('leaveRequests', initialLeaveRequests));
+  const [salaryPayments, setSalaryPayments] = useState(() => loadStored('salaryPayments', initialSalaryPayments));
+  const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
 
   // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
   // or restore from localStorage
@@ -220,6 +258,22 @@ export const AppProvider = ({ children }) => {
   }, [supplierAgreements]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_attendanceRecords`, JSON.stringify(attendanceRecords));
+  }, [attendanceRecords]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_leaveRequests`, JSON.stringify(leaveRequests));
+  }, [leaveRequests]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_salaryPayments`, JSON.stringify(salaryPayments));
+  }, [salaryPayments]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_staffNotifications`, JSON.stringify(staffNotifications));
+  }, [staffNotifications]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(currentUser));
   }, [currentUser]);
 
@@ -269,7 +323,22 @@ export const AppProvider = ({ children }) => {
   // Secure Role & Tenant Login with real validation and restriction policy
   const login = (email, password) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
-    const user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+    let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
+
+    // Fallback: If user not found in state, check initialUsers (handles older localStorage snapshots)
+    if (!user) {
+      const initialUser = initialUsers.find(u => (u.email || '').toLowerCase() === normalizedEmail);
+      if (initialUser) {
+        user = initialUser;
+        setUsers(prev => {
+          const updated = [...prev.filter(u => u.id !== initialUser.id), initialUser];
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(updated));
+          } catch (err) {}
+          return updated;
+        });
+      }
+    }
 
     if (!user) {
       return {
@@ -2363,8 +2432,14 @@ export const AppProvider = ({ children }) => {
       email: staffData.email,
       phone: staffData.phone || '+91 98220 00000',
       role: staffData.role || 'kitchen_staff',
-      roleLabel: staffData.role === 'inventory_manager' ? 'Branch Manager' : 'Kitchen Staff',
-      isManager: staffData.role === 'inventory_manager',
+      roleLabel:
+        staffData.roleLabel ||
+        (staffData.role === 'restaurant_manager'
+          ? 'Restaurant Manager'
+          : staffData.role === 'inventory_manager'
+          ? 'Inventory Manager'
+          : 'Kitchen Staff'),
+      isManager: staffData.role === 'restaurant_manager' || staffData.role === 'inventory_manager',
       branchId: branch?.id || 'branch-pune-central',
       branchName: branch?.name || 'Spice Garden — Pune Central',
       restaurantId: currentRestaurantId || 'rest-1',
@@ -2372,8 +2447,8 @@ export const AppProvider = ({ children }) => {
       joinedDate: new Date().toISOString().split('T')[0],
       pin: staffData.pin || '1234',
       avatar: staffData.avatar || `https://images.unsplash.com/photo-${1507003211169 + Math.floor(Math.random() * 1000)}?w=150&auto=format&fit=crop&q=80`,
-      assignedModules: staffData.role === 'inventory_manager'
-        ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Staff', 'Reports']
+      assignedModules: staffData.role === 'restaurant_manager' ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Operations Reports', 'Alerts'] : staffData.role === 'inventory_manager'
+        ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
         : ['Kitchen Terminal', 'Prep Usage', 'Wastage'],
     };
 
@@ -2720,6 +2795,297 @@ export const AppProvider = ({ children }) => {
     addToast(`Ticket status updated to ${newStatus}.`, 'info');
   };
 
+  // --- KITCHEN ATTENDANCE (PUNCH-IN / PUNCH-OUT) ---
+  const punchInStaff = ({ staffId, staffName, staffRole, branchId, branchName, station, notes }) => {
+    const user = currentUser;
+    const targetId = staffId || user?.id || 'usr-sg-3';
+    const targetName = staffName || user?.name || 'Chef Anita Rao';
+    const targetRole = staffRole || user?.roleLabel || 'Head Chef';
+    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranch = branches.find(b => b.id === targetBranchId);
+
+    // Check if already active
+    const existingActive = attendanceRecords.find(r => r.staffId === targetId && r.status === 'active');
+    if (existingActive) {
+      addToast(`${targetName} is already clocked in!`, 'warning');
+      return existingActive;
+    }
+
+    const now = new Date();
+    const newRecord = {
+      id: `att-${Date.now()}`,
+      staffId: targetId,
+      staffName: targetName,
+      staffRole: targetRole,
+      staffAvatar: user?.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
+      branchId: targetBranchId,
+      branchName: targetBranch?.name || branchName || 'Spice Garden — Pune Central',
+      restaurantId: currentRestaurantId,
+      date: now.toISOString().split('T')[0],
+      punchInTime: now.toISOString(),
+      punchOutTime: null,
+      status: 'active',
+      totalHours: null,
+      station: station || 'Main Prep Line',
+      notes: notes || 'Started station shift prep',
+    };
+
+    setAttendanceRecords(prev => [newRecord, ...prev]);
+
+    // Live notification for Manager
+    const notif = {
+      id: `notif-punch-${Date.now()}`,
+      type: 'staff_punch_in',
+      title: `Staff Punched In: ${targetName}`,
+      message: `${targetName} (${targetRole}) clocked in at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Station: ${newRecord.station}.`,
+      branchId: targetBranchId,
+      branchName: newRecord.branchName,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/branch-staff',
+      actionLabel: 'View Attendance',
+      badge: 'Attendance',
+    };
+    setOwnerNotifications(prev => [notif, ...prev]);
+
+    addToast(`Punch-in recorded! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
+    return newRecord;
+  };
+
+  const punchOutStaff = (recordId, notes = '') => {
+    const record = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!record) {
+      addToast('No active punch session found to punch out from.', 'error');
+      return null;
+    }
+
+    const now = new Date();
+    const inTime = new Date(record.punchInTime);
+    const diffHours = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+
+    setAttendanceRecords(prev => prev.map(r => {
+      if (r.id === record.id) {
+        return {
+          ...r,
+          punchOutTime: now.toISOString(),
+          status: 'completed',
+          totalHours: diffHours,
+          notes: notes ? `${r.notes ? r.notes + ' • ' : ''}Closing: ${notes}` : r.notes,
+        };
+      }
+      return r;
+    }));
+
+    // Notification for Manager
+    const notif = {
+      id: `notif-punchout-${Date.now()}`,
+      type: 'staff_punch_out',
+      title: `Staff Punched Out: ${record.staffName}`,
+      message: `${record.staffName} completed shift. Total work duration: ${diffHours} hrs.`,
+      branchId: record.branchId,
+      branchName: record.branchName,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/branch-staff',
+      actionLabel: 'View Timesheet',
+      badge: 'Shift End',
+    };
+    setOwnerNotifications(prev => [notif, ...prev]);
+
+    addToast(`Punched out successfully. Total shift duration: ${diffHours} hrs.`, 'success');
+    return true;
+  };
+
+  // --- STAFF LEAVE WORKFLOW ---
+  const submitLeaveRequest = ({ staffId, staffName, staffRole, branchId, leaveType, reason, startDate, endDate }) => {
+    const user = currentUser;
+    const targetId = staffId || user?.id || 'usr-sg-3';
+    const targetName = staffName || user?.name || 'Chef Anita Rao';
+    const targetRole = staffRole || user?.roleLabel || 'Head Chef';
+    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranch = branches.find(b => b.id === targetBranchId);
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end - start);
+    const durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    const newLeave = {
+      id: `leave-${Date.now()}`,
+      staffId: targetId,
+      staffName: targetName,
+      staffRole: targetRole,
+      staffAvatar: user?.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
+      branchId: targetBranchId,
+      branchName: targetBranch?.name || 'Spice Garden — Pune Central',
+      restaurantId: currentRestaurantId,
+      leaveType: leaveType || 'Casual Leave',
+      reason: reason || 'Personal urgent leave',
+      startDate,
+      endDate,
+      durationDays,
+      status: 'pending',
+      appliedDate: new Date().toISOString(),
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewNotes: '',
+    };
+
+    setLeaveRequests(prev => [newLeave, ...prev]);
+
+    // In-App Manager Notification
+    const managerNotif = {
+      id: `notif-leave-${Date.now()}`,
+      type: 'leave_request',
+      title: `New Leave Request: ${targetName}`,
+      message: `${targetName} (${targetRole}) requested ${durationDays} days leave (${startDate} to ${endDate}) for: "${reason}".`,
+      branchId: targetBranchId,
+      branchName: newLeave.branchName,
+      leaveId: newLeave.id,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/branch-staff',
+      actionLabel: 'Review Request',
+      badge: 'Leave Request',
+    };
+    setOwnerNotifications(prev => [managerNotif, ...prev]);
+
+    // Staff in-app notification
+    const staffNotif = {
+      id: `snotif-${Date.now()}`,
+      targetStaffId: targetId,
+      type: 'leave_status',
+      title: 'Leave Request Submitted',
+      message: `Your leave request for ${startDate} – ${endDate} (${durationDays} days) has been dispatched to the Manager for approval.`,
+      status: 'pending',
+      timestamp: 'Just now',
+      read: false,
+    };
+    setStaffNotifications(prev => [staffNotif, ...prev]);
+
+    addToast(`Leave request for ${durationDays} days submitted to Manager!`, 'success');
+    return newLeave;
+  };
+
+  const reviewLeaveRequest = (leaveId, decision, reviewNotes = '') => {
+    const req = leaveRequests.find(l => l.id === leaveId);
+    if (!req) {
+      addToast('Leave request not found.', 'error');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    setLeaveRequests(prev => prev.map(l => {
+      if (l.id === leaveId) {
+        return {
+          ...l,
+          status: decision,
+          reviewedBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+          reviewedAt: now,
+          reviewNotes: reviewNotes || (decision === 'approved' ? 'Approved by Manager' : 'Declined by Manager'),
+        };
+      }
+      return l;
+    }));
+
+    // Real-time Staff Notification
+    const staffNotif = {
+      id: `snotif-${Date.now()}`,
+      targetStaffId: req.staffId,
+      type: 'leave_status',
+      title: `Leave Request ${decision === 'approved' ? 'Approved ✅' : 'Declined ❌'}`,
+      message: `Your leave request for ${req.startDate} to ${req.endDate} (${req.durationDays} days) was ${decision} by ${currentUser?.name || 'Manager'}.${reviewNotes ? ` Note: "${reviewNotes}"` : ''}`,
+      status: decision,
+      timestamp: 'Just now',
+      read: false,
+    };
+    setStaffNotifications(prev => [staffNotif, ...prev]);
+
+    addToast(`Leave request ${decision} for ${req.staffName}.`, decision === 'approved' ? 'success' : 'info');
+  };
+
+  // --- SALARY & PAYROLL NOTIFICATIONS ---
+  const processSalaryPayment = ({ staffId, staffName, staffRole, branchId, payPeriod, amount, baseSalary, bonus, deductions, paymentMethod, referenceNumber, notes }) => {
+    const targetStaff = branchStaff.find(s => s.id === staffId) || users.find(u => u.id === staffId);
+    const targetName = staffName || targetStaff?.name || 'Staff Member';
+    const targetRole = staffRole || targetStaff?.roleLabel || targetStaff?.role || 'Kitchen Staff';
+    const targetBranchId = branchId || targetStaff?.branchId || currentBranchId;
+    const targetBranch = branches.find(b => b.id === targetBranchId);
+
+    const netAmount = Number(amount) || (Number(baseSalary || 35000) + Number(bonus || 0) - Number(deductions || 0));
+    const refNum = referenceNumber || `UTR-SAL-${Date.now().toString().slice(-6)}`;
+    const period = payPeriod || 'October 2026';
+
+    const newPayment = {
+      id: `sal-${Date.now()}`,
+      staffId,
+      staffName: targetName,
+      staffRole: targetRole,
+      staffAvatar: targetStaff?.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
+      branchId: targetBranchId,
+      branchName: targetBranch?.name || 'Spice Garden — Pune Central',
+      restaurantId: currentRestaurantId,
+      payPeriod: period,
+      amount: netAmount,
+      baseSalary: Number(baseSalary || netAmount),
+      bonus: Number(bonus || 0),
+      deductions: Number(deductions || 0),
+      paymentMethod: paymentMethod || 'Direct Bank Transfer (IMPS/NEFT)',
+      referenceNumber: refNum,
+      status: 'Credited',
+      processedBy: `${currentUser?.name || 'Priya Sharma'} (${currentUser?.role?.replace('_', ' ') || 'Owner'})`,
+      processedAt: new Date().toISOString(),
+      notes: notes || `Salary for ${period} credited via ${paymentMethod || 'IMPS/NEFT'}.`,
+      viewed: false,
+    };
+
+    setSalaryPayments(prev => [newPayment, ...prev]);
+
+    // Create instant in-app notification for the Staff member
+    const staffNotif = {
+      id: `snotif-sal-${Date.now()}`,
+      targetStaffId: staffId,
+      type: 'salary_credit',
+      title: `🎉 ${period} Salary Credited: ₹${netAmount.toLocaleString('en-IN')}`,
+      message: `Your salary of ₹${netAmount.toLocaleString('en-IN')} for ${period} has been credited to your account. UTR: ${refNum}. ${notes ? `Note: ${notes}` : ''}`,
+      amount: netAmount,
+      payPeriod: period,
+      referenceNumber: refNum,
+      timestamp: 'Just now',
+      read: false,
+      paymentId: newPayment.id,
+    };
+    setStaffNotifications(prev => [staffNotif, ...prev]);
+
+    // Owner notification log
+    const ownerNotif = {
+      id: `notif-sal-log-${Date.now()}`,
+      type: 'salary_disbursed',
+      title: `Salary Disbursed: ${targetName}`,
+      message: `₹${netAmount.toLocaleString('en-IN')} for ${period} credited to ${targetName} (${refNum}).`,
+      branchId: targetBranchId,
+      branchName: newPayment.branchName,
+      read: true,
+      timestamp: 'Just now',
+      actionLink: '/branch-staff',
+      actionLabel: 'View Payroll',
+      badge: 'Payroll',
+    };
+    setOwnerNotifications(prev => [ownerNotif, ...prev]);
+
+    addToast(`Salary update notification sent to ${targetName}!`, 'success');
+    return newPayment;
+  };
+
+  const markStaffNotificationRead = (notifId) => {
+    setStaffNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+  };
+
+  const markAllStaffNotificationsRead = (staffId) => {
+    setStaffNotifications(prev => prev.map(n => n.targetStaffId === staffId ? { ...n, read: true } : n));
+    addToast('All notifications marked as read.', 'info');
+  };
+
   // Reset all demo data to factory defaults
   const resetAllData = () => {
     localStorage.removeItem(`${STORAGE_KEY}_restaurants`);
@@ -2752,6 +3118,10 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem(`${STORAGE_KEY}_creditNotes`);
     localStorage.removeItem(`${STORAGE_KEY}_supplierPayments`);
     localStorage.removeItem(`${STORAGE_KEY}_supplierAgreements`);
+    localStorage.removeItem(`${STORAGE_KEY}_attendanceRecords`);
+    localStorage.removeItem(`${STORAGE_KEY}_leaveRequests`);
+    localStorage.removeItem(`${STORAGE_KEY}_salaryPayments`);
+    localStorage.removeItem(`${STORAGE_KEY}_staffNotifications`);
 
     setRestaurants(initialRestaurants);
     setPlans(initialPlans);
@@ -2781,6 +3151,10 @@ export const AppProvider = ({ children }) => {
     setCreditNotes(initialCreditNotes);
     setSupplierPayments(initialSupplierPayments);
     setSupplierAgreements(initialSupplierAgreements);
+    setAttendanceRecords(initialAttendanceRecords);
+    setLeaveRequests(initialLeaveRequests);
+    setSalaryPayments(initialSalaryPayments);
+    setStaffNotifications(initialStaffNotifications);
     setCurrentUser(initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0]);
     setCurrentRestaurantId('rest-1');
 
@@ -2938,6 +3312,22 @@ export const AppProvider = ({ children }) => {
         markAllAlertsRead,
         dismissAlert,
         updateTicketStatus,
+
+        // Staff Attendance, Leave Requests & Payroll
+        attendanceRecords,
+        leaveRequests,
+        salaryPayments,
+        staffNotifications,
+        LEAVE_TYPES,
+        KITCHEN_STATIONS,
+        STAFF_SALARY_PROFILES,
+        punchInStaff,
+        punchOutStaff,
+        submitLeaveRequest,
+        reviewLeaveRequest,
+        processSalaryPayment,
+        markStaffNotificationRead,
+        markAllStaffNotificationsRead,
       }}
     >
       {children}

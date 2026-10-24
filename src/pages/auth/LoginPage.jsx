@@ -40,8 +40,9 @@ export const LoginPage = () => {
   // Quick-fill credentials for demo / evaluation testing
   const SAMPLE_ACCOUNTS = [
     { label: 'Restaurant Owner', email: 'priya@spicegarden.com', role: 'Owner', icon: Store },
+    { label: 'Restaurant Manager', email: 'vikram.mgr@spicegarden.com', role: 'Rest. Manager', icon: Building2 },
     { label: 'Super Admin', email: 'admin@stockmate.io', role: 'Admin', icon: Shield },
-    { label: 'Inventory Manager', email: 'rahul.v@spicegarden.com', role: 'Manager', icon: Building2 },
+    { label: 'Inventory Manager', email: 'rahul.v@spicegarden.com', role: 'Inventory', icon: Boxes },
     { label: 'Kitchen Staff', email: 'anita.chef@spicegarden.com', role: 'Kitchen', icon: ChefHat },
     { label: 'Supplier Partner', email: 'david@metrofoods.com', role: 'Supplier', icon: Truck },
   ];
@@ -70,6 +71,7 @@ export const LoginPage = () => {
         navigate('/kitchen');
         break;
       case 'inventory_manager':
+      case 'restaurant_manager':
       case 'restaurant_owner':
       default:
         navigate('/dashboard');

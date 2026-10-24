@@ -234,12 +234,28 @@ export const initialBranches = [
 // Branch-Aware Staff Dataset
 export const initialBranchStaff = [
   {
+    id: 'usr-sg-mgr',
+    name: 'Vikram Desai',
+    email: 'vikram.mgr@spicegarden.com',
+    phone: '+91 98201 11223',
+    role: 'restaurant_manager',
+    roleLabel: 'Restaurant General Manager',
+    isManager: true,
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
+    restaurantId: 'rest-1',
+    status: 'active',
+    joinedDate: '2025-08-15',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    assignedModules: ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Operations Reports', 'Alerts'],
+  },
+  {
     id: 'usr-sg-2',
     name: 'Rahul Verma',
     email: 'rahul.v@spicegarden.com',
     phone: '+91 98201 22334',
     role: 'inventory_manager',
-    roleLabel: 'Branch Manager & Inventory Lead',
+    roleLabel: 'Inventory Lead & Store Manager',
     isManager: true,
     branchId: 'branch-pune-central',
     branchName: 'Spice Garden — Pune Central',
@@ -247,7 +263,7 @@ export const initialBranchStaff = [
     status: 'active',
     joinedDate: '2025-08-20',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    assignedModules: ['Inventory', 'Suppliers', 'Purchase Orders', 'Staff', 'Reports'],
+    assignedModules: ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports'],
   },
   {
     id: 'usr-sg-3',
@@ -297,7 +313,7 @@ export const initialBranchStaff = [
     status: 'active',
     joinedDate: '2025-10-01',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    assignedModules: ['Inventory', 'Suppliers', 'Purchase Orders', 'Staff'],
+    assignedModules: ['Inventory', 'Suppliers', 'Purchase Orders'],
   },
   {
     id: 'usr-hinj-cook',

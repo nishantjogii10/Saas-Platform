@@ -146,6 +146,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Business & Team',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
               { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
               { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
@@ -175,6 +176,25 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+            ],
+          },
+        ];
+
+      case 'restaurant_manager':
+        return [
+          {
+            section: 'Restaurant Operations & Staff',
+            items: [
+              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
+              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
+              {
+                to: '/alerts',
+                label: 'Alerts & Notices',
+                icon: Bell,
+                badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
+              },
             ],
           },
         ];
@@ -292,6 +312,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
         return 'bg-amber-600 text-white shadow-xs font-semibold';
       case 'inventory_manager':
         return 'bg-teal-700 text-white shadow-xs font-semibold';
+      case 'restaurant_manager':
+        return 'bg-blue-600 text-white shadow-xs font-semibold';
       case 'restaurant_owner':
       default:
         return 'bg-emerald-700 text-white shadow-xs font-semibold';

@@ -32,6 +32,7 @@ const BADGE_STYLES = {
   // Roles
   super_admin: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
   restaurant_owner: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
+  restaurant_manager: 'bg-blue-50 text-blue-800 border-blue-200/80',
   inventory_manager: 'bg-teal-50 text-teal-700 border-teal-200/80',
   kitchen_staff: 'bg-amber-50 text-amber-800 border-amber-200/80',
   supplier: 'bg-sky-50 text-sky-700 border-sky-200/80',
@@ -67,6 +68,7 @@ const FORMATTED_LABELS = {
   adjustment: 'Adjustment',
   super_admin: 'Super Admin',
   restaurant_owner: 'Restaurant Owner',
+  restaurant_manager: 'Restaurant Manager',
   inventory_manager: 'Inventory Manager',
   kitchen_staff: 'Kitchen Staff',
   supplier: 'Supplier Partner',
