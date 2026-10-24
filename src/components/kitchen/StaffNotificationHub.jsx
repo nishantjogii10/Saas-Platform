@@ -214,3 +214,4 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
     </div>
   );
 };
+
