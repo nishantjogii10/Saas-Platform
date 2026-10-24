@@ -56,11 +56,33 @@ const AppContext = createContext(null);
 const STORAGE_KEY = 'stockmate_saas_v1';
 
 export const AppProvider = ({ children }) => {
-  // Load from localStorage or fallback to defaults
+  // Load from localStorage or fallback to defaults (with seed merge for newly added records)
   const loadStored = (key, fallback) => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_${key}`);
-      return saved ? JSON.parse(saved) : fallback;
+      if (!saved) return fallback;
+      const parsed = JSON.parse(saved);
+
+      // If both parsed and fallback are arrays, ensure newly added seed items (e.g. Vikram Desai) are merged
+      if (Array.isArray(parsed) && Array.isArray(fallback)) {
+        const parsedKeySet = new Set(
+          parsed.map(item => String(item?.email || item?.id || item?.key || '').toLowerCase())
+        );
+        const missing = fallback.filter(item => {
+          const identifier = String(item?.email || item?.id || item?.key || '').toLowerCase();
+          return identifier && !parsedKeySet.has(identifier);
+        });
+
+        if (missing.length > 0) {
+          const merged = [...parsed, ...missing];
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_${key}`, JSON.stringify(merged));
+          } catch (err) {}
+          return merged;
+        }
+      }
+
+      return parsed;
     } catch (e) {
       console.warn(`Error reading localStorage for ${key}`, e);
       return fallback;
@@ -301,7 +323,22 @@ export const AppProvider = ({ children }) => {
   // Secure Role & Tenant Login with real validation and restriction policy
   const login = (email, password) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
-    const user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+    let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
+
+    // Fallback: If user not found in state, check initialUsers (handles older localStorage snapshots)
+    if (!user) {
+      const initialUser = initialUsers.find(u => (u.email || '').toLowerCase() === normalizedEmail);
+      if (initialUser) {
+        user = initialUser;
+        setUsers(prev => {
+          const updated = [...prev.filter(u => u.id !== initialUser.id), initialUser];
+          try {
+            localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(updated));
+          } catch (err) {}
+          return updated;
+        });
+      }
+    }
 
     if (!user) {
       return {
@@ -2395,8 +2432,14 @@ export const AppProvider = ({ children }) => {
       email: staffData.email,
       phone: staffData.phone || '+91 98220 00000',
       role: staffData.role || 'kitchen_staff',
-      roleLabel: staffData.role === 'inventory_manager' ? 'Branch Manager' : 'Kitchen Staff',
-      isManager: staffData.role === 'inventory_manager',
+      roleLabel:
+        staffData.roleLabel ||
+        (staffData.role === 'restaurant_manager'
+          ? 'Restaurant Manager'
+          : staffData.role === 'inventory_manager'
+          ? 'Inventory Manager'
+          : 'Kitchen Staff'),
+      isManager: staffData.role === 'restaurant_manager' || staffData.role === 'inventory_manager',
       branchId: branch?.id || 'branch-pune-central',
       branchName: branch?.name || 'Spice Garden — Pune Central',
       restaurantId: currentRestaurantId || 'rest-1',
@@ -2404,8 +2447,8 @@ export const AppProvider = ({ children }) => {
       joinedDate: new Date().toISOString().split('T')[0],
       pin: staffData.pin || '1234',
       avatar: staffData.avatar || `https://images.unsplash.com/photo-${1507003211169 + Math.floor(Math.random() * 1000)}?w=150&auto=format&fit=crop&q=80`,
-      assignedModules: staffData.role === 'inventory_manager'
-        ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Staff', 'Reports']
+      assignedModules: staffData.role === 'restaurant_manager' ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Operations Reports', 'Alerts'] : staffData.role === 'inventory_manager'
+        ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
         : ['Kitchen Terminal', 'Prep Usage', 'Wastage'],
     };
 

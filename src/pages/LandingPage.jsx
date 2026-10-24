@@ -71,6 +71,7 @@ export const LandingPage = () => {
       case 'kitchen_staff':
         return '/kitchen';
       case 'inventory_manager':
+      case 'restaurant_manager':
       case 'restaurant_owner':
       default:
         return '/dashboard';

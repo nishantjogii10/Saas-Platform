@@ -128,7 +128,9 @@ export const BranchStaffPage = () => {
       const matchesBranch = branchFilter === 'all' || s.branchId === branchFilter;
       const matchesRole =
         roleFilter === 'all' ||
-        (roleFilter === 'manager' && s.isManager) ||
+        (roleFilter === 'restaurant_manager' && s.role === 'restaurant_manager') ||
+        (roleFilter === 'inventory_manager' && s.role === 'inventory_manager') ||
+        (roleFilter === 'manager' && (s.isManager || s.role === 'restaurant_manager' || s.role === 'inventory_manager')) ||
         (roleFilter === 'kitchen' && s.role === 'kitchen_staff');
 
       return matchesSearch && matchesBranch && matchesRole;
@@ -398,7 +400,9 @@ export const BranchStaffPage = () => {
                   className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   <option value="all">All Roles</option>
-                  <option value="manager">Managers Only</option>
+                  <option value="manager">All Managers</option>
+                  <option value="restaurant_manager">Restaurant Managers</option>
+                  <option value="inventory_manager">Inventory Managers</option>
                   <option value="kitchen">Kitchen Staff Only</option>
                 </select>
               </div>
@@ -1101,18 +1105,21 @@ export const BranchStaffPage = () => {
                     ...addForm,
                     role: val,
                     roleLabel:
-                      val === 'inventory_manager'
-                        ? 'Assistant Branch Manager'
+                      val === 'restaurant_manager'
+                        ? 'General Restaurant Manager'
+                        : val === 'inventory_manager'
+                        ? 'Inventory / Store Manager'
                         : val === 'kitchen_staff'
                         ? 'Line Cook'
                         : 'Staff User',
-                    isManager: val === 'inventory_manager',
+                    isManager: val === 'restaurant_manager' || val === 'inventory_manager',
                   });
                 }}
                 className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 <option value="kitchen_staff">Kitchen Staff (Line Cook, Chef, Prep)</option>
-                <option value="inventory_manager">Branch / Inventory Manager</option>
+                <option value="restaurant_manager">Restaurant Manager (Staff, Attendance & Operations)</option>
+                <option value="inventory_manager">Inventory Manager (Stock, Purchasing & Dock)</option>
               </select>
             </div>
           </div>

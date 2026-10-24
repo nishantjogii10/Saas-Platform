@@ -82,8 +82,16 @@ export const RestaurantDashboard = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${currentRestaurant?.name} Inventory Overview`}
-        subtitle={`${currentRestaurant?.cuisine} • Real-time stock counts, active alerts, and consumption analytics`}
+        title={
+          currentUser?.role === 'restaurant_manager'
+            ? `${currentRestaurant?.name} Operations & Staff Overview`
+            : `${currentRestaurant?.name} Inventory Overview`
+        }
+        subtitle={
+          currentUser?.role === 'restaurant_manager'
+            ? `${currentRestaurant?.cuisine} • Real-time staff attendance, station shifts, leave approvals & operations tracking`
+            : `${currentRestaurant?.cuisine} • Real-time stock counts, active alerts, and consumption analytics`
+        }
         badge={
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
             <span>{currentRestaurant?.logo || '🌿'}</span>
@@ -91,24 +99,45 @@ export const RestaurantDashboard = () => {
           </span>
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ShoppingBag}
-              onClick={() => navigate('/purchase-orders')}
-            >
-              Purchase Orders ({activePendingOrders.length})
-            </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
-              onClick={() => navigate('/inventory?action=add')}
-            >
-              Add Ingredient
-            </Button>
-          </div>
+          currentUser?.role === 'restaurant_manager' ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Users}
+                onClick={() => navigate('/branch-staff')}
+              >
+                Staff Roster ({totalStaffCount})
+              </Button>
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={() => navigate('/branch-staff?action=add')}
+              >
+                Add Staff Member
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ShoppingBag}
+                onClick={() => navigate('/purchase-orders')}
+              >
+                Purchase Orders ({activePendingOrders.length})
+              </Button>
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={() => navigate('/inventory?action=add')}
+              >
+                Add Ingredient
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -139,77 +168,138 @@ export const RestaurantDashboard = () => {
             >
               View Alerts
             </Button>
-            <Button
-              variant="primary"
-              size="xs"
-              onClick={() => navigate('/purchase-orders?action=create')}
-            >
-              Reorder Stock (PO)
-            </Button>
+            {currentUser?.role !== 'restaurant_manager' && (
+              <Button
+                variant="primary"
+                size="xs"
+                onClick={() => navigate('/purchase-orders?action=create')}
+              >
+                Reorder Stock (PO)
+              </Button>
+            )}
           </div>
         </div>
       )}
 
       {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          title="Total Stock Value"
-          value={formatINR(totalValuation)}
-          change="+4.2%"
-          trend="up"
-          subtext="Current on-hand inventory"
-          icon={IndianRupee}
-          accentColor="emerald"
-          onClick={() => navigate('/inventory')}
-        />
+      {currentUser?.role === 'restaurant_manager' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard
+            title="Kitchen Staff On Duty"
+            value={activeStaffAttendance.length}
+            change={`${activeStaffAttendance.length} Clocked In`}
+            trend="up"
+            subtext="Live kitchen station status"
+            icon={Clock}
+            accentColor="emerald"
+            onClick={() => navigate('/branch-staff?tab=attendance')}
+          />
 
-        <StatCard
-          title="Total Tracked Items"
-          value={totalIngredients}
-          change={`Limit: ${currentRestaurant?.monthlyUsage?.ingredientsLimit || 100}`}
-          trend="neutral"
-          subtext="Active SKU categories"
-          icon={Boxes}
-          accentColor="blue"
-          onClick={() => navigate('/inventory')}
-        />
+          <StatCard
+            title="Pending Leaves"
+            value={pendingLeaves.length}
+            change={pendingLeaves.length > 0 ? 'Requires Action' : 'All Clear'}
+            trend={pendingLeaves.length > 0 ? 'down' : 'up'}
+            subtext="Awaiting manager sign-off"
+            icon={Calendar}
+            accentColor={pendingLeaves.length > 0 ? 'amber' : 'emerald'}
+            onClick={() => navigate('/branch-staff?tab=leave')}
+          />
 
-        <StatCard
-          title="Low Stock Items"
-          value={lowStockItems}
-          change={lowStockItems > 0 ? 'Urgent Reorder' : 'All Optimal'}
-          trend={lowStockItems > 0 ? 'down' : 'up'}
-          subtext="Below minimum threshold"
-          icon={AlertTriangle}
-          accentColor={lowStockItems > 0 ? 'amber' : 'emerald'}
-          onClick={() => navigate('/inventory?filter=low_stock')}
-        />
+          <StatCard
+            title="Total Branch Staff"
+            value={totalStaffCount}
+            change="Outlet Team Roster"
+            trend="neutral"
+            subtext="Active team members"
+            icon={Users}
+            accentColor="blue"
+            onClick={() => navigate('/branch-staff')}
+          />
 
-        <StatCard
-          title="Out of Stock"
-          value={outOfStockItems}
-          change={outOfStockItems > 0 ? 'Depleted' : 'Zero items'}
-          trend={outOfStockItems > 0 ? 'down' : 'up'}
-          subtext="Requires instant restock"
-          icon={XCircle}
-          accentColor={outOfStockItems > 0 ? 'rose' : 'emerald'}
-          onClick={() => navigate('/inventory?filter=out_of_stock')}
-        />
+          <StatCard
+            title="Expiring Items (FEFO)"
+            value={expiringSoonItems}
+            change={expiringSoonItems > 0 ? 'Stock Alert' : 'Fresh'}
+            trend={expiringSoonItems > 0 ? 'down' : 'up'}
+            subtext="Safety & kitchen compliance"
+            icon={ClockAlert}
+            accentColor={expiringSoonItems > 0 ? 'amber' : 'emerald'}
+            onClick={() => navigate('/alerts')}
+          />
 
-        <StatCard
-          title="Expiring <= 3 Days"
-          value={expiringSoonItems}
-          change={expiringSoonItems > 0 ? 'Monitor Shelf' : 'Fresh'}
-          trend={expiringSoonItems > 0 ? 'down' : 'up'}
-          subtext="FIFO rotation needed"
-          icon={ClockAlert}
-          accentColor={expiringSoonItems > 0 ? 'amber' : 'emerald'}
-          onClick={() => navigate('/expiry-tracking')}
-        />
-      </div>
+          <StatCard
+            title="Active System Alerts"
+            value={restaurantAlerts.filter((a) => !a.read).length}
+            change="Operations Notices"
+            trend="neutral"
+            subtext="Unread branch notices"
+            icon={AlertTriangle}
+            accentColor="teal"
+            onClick={() => navigate('/alerts')}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard
+            title="Total Stock Value"
+            value={formatINR(totalValuation)}
+            change="+4.2%"
+            trend="up"
+            subtext="Current on-hand inventory"
+            icon={IndianRupee}
+            accentColor="emerald"
+            onClick={() => navigate('/inventory')}
+          />
+
+          <StatCard
+            title="Total Tracked Items"
+            value={totalIngredients}
+            change={`Limit: ${currentRestaurant?.monthlyUsage?.ingredientsLimit || 100}`}
+            trend="neutral"
+            subtext="Active SKU categories"
+            icon={Boxes}
+            accentColor="blue"
+            onClick={() => navigate('/inventory')}
+          />
+
+          <StatCard
+            title="Low Stock Items"
+            value={lowStockItems}
+            change={lowStockItems > 0 ? 'Urgent Reorder' : 'All Optimal'}
+            trend={lowStockItems > 0 ? 'down' : 'up'}
+            subtext="Below minimum threshold"
+            icon={AlertTriangle}
+            accentColor={lowStockItems > 0 ? 'amber' : 'emerald'}
+            onClick={() => navigate('/inventory?filter=low_stock')}
+          />
+
+          <StatCard
+            title="Out of Stock"
+            value={outOfStockItems}
+            change={outOfStockItems > 0 ? 'Depleted' : 'Zero items'}
+            trend={outOfStockItems > 0 ? 'down' : 'up'}
+            subtext="Requires instant restock"
+            icon={XCircle}
+            accentColor={outOfStockItems > 0 ? 'rose' : 'emerald'}
+            onClick={() => navigate('/inventory?filter=out_of_stock')}
+          />
+
+          <StatCard
+            title="Expiring <= 3 Days"
+            value={expiringSoonItems}
+            change={expiringSoonItems > 0 ? 'Monitor Shelf' : 'Fresh'}
+            trend={expiringSoonItems > 0 ? 'down' : 'up'}
+            subtext="FIFO rotation needed"
+            icon={ClockAlert}
+            accentColor={expiringSoonItems > 0 ? 'amber' : 'emerald'}
+            onClick={() => navigate('/expiry-tracking')}
+          />
+        </div>
+      )}
 
       {/* Pending Staff Leave Requests Approval Alert */}
-      {pendingLeaves.length > 0 && (
+      {currentUser?.role !== 'inventory_manager' && pendingLeaves.length > 0 && (
         <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -281,6 +371,7 @@ export const RestaurantDashboard = () => {
       )}
 
       {/* Live Kitchen Staff Attendance Widget for Managers */}
+      {currentUser?.role !== 'inventory_manager' && (
       <Card padding={false} className="border border-emerald-100">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-white">
           <div className="flex items-center gap-3">
@@ -361,6 +452,7 @@ export const RestaurantDashboard = () => {
           )}
         </div>
       </Card>
+      )}
 
       {/* Analytics Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -478,13 +570,15 @@ export const RestaurantDashboard = () => {
                         Current: <span className="font-bold text-slate-800">{ing.quantity} {ing.unit}</span> (Min: {ing.minThreshold} {ing.unit}) • {ing.supplierName}
                       </div>
                     </div>
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      onClick={() => navigate('/purchase-orders?action=create')}
-                    >
-                      Reorder
-                    </Button>
+                    {currentUser?.role !== 'restaurant_manager' && (
+                      <Button
+                        variant="primary"
+                        size="xs"
+                        onClick={() => navigate('/purchase-orders?action=create')}
+                      >
+                        Reorder
+                      </Button>
+                    )}
                   </div>
                 ))}
               {restaurantIngredients.filter(i => i.status !== 'in_stock').length === 0 && (

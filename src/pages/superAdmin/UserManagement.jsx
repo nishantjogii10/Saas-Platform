@@ -206,6 +206,7 @@ export const UserManagement = () => {
             <option value="all">All Roles ({users.length})</option>
             <option value="super_admin">Super Admins</option>
             <option value="restaurant_owner">Restaurant Owners</option>
+            <option value="restaurant_manager">Restaurant Managers</option>
             <option value="inventory_manager">Inventory Managers</option>
             <option value="kitchen_staff">Kitchen Staff</option>
             <option value="supplier">Suppliers</option>
@@ -283,6 +284,7 @@ export const UserManagement = () => {
             onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
             options={[
               { label: 'Restaurant Owner', value: 'restaurant_owner' },
+              { label: 'Restaurant Manager', value: 'restaurant_manager' },
               { label: 'Inventory Manager', value: 'inventory_manager' },
               { label: 'Kitchen Staff', value: 'kitchen_staff' },
             ]}
