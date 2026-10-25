@@ -2,6 +2,62 @@
 
 export const initialRestaurants = [
   {
+    id: 'rest-mango',
+    name: 'Mango Tree Kitchen & Bar',
+    cuisine: 'Coastal Indian & Pan-Asian Grill',
+    logo: '🥭',
+    ownerName: 'Rajesh Nair',
+    ownerEmail: 'rajesh@mangotree.com',
+    phone: '+91 98220 77881',
+    address: 'Plot 42, Senapati Bapat Marg, Lower Parel, Mumbai, MH 400013',
+    branches: 3,
+    planId: 'plan-enterprise',
+    planName: 'Enterprise',
+    status: 'active',
+    joinedDate: '2025-06-01',
+    renewalDate: '2026-11-01',
+    monthlyUsage: {
+      ingredientsCount: 45,
+      ingredientsLimit: 9999,
+      staffCount: 18,
+      staffLimit: 9999,
+      ordersThisMonth: 32,
+    },
+    metrics: {
+      totalValuation: 145000,
+      monthlySpend: 285000,
+      monthlyWastageRate: 2.8,
+    }
+  },
+  {
+    id: 'rest-saffron',
+    name: 'Saffron Bistro & Lounge',
+    cuisine: 'North Indian & Mediterranean Grill',
+    logo: '🌿',
+    ownerName: 'Arman Zadeh',
+    ownerEmail: 'arman@saffronbistro.com',
+    phone: '+91 98220 55441',
+    address: 'Plot 18, Senapati Bapat Road, Pune, Maharashtra 411016',
+    branches: 1,
+    planId: 'plan-pro',
+    planName: 'Professional',
+    status: 'active',
+    joinedDate: '2025-09-10',
+    renewalDate: '2026-11-10',
+    monthlyUsage: {
+      ingredientsCount: 28,
+      ingredientsLimit: 500,
+      staffCount: 6,
+      staffLimit: 15,
+      ordersThisMonth: 19,
+    },
+    metrics: {
+      totalValuation: 82000,
+      monthlySpend: 165000,
+      monthlyWastageRate: 3.1,
+    }
+  },
+  {
     id: 'rest-1',
     name: 'Spice Garden',
     cuisine: 'Modern Indian & Asian Fusion',
@@ -150,7 +206,8 @@ export const initialPlans = [
     name: 'Starter',
     badge: 'Essential',
     monthlyPrice: 999,
-    annualPrice: 832,
+    annualPrice: 9588,
+    effectiveMonthlyAnnual: 799,
     description: 'Perfect for single-location cafes, food trucks, and small dining spots.',
     features: [
       'Up to 100 tracked ingredients',
@@ -174,7 +231,8 @@ export const initialPlans = [
     name: 'Professional',
     badge: 'Most Popular',
     monthlyPrice: 2499,
-    annualPrice: 2082,
+    annualPrice: 23988,
+    effectiveMonthlyAnnual: 1999,
     description: 'Designed for busy restaurants and multi-station kitchens seeking deep control.',
     features: [
       'Up to 500 tracked ingredients',
@@ -198,8 +256,9 @@ export const initialPlans = [
     id: 'plan-enterprise',
     name: 'Enterprise',
     badge: 'Ultimate Power',
-    monthlyPrice: 4999,
-    annualPrice: 4166,
+    monthlyPrice: 5499,
+    annualPrice: 53988,
+    effectiveMonthlyAnnual: 4499,
     description: 'For restaurant franchises, high-volume fine dining, and multi-unit hospitality groups.',
     features: [
       'Unlimited tracked ingredients',
@@ -222,6 +281,47 @@ export const initialPlans = [
 ];
 
 export const initialUsers = [
+  {
+    id: 'usr-mango-owner',
+    name: 'Rajesh Nair',
+    email: 'rajesh@mangotree.com',
+    password: 'password123',
+    role: 'restaurant_owner',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    status: 'active',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    joinedDate: '2025-06-01',
+    lastActive: 'Just now',
+  },
+  {
+    id: 'usr-mango-hinj-mgr',
+    name: 'Amit Joshi',
+    email: 'amit.mgr@mangotree.com',
+    password: 'password123',
+    role: 'inventory_manager',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-hinj',
+    branchName: 'Mango Tree Kitchen — Hinjawadi',
+    status: 'active',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    joinedDate: '2025-06-15',
+    lastActive: '10 mins ago',
+  },
+  {
+    id: 'usr-saffron-owner',
+    name: 'Arman Zadeh',
+    email: 'arman@saffronbistro.com',
+    password: 'password123',
+    role: 'restaurant_owner',
+    restaurantId: 'rest-saffron',
+    restaurantName: 'Saffron Bistro & Lounge',
+    status: 'active',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    joinedDate: '2025-09-10',
+    lastActive: '20 mins ago',
+  },
   // Platform Owner
   {
     id: 'usr-admin',
@@ -267,6 +367,8 @@ export const initialUsers = [
     email: 'rahul.v@spicegarden.com',
     role: 'inventory_manager',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     status: 'active',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
@@ -418,7 +520,7 @@ export const initialSuppliers = [
     paymentTerms: 'Net 30',
     activeOrdersCount: 2,
     status: 'active',
-    restaurantIds: ['rest-1', 'rest-2', 'rest-3'],
+    restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
   },
   {
     id: 'sup-2',
@@ -502,6 +604,7 @@ export const initialIngredients = [
   {
     id: 'ing-pav-01',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Fresh Pav / Buns (Daily Batch)',
     category: 'Bakery',
     quantity: 60,
@@ -521,6 +624,7 @@ export const initialIngredients = [
   {
     id: 'ing-1',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Royal Basmati Rice',
     category: 'Grains & Rice',
     quantity: 180,
@@ -539,6 +643,7 @@ export const initialIngredients = [
   {
     id: 'ing-2',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Farm-Fresh Chicken Breast',
     category: 'Poultry',
     quantity: 14, // below min threshold 25!
@@ -557,6 +662,7 @@ export const initialIngredients = [
   {
     id: 'ing-3',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Artisanal Fresh Paneer',
     category: 'Dairy',
     quantity: 8, // below min threshold 12!
@@ -575,6 +681,7 @@ export const initialIngredients = [
   {
     id: 'ing-4',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Heavy Cooking Cream (35%)',
     category: 'Dairy',
     quantity: 26,
@@ -593,6 +700,7 @@ export const initialIngredients = [
   {
     id: 'ing-5',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Master Garam Masala Blend',
     category: 'Spices & Seasoning',
     quantity: 7.5,
@@ -611,6 +719,7 @@ export const initialIngredients = [
   {
     id: 'ing-6',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Red Cooking Onions',
     category: 'Produce',
     quantity: 70,
@@ -629,6 +738,7 @@ export const initialIngredients = [
   {
     id: 'ing-7',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Roma Vine Tomatoes',
     category: 'Produce',
     quantity: 4, // below min threshold 15!
@@ -647,6 +757,7 @@ export const initialIngredients = [
   {
     id: 'ing-8',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Pure Desi Cow Ghee',
     category: 'Oils & Fats',
     quantity: 35,
@@ -665,6 +776,7 @@ export const initialIngredients = [
   {
     id: 'ing-9',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Fresh Organic Cilantro',
     category: 'Fresh Herbs',
     quantity: 1.5, // below min threshold 3!
@@ -683,6 +795,7 @@ export const initialIngredients = [
   {
     id: 'ing-10',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Premium Kashmiri Chilli Powder',
     category: 'Spices & Seasoning',
     quantity: 0, // Out of Stock!
@@ -701,6 +814,7 @@ export const initialIngredients = [
   {
     id: 'ing-11',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
     name: 'Organic Coconut Milk (400ml)',
     category: 'Canned Goods',
     quantity: 48,
@@ -867,12 +981,193 @@ export const initialIngredients = [
 ];
 
 export const initialPurchaseOrders = [
+  // Mango Tree Kitchen — Main Branch POs (5 Delivered + 1 Open)
+  {
+    id: 'po-mtk-101',
+    poNumber: 'PO-MTK-101',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-1',
+    supplierName: 'Metro Food Distributors',
+    status: 'delivered',
+    createdAt: '2026-10-22T09:00:00Z',
+    expectedDelivery: '2026-10-24',
+    items: [
+      { ingredientId: 'ing-mtk-1', name: 'Premium Aged Basmati', quantity: 100, unit: 'kg', unitCost: 110, totalCost: 11000 },
+      { ingredientId: 'ing-mtk-2', name: 'Jumbo Tiger Prawns', quantity: 15, unit: 'kg', unitCost: 500, totalCost: 7500 },
+    ],
+    totalAmount: 18500,
+  },
+  {
+    id: 'po-mtk-102',
+    poNumber: 'PO-MTK-102',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-5',
+    supplierName: 'Amrit Dairy Farms & Products',
+    status: 'delivered',
+    createdAt: '2026-10-21T10:00:00Z',
+    expectedDelivery: '2026-10-23',
+    items: [
+      { ingredientId: 'ing-mtk-3', name: 'Pure Cow Desi Ghee', quantity: 10, unit: 'liters', unitCost: 450, totalCost: 4500 },
+      { ingredientId: 'ing-mtk-4', name: 'Fresh Malai Paneer', quantity: 10, unit: 'kg', unitCost: 300, totalCost: 3000 },
+    ],
+    totalAmount: 7500,
+  },
+  {
+    id: 'po-mtk-103',
+    poNumber: 'PO-MTK-103',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-2',
+    supplierName: 'FreshFarm Organics',
+    status: 'delivered',
+    createdAt: '2026-10-19T08:30:00Z',
+    expectedDelivery: '2026-10-21',
+    items: [
+      { ingredientId: 'ing-mtk-5', name: 'Alphonso Mango Pulp', quantity: 20, unit: 'tins', unitCost: 380, totalCost: 7600 },
+      { ingredientId: 'ing-mtk-6', name: 'Fresh Kaffir Lime Leaves', quantity: 12, unit: 'bunches', unitCost: 400, totalCost: 4800 },
+    ],
+    totalAmount: 12400,
+  },
+  {
+    id: 'po-mtk-104',
+    poNumber: 'PO-MTK-104',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-4',
+    supplierName: 'Golden Crust Artisan Bakery',
+    status: 'delivered',
+    createdAt: '2026-10-18T11:00:00Z',
+    expectedDelivery: '2026-10-20',
+    items: [
+      { ingredientId: 'ing-mtk-7', name: 'Steamed Bao Buns', quantity: 50, unit: 'packs', unitCost: 70, totalCost: 3500 },
+    ],
+    totalAmount: 3500,
+  },
+  {
+    id: 'po-mtk-105',
+    poNumber: 'PO-MTK-105',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-1',
+    supplierName: 'Metro Food Distributors',
+    status: 'delivered',
+    createdAt: '2026-10-16T14:00:00Z',
+    expectedDelivery: '2026-10-18',
+    items: [
+      { ingredientId: 'ing-mtk-8', name: 'Farm-Fresh Chicken Breast', quantity: 60, unit: 'kg', unitCost: 280, totalCost: 16800 },
+      { ingredientId: 'ing-mtk-9', name: 'Fresh Seer Fish Fillet', quantity: 10, unit: 'kg', unitCost: 800, totalCost: 8000 },
+    ],
+    totalAmount: 24800,
+  },
+  {
+    id: 'po-mtk-106',
+    poNumber: 'PO-MTK-106',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-main',
+    branchName: 'Mango Tree Kitchen — Main Branch',
+    supplierId: 'sup-3',
+    supplierName: 'Royal Spice Traders',
+    status: 'dispatched',
+    createdAt: '2026-10-25T10:00:00Z',
+    expectedDelivery: '2026-10-27',
+    items: [
+      { ingredientId: 'ing-mtk-10', name: 'Malabar Black Peppercorns', quantity: 15, unit: 'kg', unitCost: 650, totalCost: 9750 },
+    ],
+    totalAmount: 9750,
+  },
+
+  // Mango Tree Kitchen — Hinjawadi POs (2 Delivered + 1 Open)
+  {
+    id: 'po-mtk-201',
+    poNumber: 'PO-MTK-201',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-hinj',
+    branchName: 'Mango Tree Kitchen — Hinjawadi',
+    supplierId: 'sup-2',
+    supplierName: 'FreshFarm Organics',
+    status: 'delivered',
+    createdAt: '2026-10-22T08:00:00Z',
+    expectedDelivery: '2026-10-24',
+    items: [
+      { ingredientId: 'ing-mtk-11', name: 'Thai Jasmine Fragrant Rice', quantity: 80, unit: 'kg', unitCost: 120, totalCost: 9600 },
+    ],
+    totalAmount: 9600,
+  },
+  {
+    id: 'po-mtk-202',
+    poNumber: 'PO-MTK-202',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-hinj',
+    branchName: 'Mango Tree Kitchen — Hinjawadi',
+    supplierId: 'sup-5',
+    supplierName: 'Amrit Dairy Farms & Products',
+    status: 'delivered',
+    createdAt: '2026-10-20T09:30:00Z',
+    expectedDelivery: '2026-10-22',
+    items: [
+      { ingredientId: 'ing-mtk-12', name: 'Fresh Cooking Cream', quantity: 18, unit: 'liters', unitCost: 300, totalCost: 5400 },
+    ],
+    totalAmount: 5400,
+  },
+  {
+    id: 'po-mtk-203',
+    poNumber: 'PO-MTK-203',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-hinj',
+    branchName: 'Mango Tree Kitchen — Hinjawadi',
+    supplierId: 'sup-1',
+    supplierName: 'Metro Food Distributors',
+    status: 'dispatched',
+    createdAt: '2026-10-25T11:00:00Z',
+    expectedDelivery: '2026-10-26',
+    items: [
+      { ingredientId: 'ing-mtk-13', name: 'Organic Coconut Milk Cans', quantity: 24, unit: 'tins', unitCost: 180, totalCost: 4320 },
+    ],
+    totalAmount: 4320,
+  },
+
+  // Mango Tree Kitchen — Baner (1 Pending PO, 0 Deliveries)
+  {
+    id: 'po-mtk-301',
+    poNumber: 'PO-MTK-301',
+    restaurantId: 'rest-mango',
+    restaurantName: 'Mango Tree Kitchen & Bar',
+    branchId: 'branch-mango-baner',
+    branchName: 'Mango Tree Kitchen — Baner',
+    supplierId: 'sup-1',
+    supplierName: 'Metro Food Distributors',
+    status: 'pending',
+    createdAt: '2026-10-25T14:00:00Z',
+    expectedDelivery: '2026-10-28',
+    items: [
+      { ingredientId: 'ing-mtk-14', name: 'Initial Pantry Setup - Dry Goods Assortment', quantity: 1, unit: 'lot', unitCost: 15000, totalCost: 15000 },
+    ],
+    totalAmount: 15000,
+  },
   // Ready for Workflow C:
   // PO-1041 is Pending, assigned to Metro Food Distributors (David Miller)
   {
     id: 'po-1041',
     poNumber: 'PO-1041',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     supplierId: 'sup-1',
     supplierName: 'Metro Food Distributors',
@@ -911,6 +1206,8 @@ export const initialPurchaseOrders = [
     id: 'po-1040',
     poNumber: 'PO-1040',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     supplierId: 'sup-2',
     supplierName: 'FreshFarm Organics',
@@ -954,6 +1251,8 @@ export const initialPurchaseOrders = [
     id: 'po-1039',
     poNumber: 'PO-1039',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     supplierId: 'sup-3',
     supplierName: 'Royal Spice Traders',

@@ -39,6 +39,8 @@ export const BranchesPage = () => {
   const navigate = useNavigate();
   const {
     branches,
+    organizationBranches,
+    currentUser,
     currentBranchId,
     switchBranch,
     addBranch,
@@ -47,6 +49,10 @@ export const BranchesPage = () => {
     branchStaff,
     addToast,
   } = useApp();
+
+  const branchList = currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin'
+    ? (organizationBranches || branches)
+    : branches;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -76,14 +82,14 @@ export const BranchesPage = () => {
   });
 
   // Summary Metrics
-  const totalBranches = branches.length;
-  const activeBranches = branches.filter((b) => b.status === 'active').length;
+  const totalBranches = branchList.length;
+  const activeBranches = branchList.filter((b) => b.status === 'active').length;
   const inactiveBranches = totalBranches - activeBranches;
-  const totalSeating = branches.reduce((acc, b) => acc + (Number(b.seatingCapacity) || 0), 0);
+  const totalSeating = branchList.reduce((acc, b) => acc + (Number(b.seatingCapacity) || 0), 0);
 
   // Filtered branches
   const filteredBranches = useMemo(() => {
-    return branches.filter((b) => {
+    return branchList.filter((b) => {
       const matchesSearch =
         b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         b.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,7 +101,7 @@ export const BranchesPage = () => {
 
       return matchesSearch && matchesStatus && matchesPlan;
     });
-  }, [branches, searchTerm, statusFilter, planFilter]);
+  }, [branchList, searchTerm, statusFilter, planFilter]);
 
   // Open Edit Modal
   const handleOpenEdit = (branch) => {

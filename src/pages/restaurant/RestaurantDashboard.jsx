@@ -93,10 +93,18 @@ export const RestaurantDashboard = () => {
             : `${currentRestaurant?.cuisine} • Real-time stock counts, active alerts, and consumption analytics`
         }
         badge={
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <span>{currentRestaurant?.logo || '🌿'}</span>
-            <span>{currentRestaurant?.planName} Tier</span>
-          </span>
+          <div className="flex items-center gap-2">
+            {currentBranch && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{currentBranch.name}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span>{currentRestaurant?.logo || '🌿'}</span>
+              <span>{currentRestaurant?.planName} Tier</span>
+            </span>
+          </div>
         }
         actions={
           currentUser?.role === 'restaurant_manager' ? (
