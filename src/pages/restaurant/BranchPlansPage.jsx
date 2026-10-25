@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Store,
   Users,
+  Sliders,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -84,6 +85,14 @@ export const BranchPlansPage = () => {
             >
               Billing &amp; Tax Invoices
             </Button>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={Sliders}
+              onClick={() => navigate('/custom-plan')}
+            >
+              Custom Plan Builder ⚡
+            </Button>
           </div>
         }
       />
@@ -126,6 +135,35 @@ export const BranchPlansPage = () => {
             </span>
           </button>
         </div>
+      </div>
+
+      {/* Custom Enterprise Plan Banner */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950 text-white border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Sliders className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white">Need a Tailored Multi-Branch Configuration?</h3>
+              <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-emerald-500 text-slate-950">
+                Automated Pricing
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Customize exact branch counts, staff accounts, QR batches, and enterprise add-ons. Standard setups approve automatically in seconds.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="brand"
+          size="sm"
+          icon={ArrowRight}
+          onClick={() => navigate('/custom-plan')}
+          className="shrink-0"
+        >
+          Configure Custom Plan
+        </Button>
       </div>
 
       {/* Pricing Cards Grid */}

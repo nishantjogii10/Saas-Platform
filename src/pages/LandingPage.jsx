@@ -3,42 +3,29 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
   Boxes,
-  Shield,
-  Store,
   ChefHat,
-  Truck,
   Building2,
   CheckCircle2,
   ArrowRight,
   TrendingUp,
   ClockAlert,
-  AlertTriangle,
-  ShoppingBag,
-  History,
   Sparkles,
-  Layers,
-  BarChart3,
   Check,
   ChevronDown,
   ChevronUp,
-  Zap,
-  RotateCcw,
   IndianRupee,
-  ShieldCheck,
-  ArrowUpRight,
   Menu,
   X,
-  Scale,
-  Trash2,
   PackageCheck,
-  Building,
-  Users,
-  Settings,
-  Bell,
+  Store,
   QrCode,
   FileText,
+  Sliders,
+  Wrench,
+  ArrowUpRight,
 } from 'lucide-react';
 import { formatINR } from '../data/inventoryBillingData';
+import { BASE_PLANS } from '../services/pricingEngine';
 
 export const LandingPage = () => {
   const { currentUser, logout } = useApp();
@@ -46,9 +33,6 @@ export const LandingPage = () => {
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Hero interactive preview active tab
-  const [activePreviewTab, setActivePreviewTab] = useState('overview');
 
   // ROI Calculator state
   const [calcLocations, setCalcLocations] = useState(2);
@@ -305,14 +289,14 @@ export const LandingPage = () => {
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="relative pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
+      <section className="relative pt-16 pb-20 sm:pt-24 sm:pb-28 lg:pt-32 lg:pb-36 overflow-hidden">
         {/* Glow Effects */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-gradient-to-tr from-emerald-600/15 via-teal-500/10 to-indigo-600/10 blur-[130px] rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] sm:w-[900px] h-[450px] bg-gradient-to-tr from-emerald-600/20 via-teal-500/10 to-indigo-600/10 blur-[140px] rounded-full pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center max-w-4xl mx-auto">
             {/* Pill Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-6 shadow-inner">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-8 shadow-inner">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
               <span>Smart Restaurant Inventory &amp; Multi-Branch Platform</span>
               <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
@@ -320,8 +304,8 @@ export const LandingPage = () => {
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.1] mb-6">
-              Stop Food Spoilage.{' '}
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.12] mb-6 sm:mb-8">
+              Stop Food Waste.{' '}
               <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
                 Save Money.
               </span>{' '}
@@ -329,15 +313,15 @@ export const LandingPage = () => {
             </h1>
 
             {/* Subheading */}
-            <p className="text-base sm:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed mb-10">
+            <p className="text-base sm:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed mb-10 sm:mb-12">
               The complete kitchen inventory management suite. Track expiry with FEFO rotation, generate verified Goods Received Notes (GRNs) with pure SVG QR codes, reconcile supplier invoices, and control food costs across all restaurant branches.
             </p>
 
             {/* Primary Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 to="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-base shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-1 transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-base shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 transition-all"
               >
                 <span>Get Started Free</span>
                 <ArrowRight className="w-5 h-5" />
@@ -352,289 +336,32 @@ export const LandingPage = () => {
 
               <a
                 href="#how-it-works"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-white font-semibold text-sm border border-emerald-800/80 transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-white font-semibold text-sm border border-emerald-800/80 transition-all hover:-translate-y-0.5"
               >
                 <span>See How It Works</span>
               </a>
             </div>
-          </div>
 
-          {/* 3. INTERACTIVE HERO DASHBOARD PREVIEW */}
-          <div className="mt-6 max-w-5xl mx-auto rounded-3xl p-2 sm:p-3 bg-gradient-to-b from-slate-700/40 to-slate-900/40 border border-slate-700/60 shadow-2xl backdrop-blur-xl">
-            <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
-              {/* Window Header Bar */}
-              <div className="bg-slate-900/90 px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-rose-500/80"></span>
-                  <span className="w-3 h-3 rounded-full bg-amber-500/80"></span>
-                  <span className="w-3 h-3 rounded-full bg-emerald-500/80"></span>
-                  <span className="ml-2 text-xs font-bold text-slate-400 font-mono">
-                    StockMate • Real-Time Kitchen Console Preview
-                  </span>
-                </div>
-
-                {/* Perspective Tabs */}
-                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-                  <button
-                    onClick={() => setActivePreviewTab('overview')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                      activePreviewTab === 'overview'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    🏢 Owner Overview
-                  </button>
-                  <button
-                    onClick={() => setActivePreviewTab('expiry')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                      activePreviewTab === 'expiry'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    ⏰ Expiry &amp; FEFO
-                  </button>
-                  <button
-                    onClick={() => setActivePreviewTab('orders')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                      activePreviewTab === 'orders'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    📦 GRN &amp; Invoices
-                  </button>
-                  <button
-                    onClick={() => setActivePreviewTab('kitchen')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                      activePreviewTab === 'kitchen'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    👨‍🍳 Cook Touchscreen
-                  </button>
-                </div>
+            {/* Micro Trust Indicators */}
+            <div className="mt-10 pt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-medium text-slate-400">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>14-day free trial</span>
               </div>
-
-              {/* Dynamic Tab Preview Body */}
-              <div className="p-5 sm:p-8 bg-gradient-to-b from-slate-950 to-slate-900/90 min-h-[380px]">
-                {activePreviewTab === 'overview' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          Total Pantry Value
-                        </span>
-                        <div className="text-2xl font-black text-white mt-1">₹3,84,500</div>
-                        <div className="flex items-center gap-1 text-[11px] text-emerald-400 mt-1 font-medium">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          <span>Across 3 active branches</span>
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          Food Waste Rate
-                        </span>
-                        <div className="text-2xl font-black text-emerald-400 mt-1">2.8%</div>
-                        <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                          Down from 8.5% industry avg
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          Deliveries Expected
-                        </span>
-                        <div className="text-2xl font-black text-amber-400 mt-1">3 Shipments</div>
-                        <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                          Pending dock GRN check-in
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          Tracked Ingredients
-                        </span>
-                        <div className="text-2xl font-black text-white mt-1">142 SKUs</div>
-                        <div className="text-[11px] text-emerald-400 mt-1 font-medium">
-                          FEFO batches &amp; QR stickers
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-                      <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-200">
-                          Active Branch Inventory • Pune Central Kitchen
-                        </span>
-                        <span className="text-xs text-emerald-400 font-semibold">
-                          Live Sync Active
-                        </span>
-                      </div>
-                      <div className="divide-y divide-slate-800/80 text-xs">
-                        <div className="p-3 flex items-center justify-between hover:bg-slate-800/40 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="text-base">🥛</span>
-                            <div>
-                              <span className="font-bold text-white">Full Cream Milk &amp; Paneer</span>
-                              <span className="text-slate-400 block text-[11px]">Dairy • Batch #BT-2026-081</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-amber-400 font-bold block">FEFO Priority (Expires in 2 days)</span>
-                            <span className="text-slate-400 text-[11px]">28 Liters in cold storage</span>
-                          </div>
-                        </div>
-
-                        <div className="p-3 flex items-center justify-between hover:bg-slate-800/40 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <span className="text-base">🍗</span>
-                            <div>
-                              <span className="font-bold text-white">Fresh Boneless Chicken</span>
-                              <span className="text-slate-400 block text-[11px]">Poultry • Batch #BT-2026-094</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-emerald-400 font-bold block">50 kg Available (Verified GRN)</span>
-                            <span className="text-slate-400 text-[11px]">Expires in 5 days</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activePreviewTab === 'expiry' && (
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <ClockAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="text-sm font-bold text-amber-300">
-                            Automated First-Expired, First-Out (FEFO) Dispatch
-                          </h4>
-                          <p className="text-xs text-amber-200/80 mt-1">
-                            StockMate automatically queues expiring lots to prep stations so chefs cook older items first. Never throw money in the bin.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-3 py-1.5 rounded-lg bg-amber-950/80 text-amber-300 border border-amber-800 text-xs font-bold shrink-0">
-                        Zero Spoilage Engine
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-rose-500/30">
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="font-bold text-rose-400">🚨 Critical (Next 24-48 Hours)</span>
-                          <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono">2 Lots</span>
-                        </div>
-                        <p className="text-sm font-bold text-white">Full Cream Milk &amp; Whipping Cream</p>
-                        <p className="text-xs text-slate-400 mt-1">Batch #BT-2026-081 • Priority Prep Queue</p>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-amber-500/30">
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="font-bold text-amber-400">⚠️ Use Soon (Next 3-5 Days)</span>
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">4 Lots</span>
-                        </div>
-                        <p className="text-sm font-bold text-white">Bell Peppers, Tomatoes &amp; Greens</p>
-                        <p className="text-xs text-slate-400 mt-1">Batch #BT-2026-092 • Cold Storage Bin B</p>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-slate-900 border border-emerald-500/30">
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="font-bold text-emerald-400">✅ Fresh Stock (&gt;7 Days)</span>
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">136 Lots</span>
-                        </div>
-                        <p className="text-sm font-bold text-white">Basmati Rice, Oils, Spices &amp; Flours</p>
-                        <p className="text-xs text-slate-400 mt-1">Optimal dry storage humidity maintained</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activePreviewTab === 'orders' && (
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <PackageCheck className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="text-sm font-bold text-sky-300">
-                            Verified Goods Received Notes (GRN) &amp; Supplier Claims
-                          </h4>
-                          <p className="text-xs text-sky-200/80 mt-1">
-                            Unverified deliveries never hit inventory. When damage occurs at the dock, credit notes are automatically generated and deducted from invoice balances.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
-                            GRN
-                          </div>
-                          <div>
-                            <span className="text-xs font-mono font-bold text-white">GRN-2026-0042 • Metro Wholesale</span>
-                            <span className="text-[11px] text-slate-400 block">Ordered: 100 kg • Accepted: 92 kg • Damaged: 8 kg</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-xs font-bold">
-                            CRN-2026-018 Deducted
-                          </span>
-                          <span className="text-xs font-bold text-slate-200 font-mono">₹48,200</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activePreviewTab === 'kitchen' && (
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-800/50 flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-white">High-Speed Cook Tablet Station</h4>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Large touch buttons optimized for chef thumbs. Log daily prep, wastage, or low stock in under 5 seconds.
-                        </p>
-                      </div>
-                      <span className="text-xs font-bold text-emerald-400 bg-emerald-900/60 px-3 py-1 rounded-lg border border-emerald-700">
-                        Touch Station Ready
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                        <span className="text-2xl block mb-1">⚖️</span>
-                        <span className="text-xs font-bold text-white block">Log Used Food</span>
-                        <span className="text-[10px] text-slate-400">1-tap prep recording</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                        <span className="text-2xl block mb-1">🗑️</span>
-                        <span className="text-xs font-bold text-white block">Log Spoilage</span>
-                        <span className="text-[10px] text-rose-400">Deduct &amp; track waste</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center col-span-2 sm:col-span-1">
-                        <span className="text-2xl block mb-1">🚨</span>
-                        <span className="text-xs font-bold text-white block">Low Stock Alert</span>
-                        <span className="text-[10px] text-amber-400">Notifies manager live</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>No credit card required</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Quick 3-minute setup</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 4. BRAND TRACTION BAR */}
+      {/* 3. BRAND TRACTION BAR */}
       <section className="py-8 border-y border-slate-800/80 bg-slate-950/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
@@ -660,7 +387,7 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 5. HOW IT WORKS SECTION */}
+      {/* 4. HOW IT WORKS SECTION */}
       <section id="how-it-works" className="py-20 lg:py-28 bg-slate-900/40 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
@@ -777,7 +504,7 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 6. FEATURE DEEP-DIVE MATRIX */}
+      {/* 5. FEATURE DEEP-DIVE MATRIX */}
       <section id="features" className="py-20 lg:py-28 bg-slate-900/50 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
@@ -1036,139 +763,152 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 8. SUBSCRIPTION PRICING */}
+      {/* 7. SUBSCRIPTION PRICING */}
       <section id="pricing" className="py-20 lg:py-28 bg-slate-900/40 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 rounded-full">
-              Transparent Pricing
+              Authoritative SaaS Pricing
             </span>
             <h2 className="text-3xl sm:text-5xl font-black text-white mt-4 tracking-tight">
-              Simple, Predictable Plans for Growing Kitchens
+              Predictable Plans Engineered for High-Volume Kitchens
             </h2>
             <p className="text-base text-slate-300 mt-4 leading-relaxed">
-              Every plan includes unlimited orders, full expiry alerts, pure SVG QR tracking, and a 14-day free trial.
+              Transparent tier options with single source-of-truth pricing rules. Every plan includes SVG QR lot tracking, FEFO dispatch, and a 14-day free trial.
             </p>
 
-            {/* Monthly / Annual Toggle */}
-            <div className="mt-8 inline-flex items-center gap-3 p-1.5 rounded-2xl bg-slate-950 border border-slate-800">
+            {/* Monthly / Annual Toggle defaulting to Annual with clear ~20% discount badge */}
+            <div className="mt-8 inline-flex items-center gap-3 p-1.5 rounded-2xl bg-slate-950 border border-slate-800 shadow-inner">
               <button
+                type="button"
                 onClick={() => setBillingCycle('monthly')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                   billingCycle === 'monthly'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Monthly Billing
               </button>
               <button
+                type="button"
                 onClick={() => setBillingCycle('annual')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 ${
                   billingCycle === 'annual'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <span>Annual Billing</span>
-                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-1.5 py-0.5 rounded-md">
-                  Save 2 Months
+                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-md shadow-xs animate-pulse-glow">
+                  Save approximately 20%
                 </span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+          {/* 3 Core Plans */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-10">
             {/* Starter Plan */}
-            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 transition-all">
+            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 hover:shadow-xl transition-all duration-300">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  Starter Plan
-                </span>
-                <div className="flex items-baseline gap-2 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {BASE_PLANS['plan-starter'].name} Plan
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
+                    {BASE_PLANS['plan-starter'].badge}
+                  </span>
+                </div>
+                
+                <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual' ? '₹832' : '₹999'}
+                    {billingCycle === 'annual'
+                      ? formatINR(BASE_PLANS['plan-starter'].effectiveMonthlyAnnual)
+                      : formatINR(BASE_PLANS['plan-starter'].monthlyPrice)}
                   </span>
                   <span className="text-xs text-slate-400">/ month</span>
                 </div>
+
+                <div className="text-[11px] text-emerald-400 font-medium mb-3">
+                  {billingCycle === 'annual' ? (
+                    <span>Billed annually at {formatINR(BASE_PLANS['plan-starter'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-starter'].annualSavings)}/yr)</span>
+                  ) : (
+                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
+                  )}
+                </div>
+
                 <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  Ideal for emerging cafes, cloud kitchens, and standalone dining spots.
+                  {BASE_PLANS['plan-starter'].target}
                 </p>
 
                 <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Up to 2 restaurant branches</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Up to 500 ingredient SKUs</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>FEFO color-coded expiry tracking</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Purchase orders &amp; basic GRN</span>
-                  </div>
+                  {BASE_PLANS['plan-starter'].features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <Link
-                to="/signup"
-                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block"
+                to="/signup?plan=plan-starter"
+                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block shadow-sm"
               >
                 Start 14-Day Free Trial
               </Link>
             </div>
 
-            {/* Professional Plan (Highlighted) */}
+            {/* Professional Plan (Highlighted - Most Popular) */}
             <div className="rounded-3xl bg-gradient-to-b from-emerald-950/80 via-slate-950 to-slate-950 border-2 border-emerald-500 p-8 flex flex-col justify-between shadow-2xl relative">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md animate-pulse-glow">
                 Most Popular
               </div>
 
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-2">
-                  Professional Plan
-                </span>
-                <div className="flex items-baseline gap-2 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                    {BASE_PLANS['plan-pro'].name} Plan
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-700">
+                    {BASE_PLANS['plan-pro'].badge}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual' ? '₹2,082' : '₹2,499'}
+                    {billingCycle === 'annual'
+                      ? formatINR(BASE_PLANS['plan-pro'].effectiveMonthlyAnnual)
+                      : formatINR(BASE_PLANS['plan-pro'].monthlyPrice)}
                   </span>
                   <span className="text-xs text-slate-400">/ month</span>
                 </div>
+
+                <div className="text-[11px] text-emerald-400 font-medium mb-3">
+                  {billingCycle === 'annual' ? (
+                    <span>Billed annually at {formatINR(BASE_PLANS['plan-pro'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-pro'].annualSavings)}/yr)</span>
+                  ) : (
+                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
+                  )}
+                </div>
+
                 <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  Complete kitchen governance with QR batch tracking, FEFO dispatch, and supplier ledger.
+                  {BASE_PLANS['plan-pro'].target}
                 </p>
 
                 <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-emerald-900/60">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Up to 5 restaurant branches</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Unlimited ingredients &amp; batches</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Pure SVG QR code generation &amp; printing</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Full GRN dock verification &amp; damage claims</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Supplier billing &amp; credit note settlements</span>
-                  </div>
+                  {BASE_PLANS['plan-pro'].features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <Link
-                to="/signup"
+                to="/signup?plan=plan-pro"
                 className="mt-8 w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm text-center shadow-lg shadow-emerald-600/30 transition-all block"
               >
                 Start 14-Day Free Trial
@@ -1176,46 +916,86 @@ export const LandingPage = () => {
             </div>
 
             {/* Enterprise Plan */}
-            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 transition-all">
+            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 hover:shadow-xl transition-all duration-300">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  Enterprise Plan
-                </span>
-                <div className="flex items-baseline gap-2 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {BASE_PLANS['plan-enterprise'].name} Plan
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
+                    {BASE_PLANS['plan-enterprise'].badge}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual' ? '₹4,166' : '₹4,999'}
+                    {billingCycle === 'annual'
+                      ? formatINR(BASE_PLANS['plan-enterprise'].effectiveMonthlyAnnual)
+                      : formatINR(BASE_PLANS['plan-enterprise'].monthlyPrice)}
                   </span>
                   <span className="text-xs text-slate-400">/ month</span>
                 </div>
+
+                <div className="text-[11px] text-emerald-400 font-medium mb-3">
+                  {billingCycle === 'annual' ? (
+                    <span>Billed annually at {formatINR(BASE_PLANS['plan-enterprise'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-enterprise'].annualSavings)}/yr)</span>
+                  ) : (
+                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
+                  )}
+                </div>
+
                 <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  For multi-city restaurant groups, hotel kitchens, and commissary distribution hubs.
+                  {BASE_PLANS['plan-enterprise'].target}
                 </p>
 
                 <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Unlimited restaurant branches</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Inter-branch staff transfers &amp; managers</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Custom supplier SLA agreements &amp; returns</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Dedicated account manager &amp; audit trails</span>
-                  </div>
+                  {BASE_PLANS['plan-enterprise'].features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <Link
-                to="/signup"
-                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block"
+                to="/signup?plan=plan-enterprise"
+                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block shadow-sm"
               >
                 Get Started with Enterprise
+              </Link>
+            </div>
+          </div>
+
+          {/* 4th Option: Build Your Own Plan (Interactive Banner) */}
+          <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950/40 border border-emerald-800/60 p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 text-xs font-bold">
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Option 4: Build Your Own Plan</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white">
+                Need a Custom Combination of Outlets &amp; Modules?
+              </h3>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Configure your exact branch count, staff account capacity, dedicated POS terminals, and specific kitchen add-ons. Centralized pricing engine calculates real-time rates with automated approval for standard configurations.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full md:w-auto">
+              <Link
+                to="/custom-plan"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold text-center border border-slate-700 transition-all flex items-center justify-center gap-2"
+              >
+                <span>Live Plan Builder</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/signup?plan=plan-custom"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-black text-center shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
+              >
+                <span>Configure in Signup</span>
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
@@ -1266,7 +1046,7 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 10. BOTTOM CALL TO ACTION */}
+      {/* 9. BOTTOM CALL TO ACTION */}
       <section className="py-20 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="rounded-3xl bg-gradient-to-r from-emerald-900 via-slate-900 to-teal-900 p-8 sm:p-14 border border-emerald-500/40 shadow-2xl relative overflow-hidden text-center">
@@ -1304,7 +1084,7 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 11. ENTERPRISE SAAS FOOTER */}
+      {/* 10. ENTERPRISE SAAS FOOTER */}
       <footer className="bg-slate-950 border-t border-slate-900 pt-16 pb-12 text-slate-400 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pb-12 border-b border-slate-800/80">

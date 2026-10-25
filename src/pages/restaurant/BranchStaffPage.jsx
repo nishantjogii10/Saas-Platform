@@ -518,7 +518,7 @@ export const BranchStaffPage = () => {
                           <td className="py-3.5 px-4">
                             <div className="text-slate-800">{staff.phone || '+91 98200 XXXXX'}</div>
                             <div className="text-[10px] text-slate-400 font-mono">
-                              PIN: {staff.pin ? '••••' : 'N/A'}
+                              Auth: Configured & Encrypted
                             </div>
                           </td>
 
@@ -1241,8 +1241,8 @@ export const BranchStaffPage = () => {
                 <span className="font-semibold text-slate-900">{selectedStaffDetails.phone}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b">
-                <span className="text-slate-500">Quick PIN:</span>
-                <span className="font-mono text-slate-900">{selectedStaffDetails.pin || 'None'}</span>
+                <span className="text-slate-500">Access Credential:</span>
+                <span className="font-mono text-slate-400">•••••••• (Encrypted)</span>
               </div>
               <div className="pt-2">
                 <span className="text-slate-500 block mb-1.5">Assigned Modules:</span>

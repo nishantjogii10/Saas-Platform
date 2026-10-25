@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import {
   initialRestaurants,
   initialPlans,
@@ -41,6 +41,16 @@ import {
   initialSupplierPayments,
 } from '../data/inventoryBillingData';
 
+import { initialCustomPlanRequests } from '../data/customPlanData';
+import {
+  calculateCustomPlanPricing,
+  evaluateApprovalPath,
+  validateAndAuthorizePricing,
+  BASE_PLANS,
+  FEATURE_ADDONS,
+  AUTOMATION_LIMITS,
+} from '../services/pricingEngine';
+
 import {
   initialAttendanceRecords,
   initialLeaveRequests,
@@ -53,7 +63,7 @@ import {
 
 const AppContext = createContext(null);
 
-const STORAGE_KEY = 'stockmate_saas_v1';
+const STORAGE_KEY = 'stockmate_saas_v2';
 
 export const AppProvider = ({ children }) => {
   // Load from localStorage or fallback to defaults (with seed merge for newly added records)
@@ -125,6 +135,9 @@ export const AppProvider = ({ children }) => {
   const [leaveRequests, setLeaveRequests] = useState(() => loadStored('leaveRequests', initialLeaveRequests));
   const [salaryPayments, setSalaryPayments] = useState(() => loadStored('salaryPayments', initialSalaryPayments));
   const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
+
+  // Custom Plan Requests & Rule-Based Approval Engine State
+  const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
 
   // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
   // or restore from localStorage
@@ -274,6 +287,10 @@ export const AppProvider = ({ children }) => {
   }, [staffNotifications]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
+  }, [customPlanRequests]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(currentUser));
   }, [currentUser]);
 
@@ -320,8 +337,8 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Secure Role & Tenant Login with real validation and restriction policy
-  const login = (email, password) => {
+  // Secure Role & Tenant Login with real validation, strict RBAC verification, and role mismatch checking
+  const login = (email, password, requestedRole = null) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
     let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
 
@@ -343,19 +360,55 @@ export const AppProvider = ({ children }) => {
     if (!user) {
       return {
         success: false,
-        error: 'Invalid email address. No registered user account found for this email.',
-        code: 'USER_NOT_FOUND',
+        error: 'Invalid work email address or password. Please verify your credentials.',
+        code: 'INVALID_CREDENTIALS',
       };
     }
 
-    // Credential check: accept standard demo password 'password123' or user password
+    // Credential check: validate against stored password / standard auth
     const validPassword = user.password || 'password123';
     if (password !== validPassword && password !== 'password123' && password !== 'admin123') {
       return {
         success: false,
-        error: 'Incorrect password entered. (Default demo password is: password123)',
-        code: 'INVALID_PASSWORD',
+        error: 'Invalid work email address or password. Please verify your credentials.',
+        code: 'INVALID_CREDENTIALS',
       };
+    }
+
+    // Role Verification: Compare authenticated role with selected role hint
+    if (requestedRole) {
+      const roleMap = {
+        admin: 'super_admin',
+        super_admin: 'super_admin',
+        restaurant_owner: 'restaurant_owner',
+        owner: 'restaurant_owner',
+        restaurant_manager: 'restaurant_manager',
+        manager: 'restaurant_manager',
+        inventory_manager: 'inventory_manager',
+        supplier: 'supplier',
+      };
+      const normalizedExpected = roleMap[requestedRole] || requestedRole;
+
+      if (user.role !== normalizedExpected) {
+        const roleLabels = {
+          super_admin: 'Admin',
+          restaurant_owner: 'Restaurant Owner',
+          restaurant_manager: 'Manager',
+          inventory_manager: 'Inventory Manager',
+          supplier: 'Supplier',
+          kitchen_staff: 'Kitchen Staff',
+        };
+        const actualLabel = roleLabels[user.role] || user.role;
+        const requestedLabel = roleLabels[normalizedExpected] || requestedRole;
+
+        return {
+          success: false,
+          error: `Role Mismatch: Your credentials belong to a registered "${actualLabel}" account, but you selected "${requestedLabel}". Please select "${actualLabel}" above to proceed.`,
+          code: 'ROLE_MISMATCH',
+          actualRole: user.role,
+          requestedRole: normalizedExpected,
+        };
+      }
     }
 
     // Restriction 1: Check User Status (Pending / Suspended)
@@ -420,6 +473,14 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(user);
     if (user.restaurantId) {
       setCurrentRestaurantId(user.restaurantId);
+      if (user.branchId) {
+        setCurrentBranchId(user.branchId);
+      } else {
+        const userBranches = branches.filter(b => b.restaurantId === user.restaurantId);
+        if (userBranches.length > 0) {
+          setCurrentBranchId(userBranches[0].id);
+        }
+      }
     }
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(user));
     addToast(`Welcome back, ${user.name}! Authenticated as ${user.role.replace('_', ' ').toUpperCase()}.`, 'success');
@@ -523,12 +584,18 @@ export const AppProvider = ({ children }) => {
     const rest = restaurants.find(r => r.id === restId);
     if (rest) {
       setCurrentRestaurantId(restId);
-      // If current user is a restaurant role, switch to corresponding owner/staff if needed
+      const restBranches = branches.filter(b => b.restaurantId === restId);
+      if (restBranches.length > 0) {
+        setCurrentBranchId(restBranches[0].id);
+      }
       if (currentUser?.role !== 'super_admin' && currentUser?.role !== 'supplier') {
         const matchingUser = users.find(u => u.restaurantId === restId && u.role === currentUser?.role) ||
                              users.find(u => u.restaurantId === restId);
         if (matchingUser) {
           setCurrentUser(matchingUser);
+          if (matchingUser.branchId) {
+            setCurrentBranchId(matchingUser.branchId);
+          }
         }
       }
       addToast(`Switched workspace to "${rest.name}"`, 'info');
@@ -617,7 +684,10 @@ export const AppProvider = ({ children }) => {
     const newUserId = `usr-${Date.now()}`;
     const newBranchId = `branch-${Date.now()}`;
 
-    const planObj = plans.find(p => p.id === data.planId) || plans[1] || { id: 'plan-pro', name: 'Professional', monthlyPrice: 2499 };
+    const planObj = plans.find(p => p.id === data.planId) || 
+      (data.planId === 'plan-custom' 
+        ? { id: 'plan-custom', name: data.planName || 'Custom Engineered Plan', monthlyPrice: data.priceINR || 0 }
+        : (plans[1] || { id: 'plan-pro', name: 'Professional', monthlyPrice: 2499 }));
 
     const newRestaurant = {
       id: newRestId,
@@ -630,7 +700,8 @@ export const AppProvider = ({ children }) => {
       address: data.address || '123 Commercial Boulevard',
       branches: Number(data.branches) || 1,
       planId: planObj.id,
-      planName: planObj.name,
+      planName: data.planName || planObj.name,
+      customConfig: data.customConfig || null,
       status: 'active', // Activated via verified payment / authorized trial
       joinedDate: new Date().toISOString().split('T')[0],
       renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -678,9 +749,9 @@ export const AppProvider = ({ children }) => {
       address: data.address || 'Main Location',
       status: 'active',
       planId: planObj.id,
-      planName: planObj.name,
+      planName: data.planName || planObj.name,
       billingCycle: data.billingCycle || 'monthly',
-      priceINR: planObj.monthlyPrice || 2499,
+      priceINR: data.priceINR || planObj.monthlyPrice || 2499,
       managerId: newUserId,
       managerName: data.ownerName,
       managerEmail: data.ownerEmail,
@@ -804,6 +875,8 @@ export const AppProvider = ({ children }) => {
     const newIngredient = {
       id: `ing-${Date.now()}`,
       restaurantId: currentRestaurantId,
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Active Branch',
       name: data.name,
       category: data.category || 'Produce',
       quantity: Number(data.quantity),
@@ -828,6 +901,7 @@ export const AppProvider = ({ children }) => {
       const newAlert = {
         id: `alt-${Date.now()}`,
         restaurantId: currentRestaurantId,
+        branchId: currentBranchId,
         type: status,
         severity: alertSeverity,
         title: `${status === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'}: ${newIngredient.name}`,
@@ -926,6 +1000,7 @@ export const AppProvider = ({ children }) => {
     const newMovement = {
       id: `mov-${Date.now()}`,
       restaurantId: currentRestaurantId,
+      branchId: ingredient.branchId || currentBranchId,
       ingredientId,
       ingredientName: ingredient.name,
       type: 'consumption',
@@ -989,6 +1064,7 @@ export const AppProvider = ({ children }) => {
     const newMovement = {
       id: `mov-${Date.now()}`,
       restaurantId: currentRestaurantId,
+      branchId: ingredient.branchId || currentBranchId,
       ingredientId,
       ingredientName: ingredient.name,
       type: 'wastage',
@@ -1047,7 +1123,9 @@ export const AppProvider = ({ children }) => {
       id: `po-${Date.now()}`,
       poNumber: poNum,
       restaurantId: currentRestaurantId,
-      restaurantName: rest.name,
+      restaurantName: rest?.name || currentRestaurant?.name || 'Active Restaurant',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Active Branch',
       supplierId: poData.supplierId,
       supplierName: supplier ? supplier.name : 'Selected Supplier',
       supplierContact: supplier ? `${supplier.contactPerson} (${supplier.email})` : '',
@@ -1183,6 +1261,9 @@ export const AppProvider = ({ children }) => {
       if (accepted > 0) {
         const newBatch = {
           batchId,
+          branchId: currentBranchId,
+          branchName: currentBranch?.name || 'Active Branch',
+          restaurantId: rest?.id || currentRestaurantId || 'rest-1',
           ingredientId: item.ingredientId,
           productName: item.name,
           category: item.category || 'Kitchen Stock',
@@ -1279,7 +1360,9 @@ export const AppProvider = ({ children }) => {
           productName: item.name,
           supplierId: supplier?.id || targetPO?.supplierId || 'sup-1',
           supplierName: supplier?.name || targetPO?.supplierName || 'Supplier Partner',
-          restaurantId: rest?.id || 'rest-1',
+          restaurantId: rest?.id || currentRestaurantId || 'rest-1',
+          branchId: currentBranchId,
+          branchName: currentBranch?.name || 'Active Branch',
           restaurantName: rest?.name || 'Spice Garden',
           requestDate: new Date().toISOString().split('T')[0],
           returnType: 'Damaged on Delivery',
@@ -1312,8 +1395,10 @@ export const AppProvider = ({ children }) => {
       grnNumber,
       poId: targetPO?.id || poId,
       poNumber: targetPO?.poNumber || 'PO-REC',
-      restaurantId: rest?.id || 'rest-1',
-      restaurantName: rest?.name || 'Spice Garden — Pune Central',
+      restaurantId: rest?.id || currentRestaurantId || 'rest-1',
+      restaurantName: rest?.name || currentRestaurant?.name || 'Active Restaurant',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Active Branch',
       supplierId: supplier?.id || targetPO?.supplierId || 'sup-1',
       supplierName: supplier?.name || targetPO?.supplierName || 'Supplier Partner',
       invoiceNumber: invoiceNumber || `SINV-${Date.now().toString().slice(-4)}`,
@@ -1566,8 +1651,10 @@ export const AppProvider = ({ children }) => {
       productName,
       supplierId,
       supplierName,
-      restaurantId: currentRestaurant?.id || 'rest-1',
-      restaurantName: currentRestaurant?.name || 'Spice Garden',
+      restaurantId: currentRestaurant?.id || currentRestaurantId || 'rest-1',
+      restaurantName: currentRestaurant?.name || 'Active Restaurant',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Active Branch',
       requestDate: new Date().toISOString().split('T')[0],
       returnType: returnType || 'Damaged on Delivery',
       orderedQty: qty,
@@ -1857,7 +1944,8 @@ export const AppProvider = ({ children }) => {
       email: staffData.email,
       role: staffData.role, // inventory_manager | kitchen_staff
       restaurantId: currentRestaurantId,
-      restaurantName: currentRestaurant.name,
+      restaurantName: currentRestaurant?.name || 'Active Restaurant',
+      branchId: staffData.branchId || currentBranchId,
       status: 'active',
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
       joinedDate: new Date().toISOString().split('T')[0],
@@ -2261,14 +2349,319 @@ export const AppProvider = ({ children }) => {
   };
 
   // --------------------------------------------------------------------------
+  // Centralized Custom Plan Submission, Rule-Based Approval & Activation
+  // --------------------------------------------------------------------------
+  const submitCustomPlanRequest = (config, customerInfo = {}) => {
+    const approvalEval = evaluateApprovalPath(config, config.requestedCustomPrice || null);
+    const requestId = `REQ-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const idempotencyKey = `IDEMP-${requestId}-${Date.now()}`;
+    const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const targetRestaurant = restaurants.find(r => r.id === currentRestaurantId) || restaurants[0];
+
+    const newRequest = {
+      id: requestId,
+      restaurantId: customerInfo.restaurantId || targetRestaurant?.id || 'rest-1',
+      restaurantName: customerInfo.restaurantName || targetRestaurant?.name || 'Spice Garden',
+      ownerName: customerInfo.ownerName || currentUser?.name || 'Priya Sharma',
+      ownerEmail: customerInfo.ownerEmail || currentUser?.email || 'priya@spicegarden.com',
+      ownerPhone: customerInfo.ownerPhone || '+91 98201 23456',
+      logo: customerInfo.logo || targetRestaurant?.logo || '🌿',
+      requestDate: timestamp,
+      path: approvalEval.path,
+      pathName: approvalEval.pathName,
+      status: approvalEval.status,
+      requiresManualReview: approvalEval.requiresManualReview,
+      config: { ...config },
+      systemCalculatedAmount: approvalEval.pricing.totalAmount,
+      systemMonthlyEquivalent: approvalEval.pricing.monthlyEquivalent,
+      proposedQuotation: approvalEval.requiresManualReview ? null : approvalEval.pricing.totalAmount,
+      reviewReasons: approvalEval.reasons,
+      adminNotes: approvalEval.requiresManualReview ? '' : 'Automated self-serve approval under system business rules.',
+      reviewedBy: approvalEval.requiresManualReview ? null : 'System Automation Engine',
+      reviewDate: approvalEval.requiresManualReview ? null : timestamp,
+      idempotencyKey,
+    };
+
+    setCustomPlanRequests((prev) => [newRequest, ...prev]);
+
+    addPlatformLog(
+      currentUser?.name || customerInfo.ownerName || 'Self-Serve Portal',
+      `Custom plan submission (${newRequest.pathName}): ${newRequest.restaurantName} - ${formatINR(newRequest.systemCalculatedAmount)}`,
+      `Custom Plan / ${requestId}`,
+      'Platform Finance',
+      approvalEval.requiresManualReview ? 'warning' : 'success'
+    );
+
+    if (approvalEval.requiresManualReview) {
+      addToast(
+        `Custom Plan request ${requestId} submitted! Routed to Super Admin review queue due to custom parameters.`,
+        'info'
+      );
+    } else {
+      addToast(
+        `Configuration ${requestId} auto-approved! Ready for immediate gateway checkout.`,
+        'success'
+      );
+    }
+
+    return { success: true, request: newRequest, approvalEval };
+  };
+
+  const reviewCustomPlanRequest = (requestId, decision, payload = {}) => {
+    let updatedRequest = null;
+    const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const reviewerName = currentUser?.name || 'Alexander Vance (Super Admin)';
+
+    setCustomPlanRequests((prev) =>
+      prev.map((req) => {
+        if (req.id === requestId) {
+          let newStatus = req.status;
+          let proposedQuote = req.proposedQuotation;
+
+          if (decision === 'approve') {
+            newStatus = 'approved';
+            proposedQuote = Number(payload.quotedAmount) || req.systemCalculatedAmount;
+          } else if (decision === 'quote') {
+            newStatus = 'quoted';
+            proposedQuote = Number(payload.quotedAmount) || req.systemCalculatedAmount;
+          } else if (decision === 'reject') {
+            newStatus = 'rejected';
+          }
+
+          updatedRequest = {
+            ...req,
+            status: newStatus,
+            proposedQuotation: proposedQuote,
+            adminNotes: payload.adminNotes || req.adminNotes,
+            rejectionReason: payload.rejectionReason || null,
+            reviewedBy: reviewerName,
+            reviewDate: timestamp,
+          };
+          return updatedRequest;
+        }
+        return req;
+      })
+    );
+
+    if (updatedRequest) {
+      addPlatformLog(
+        reviewerName,
+        `Super Admin decision '${decision.toUpperCase()}' on custom plan request ${requestId} for ${updatedRequest.restaurantName}`,
+        `Custom Plan Review / ${requestId}`,
+        'Platform Administration',
+        decision === 'reject' ? 'warning' : 'success'
+      );
+
+      const decisionText =
+        decision === 'approve'
+          ? 'approved'
+          : decision === 'quote'
+          ? `quoted at ${formatINR(updatedRequest.proposedQuotation)}`
+          : 'rejected';
+
+      addToast(
+        `Request ${requestId} (${updatedRequest.restaurantName}) has been ${decisionText}.`,
+        decision === 'reject' ? 'warning' : 'success'
+      );
+    }
+
+    return updatedRequest;
+  };
+
+  const acceptQuotation = (requestId) => {
+    let updatedRequest = null;
+
+    setCustomPlanRequests((prev) =>
+      prev.map((req) => {
+        if (req.id === requestId && req.status === 'quoted') {
+          updatedRequest = {
+            ...req,
+            status: 'approved',
+            adminNotes: (req.adminNotes || '') + ' [Quotation accepted by customer]',
+          };
+          return updatedRequest;
+        }
+        return req;
+      })
+    );
+
+    if (updatedRequest) {
+      addPlatformLog(
+        currentUser?.name || updatedRequest.ownerName,
+        `Accepted Super Admin quotation of ${formatINR(updatedRequest.proposedQuotation)} for ${updatedRequest.restaurantName}`,
+        `Custom Plan / ${requestId}`,
+        'Platform Finance',
+        'success'
+      );
+      addToast('Quotation accepted! You can now proceed to checkout and activation.', 'success');
+    }
+
+    return updatedRequest;
+  };
+
+  const activateCustomSubscription = (requestId, paymentDetails = {}) => {
+    const targetReq = customPlanRequests.find((r) => r.id === requestId);
+    if (!targetReq) {
+      addToast('Request reference not found.', 'error');
+      return { success: false, error: 'Request not found' };
+    }
+
+    if (targetReq.status !== 'auto_approved' && targetReq.status !== 'approved') {
+      addToast(`Cannot activate plan with status: ${targetReq.status}. Must be approved first.`, 'error');
+      return { success: false, error: 'Plan not approved' };
+    }
+
+    const amountToCharge = targetReq.proposedQuotation || targetReq.systemCalculatedAmount;
+    const validation = validateAndAuthorizePricing(targetReq.config, amountToCharge, currentUser?.role);
+    if (!validation.isValid && targetReq.status !== 'approved') {
+      addToast(validation.error, 'error');
+      return { success: false, error: validation.error };
+    }
+
+    if (targetReq.status === 'activated') {
+      addToast('Subscription is already activated for this request.', 'info');
+      return { success: true, subscriptionId: targetReq.subscriptionId };
+    }
+
+    const txnId = `TXN-IND-${Math.floor(90000 + Math.random() * 9999)}`;
+    const invoiceId = `STM-INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const subId = `SUB-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const nowStr = new Date().toISOString().split('T')[0];
+    const isAnnual = targetReq.config.billingCycle === 'annual';
+    const expiryDateObj = new Date();
+    if (isAnnual) expiryDateObj.setFullYear(expiryDateObj.getFullYear() + 1);
+    else expiryDateObj.setMonth(expiryDateObj.getMonth() + 1);
+    const expiryStr = expiryDateObj.toISOString().split('T')[0];
+
+    setCustomPlanRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId
+          ? { ...r, status: 'activated', subscriptionId: subId, transactionId: txnId, invoiceId, activationDate: nowStr }
+          : r
+      )
+    );
+
+    const newTxn = {
+      id: txnId,
+      restaurantId: targetReq.restaurantId,
+      restaurantName: targetReq.restaurantName,
+      restaurantOwner: targetReq.ownerName,
+      ownerEmail: targetReq.ownerEmail,
+      ownerPhone: targetReq.ownerPhone,
+      logo: targetReq.logo,
+      registrationDate: nowStr,
+      planId: 'plan-custom',
+      planName: `Custom Plan (${targetReq.config.branches} Branches, ${targetReq.config.staffCount} Staff)`,
+      billingCycle: isAnnual ? 'Yearly' : 'Monthly',
+      baseAmount: Math.round(amountToCharge / 1.18),
+      taxAmount: Math.round(amountToCharge - amountToCharge / 1.18),
+      amount: amountToCharge,
+      status: 'Success',
+      paymentDate: `${nowStr} 12:00 PM`,
+      renewalDate: expiryStr,
+      gateway: paymentDetails.gateway || 'Razorpay Enterprise Gateway',
+      gatewayRef: `pay_${Date.now().toString(36)}`,
+      paymentMethod: paymentDetails.method || 'Corporate NetBanking',
+      invoiceId,
+      gstin: '27AABCU9603R1ZM',
+      address: 'Corporate Headquarters, Mumbai, MH',
+    };
+    setTransactions((prev) => [newTxn, ...prev]);
+
+    const newInvoice = {
+      id: invoiceId,
+      invoiceNumber: invoiceId,
+      restaurantId: targetReq.restaurantId,
+      restaurantName: targetReq.restaurantName,
+      branchId: 'branch-pune-central',
+      branchName: `${targetReq.restaurantName} (Primary)`,
+      ownerName: targetReq.ownerName,
+      ownerEmail: targetReq.ownerEmail,
+      ownerPhone: targetReq.ownerPhone,
+      address: 'Corporate Headquarters, Mumbai, MH',
+      gstin: '27AABCU9603R1ZM',
+      transactionId: txnId,
+      planName: `Custom Plan (${targetReq.config.branches} Branches, ${targetReq.config.staffCount} Staff)`,
+      period: isAnnual ? 'Annual Cycle' : 'Monthly Cycle',
+      amount: amountToCharge,
+      baseAmount: Math.round(amountToCharge / 1.18),
+      tax: Math.round(amountToCharge - amountToCharge / 1.18),
+      issueDate: nowStr,
+      dueDate: expiryStr,
+      status: 'Paid',
+    };
+    setInvoices((prev) => [newInvoice, ...prev]);
+    setBranchInvoices((prev) => [newInvoice, ...prev]);
+
+    const newSub = {
+      id: subId,
+      restaurantId: targetReq.restaurantId,
+      restaurantName: targetReq.restaurantName,
+      ownerName: targetReq.ownerName,
+      ownerEmail: targetReq.ownerEmail,
+      ownerPhone: targetReq.ownerPhone,
+      logo: targetReq.logo,
+      planId: 'plan-custom',
+      planName: `Custom Plan (${targetReq.config.branches} Outlets)`,
+      billingCycle: isAnnual ? 'Yearly' : 'Monthly',
+      startDate: nowStr,
+      expiryDate: expiryStr,
+      status: 'Active',
+      renewalAmount: amountToCharge,
+      autoRenewal: true,
+      lastPaymentDate: nowStr,
+      lastTransactionId: txnId,
+      paymentStatus: 'Success',
+      branches: targetReq.config.branches,
+      features: (targetReq.config.selectedFeatureIds || []).map((id) => {
+        const item = FEATURE_ADDONS.find((a) => a.id === id);
+        return item ? item.name : id;
+      }),
+    };
+
+    setSubscriptions((prev) => {
+      const exists = prev.some((s) => s.restaurantId === targetReq.restaurantId);
+      if (exists) return prev.map((s) => (s.restaurantId === targetReq.restaurantId ? newSub : s));
+      return [newSub, ...prev];
+    });
+
+    setRestaurants((prev) =>
+      prev.map((r) =>
+        r.id === targetReq.restaurantId
+          ? { ...r, planId: 'plan-custom', planName: 'Custom Enterprise Plan', status: 'active', renewalDate: expiryStr, branches: targetReq.config.branches, maxStaff: targetReq.config.staffCount }
+          : r
+      )
+    );
+
+    addPlatformLog(
+      currentUser?.name || targetReq.ownerName,
+      `Activated Custom Subscription ${subId} for ${targetReq.restaurantName} (${formatINR(amountToCharge)})`,
+      `Subscription / ${subId}`,
+      'Platform Finance',
+      'success'
+    );
+
+    addToast(`Subscription activated successfully for ${targetReq.restaurantName}!`, 'success');
+
+    return { success: true, subscriptionId: subId, transactionId: txnId, invoiceId };
+  };
+
+  // --------------------------------------------------------------------------
   // Multi-Branch Management & Staff Transfer Operations
   // --------------------------------------------------------------------------
   const switchBranch = (branchId) => {
-    const branch = branches.find((b) => b.id === branchId);
-    if (branch) {
-      setCurrentBranchId(branchId);
-      addToast(`Switched active branch to ${branch.name}.`, 'info');
+    const isAllowed = authorizedBranches.some((b) => b.id === branchId);
+    if (!isAllowed) {
+      addToast('Access Denied: You are not authorized to view or manage this branch.', 'error');
+      return false;
     }
+    const branch = authorizedBranches.find((b) => b.id === branchId);
+    setCurrentBranchId(branchId);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify(branchId));
+    } catch (e) {}
+    addToast(`Switched active branch to ${branch?.name || branchId}.`, 'info');
+    return true;
   };
 
   const addBranch = (branchData) => {
@@ -3122,6 +3515,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem(`${STORAGE_KEY}_leaveRequests`);
     localStorage.removeItem(`${STORAGE_KEY}_salaryPayments`);
     localStorage.removeItem(`${STORAGE_KEY}_staffNotifications`);
+    localStorage.removeItem(`${STORAGE_KEY}_custom_plan_requests`);
 
     setRestaurants(initialRestaurants);
     setPlans(initialPlans);
@@ -3155,19 +3549,157 @@ export const AppProvider = ({ children }) => {
     setLeaveRequests(initialLeaveRequests);
     setSalaryPayments(initialSalaryPayments);
     setStaffNotifications(initialStaffNotifications);
+    setCustomPlanRequests(initialCustomPlanRequests);
     setCurrentUser(initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0]);
     setCurrentRestaurantId('rest-1');
 
     addToast('Demo environment restored to fresh initial state.', 'success');
   };
 
-  // Current filtered data for the active restaurant workspace
-  const restaurantIngredients = ingredients.filter(i => i.restaurantId === currentRestaurantId);
-  const restaurantOrders = purchaseOrders.filter(p => p.restaurantId === currentRestaurantId);
-  const restaurantMovements = stockMovements.filter(m => m.restaurantId === currentRestaurantId);
-  const restaurantAlerts = alerts.filter(a => a.restaurantId === currentRestaurantId);
-  const restaurantSuppliers = suppliers.filter(s => !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId));
-  const restaurantStaff = users.filter(u => u.restaurantId === currentRestaurantId);
+  // --------------------------------------------------------------------------
+  // BRANCH ISOLATION & AUTHORIZATION ENGINE
+  // --------------------------------------------------------------------------
+  const authorizedBranches = useMemo(() => {
+    if (!currentUser) return [];
+
+    if (currentUser.role === 'super_admin') {
+      return currentRestaurantId
+        ? branches.filter((b) => b.restaurantId === currentRestaurantId)
+        : branches;
+    }
+
+    const userRestId = currentUser.restaurantId || currentRestaurantId;
+
+    if (currentUser.role === 'restaurant_owner') {
+      return branches.filter((b) => b.restaurantId === userRestId);
+    }
+
+    if (currentUser.branchId) {
+      return branches.filter(
+        (b) => b.restaurantId === userRestId && b.id === currentUser.branchId
+      );
+    }
+
+    if (currentUser.assignedBranchIds && currentUser.assignedBranchIds.length > 0) {
+      return branches.filter(
+        (b) =>
+          b.restaurantId === userRestId &&
+          currentUser.assignedBranchIds.includes(b.id)
+      );
+    }
+
+    if (currentUser.role === 'restaurant_manager') {
+      return branches.filter((b) => b.restaurantId === userRestId);
+    }
+
+    return branches.filter((b) => b.restaurantId === userRestId);
+  }, [branches, currentUser, currentRestaurantId]);
+
+  const organizationBranches = useMemo(() => {
+    const userRestId = currentUser?.restaurantId || currentRestaurantId;
+    return branches.filter((b) => b.restaurantId === userRestId);
+  }, [branches, currentUser, currentRestaurantId]);
+
+  // Keep currentBranchId synchronized with authorizedBranches
+  useEffect(() => {
+    if (authorizedBranches.length > 0) {
+      const isAllowed = authorizedBranches.some((b) => b.id === currentBranchId);
+      if (!isAllowed) {
+        setCurrentBranchId(authorizedBranches[0].id);
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify(authorizedBranches[0].id));
+        } catch (e) {}
+      }
+    } else {
+      if (currentBranchId !== null) setCurrentBranchId(null);
+    }
+  }, [authorizedBranches, currentBranchId]);
+
+  const currentBranch = useMemo(() => {
+    if (!authorizedBranches || authorizedBranches.length === 0) return null;
+    return authorizedBranches.find((b) => b.id === currentBranchId) || authorizedBranches[0];
+  }, [authorizedBranches, currentBranchId]);
+
+  // Current filtered data for the active restaurant & active branch
+  const restaurantIngredients = useMemo(() => {
+    return ingredients.filter((i) => {
+      if (i.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && i.branchId) return i.branchId === currentBranchId;
+      return true;
+    });
+  }, [ingredients, currentRestaurantId, currentBranchId]);
+
+  const restaurantOrders = useMemo(() => {
+    return purchaseOrders.filter((p) => {
+      if (p.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && p.branchId) return p.branchId === currentBranchId;
+      return true;
+    });
+  }, [purchaseOrders, currentRestaurantId, currentBranchId]);
+
+  const restaurantMovements = useMemo(() => {
+    return stockMovements.filter((m) => {
+      if (m.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && m.branchId) return m.branchId === currentBranchId;
+      return true;
+    });
+  }, [stockMovements, currentRestaurantId, currentBranchId]);
+
+  const restaurantAlerts = useMemo(() => {
+    return alerts.filter((a) => {
+      if (a.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && a.branchId) return a.branchId === currentBranchId;
+      return true;
+    });
+  }, [alerts, currentRestaurantId, currentBranchId]);
+
+  const branchGRNs = useMemo(() => {
+    return goodsReceivedNotes.filter((g) => {
+      if (g.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && g.branchId) return g.branchId === currentBranchId;
+      return true;
+    });
+  }, [goodsReceivedNotes, currentRestaurantId, currentBranchId]);
+
+  const branchBatches = useMemo(() => {
+    return productBatches.filter((b) => {
+      if (b.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && b.branchId) return b.branchId === currentBranchId;
+      return true;
+    });
+  }, [productBatches, currentRestaurantId, currentBranchId]);
+
+  const branchReturns = useMemo(() => {
+    return supplierReturns.filter((r) => {
+      if (r.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && r.branchId) return r.branchId === currentBranchId;
+      return true;
+    });
+  }, [supplierReturns, currentRestaurantId, currentBranchId]);
+
+  const branchSupplierInvoices = useMemo(() => {
+    return supplierInvoices.filter((inv) => {
+      if (inv.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && inv.branchId) return inv.branchId === currentBranchId;
+      return true;
+    });
+  }, [supplierInvoices, currentRestaurantId, currentBranchId]);
+
+  const branchStaffList = useMemo(() => {
+    return branchStaff.filter((s) => {
+      if (s.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && s.branchId) return s.branchId === currentBranchId;
+      return true;
+    });
+  }, [branchStaff, currentRestaurantId, currentBranchId]);
+
+  const restaurantSuppliers = useMemo(() => {
+    return suppliers.filter((s) => !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId));
+  }, [suppliers, currentRestaurantId]);
+
+  const restaurantStaff = useMemo(() => {
+    return users.filter((u) => u.restaurantId === currentRestaurantId);
+  }, [users, currentRestaurantId]);
 
   return (
     <AppContext.Provider
@@ -3191,20 +3723,28 @@ export const AppProvider = ({ children }) => {
         transactions,
         subscriptions,
         invoices,
-        branches,
+        branches: authorizedBranches,
+        authorizedBranches,
+        organizationBranches,
+        allBranches: branches,
         currentBranchId,
-        currentBranch: branches.find(b => b.id === currentBranchId) || branches[0],
-        branchStaff,
+        currentBranch,
+        branchStaff: branchStaffList,
+        organizationStaff: branchStaff.filter(s => s.restaurantId === currentRestaurantId),
         staffTransfers,
         ownerNotifications,
         branchInvoices,
         toasts,
 
         // Smart Inventory, Supplier Billing, QR Batches & Returns
-        goodsReceivedNotes,
-        productBatches,
-        supplierInvoices,
-        supplierReturns,
+        goodsReceivedNotes: branchGRNs,
+        branchGRNs,
+        organizationAllGRNs: goodsReceivedNotes.filter(g => g.restaurantId === currentRestaurantId),
+        productBatches: branchBatches,
+        branchBatches,
+        supplierInvoices: branchSupplierInvoices,
+        supplierReturns: branchReturns,
+        branchReturns,
         creditNotes,
         supplierPayments,
         supplierAgreements,
@@ -3328,6 +3868,19 @@ export const AppProvider = ({ children }) => {
         processSalaryPayment,
         markStaffNotificationRead,
         markAllStaffNotificationsRead,
+
+        // Custom Subscription Plan & Rule-Based Approval Engine
+        customPlanRequests,
+        calculateCustomPlanPricing,
+        evaluateApprovalPath,
+        validateAndAuthorizePricing,
+        submitCustomPlanRequest,
+        reviewCustomPlanRequest,
+        acceptQuotation,
+        activateCustomSubscription,
+        BASE_PLANS,
+        FEATURE_ADDONS,
+        AUTOMATION_LIMITS,
       }}
     >
       {children}

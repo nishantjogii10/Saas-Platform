@@ -26,6 +26,8 @@ import { PaymentsDashboard } from './pages/superAdmin/PaymentsDashboard';
 import { SubscriptionsPage } from './pages/superAdmin/SubscriptionsPage';
 import { InvoicesPage } from './pages/superAdmin/InvoicesPage';
 import { RevenueReportsPage } from './pages/superAdmin/RevenueReportsPage';
+import { PlanReviewQueuePage } from './pages/superAdmin/PlanReviewQueuePage';
+import { CustomPlanBuilderPage } from './pages/restaurant/CustomPlanBuilderPage';
 
 // Restaurant Owner & Manager Pages
 import { RestaurantDashboard } from './pages/restaurant/RestaurantDashboard';
@@ -99,6 +101,12 @@ const RootRedirect = () => {
   switch (currentUser.role) {
     case 'super_admin':
       return <Navigate to="/admin/dashboard" replace />;
+    case 'restaurant_owner':
+      return <Navigate to="/dashboard" replace />;
+    case 'restaurant_manager':
+      return <Navigate to="/dashboard" replace />;
+    case 'inventory_manager':
+      return <Navigate to="/goods-receiving" replace />;
     case 'supplier':
       return <Navigate to="/supplier" replace />;
     case 'kitchen_staff':
@@ -120,9 +128,10 @@ const DashboardDispatcher = () => {
       return <Navigate to="/supplier" replace />;
     case 'kitchen_staff':
       return <Navigate to="/kitchen" replace />;
-    case 'restaurant_owner':
-    case 'restaurant_manager':
     case 'inventory_manager':
+      return <Navigate to="/goods-receiving" replace />;
+    case 'restaurant_manager':
+    case 'restaurant_owner':
     default:
       return <RestaurantDashboard />;
   }
@@ -251,6 +260,20 @@ function App() {
               </AppLayout>
             }
           />
+
+          {/* Custom Plan Review Queue (Path C Manual Review) */}
+          <Route
+            path="/admin/custom-plan-requests"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['super_admin']}>
+                  <PlanReviewQueuePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/admin/plan-approvals" element={<Navigate to="/admin/custom-plan-requests" replace />} />
+          <Route path="/admin/plan-review" element={<Navigate to="/admin/custom-plan-requests" replace />} />
           <Route
             path="/admin/subscriptions"
             element={<Navigate to="/admin/finance/subscriptions" replace />}
@@ -491,6 +514,20 @@ function App() {
               </AppLayout>
             }
           />
+
+          {/* Automated Custom Plan Builder */}
+          <Route
+            path="/custom-plan"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager', 'super_admin']}>
+                  <CustomPlanBuilderPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/plan-builder" element={<Navigate to="/custom-plan" replace />} />
+          <Route path="/custom-plans" element={<Navigate to="/custom-plan" replace />} />
           <Route
             path="/branches/plans"
             element={<Navigate to="/branch-plans" replace />}

@@ -23,6 +23,7 @@ import {
   Eye,
   Check,
   X,
+  Store,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -37,6 +38,9 @@ export const GoodsReceivingPage = () => {
   const {
     goodsReceivedNotes,
     purchaseOrders,
+    restaurantOrders,
+    currentBranch,
+    currentBranchId,
     suppliers,
     createGoodsReceivedNote,
     addToast,
@@ -80,13 +84,48 @@ export const GoodsReceivingPage = () => {
   const totalAcceptedValue = goodsReceivedNotes.reduce((acc, g) => acc + (g.totalAcceptedAmount || 0), 0);
   const totalDamageLoss = goodsReceivedNotes.reduce((acc, g) => acc + (g.totalDamageLoss || 0), 0);
 
+  // Available POs strictly scoped to active branch
+  const activeBranchPOs = useMemo(() => {
+    const list = restaurantOrders || purchaseOrders || [];
+    return list.filter((p) => !p.branchId || !currentBranchId || p.branchId === currentBranchId);
+  }, [restaurantOrders, purchaseOrders, currentBranchId]);
+
   // Eligible POs for delivery receiving (dispatched, accepted, or pending)
-  const eligiblePOs = purchaseOrders.filter((po) => po.status !== 'delivered');
+  const eligiblePOs = useMemo(() => {
+    return activeBranchPOs.filter((po) => po.status !== 'delivered');
+  }, [activeBranchPOs]);
+
+  // Itemized damaged items across this branch's GRNs
+  const damagedItems = useMemo(() => {
+    const list = [];
+    goodsReceivedNotes.forEach((grn) => {
+      (grn.items || []).forEach((item) => {
+        if (Number(item.damagedQty) > 0) {
+          list.push({
+            id: `${grn.id}-${item.ingredientId || item.name}`,
+            grnNumber: grn.grnNumber,
+            grnId: grn.id,
+            supplierName: grn.supplierName,
+            supplierId: grn.supplierId,
+            receivedDate: grn.receivedDate,
+            name: item.name,
+            unit: item.unit,
+            damagedQty: item.damagedQty,
+            unitCost: item.unitCost,
+            lossAmount: (Number(item.damagedQty) || 0) * (Number(item.unitCost) || 0),
+            damageReason: item.damageReason || grn.notes || 'Transit packaging defect / temperature deviation at dock',
+            status: 'Return / Credit Filed',
+          });
+        }
+      });
+    });
+    return list;
+  }, [goodsReceivedNotes]);
 
   // Handle PO Selection in Create GRN Modal
   const handleSelectPO = (poId) => {
     setSelectedPOId(poId);
-    const po = purchaseOrders.find((p) => p.id === poId);
+    const po = activeBranchPOs.find((p) => p.id === poId) || purchaseOrders.find((p) => p.id === poId);
     if (!po) return;
 
     setInvoiceNumber(po.invoiceNumber || `SINV-${po.supplierName?.slice(0, 3).toUpperCase() || 'SUP'}-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -189,7 +228,7 @@ export const GoodsReceivingPage = () => {
 
           <div class="grid">
             <div>
-              <strong>Restaurant Outlet:</strong> ${grn.restaurantName}<br/>
+              <strong>Restaurant Outlet:</strong> ${grn.restaurantName}${grn.branchName ? ` — ${grn.branchName}` : (currentBranch?.name ? ` — ${currentBranch.name}` : '')}<br/>
               <strong>Verified By:</strong> ${grn.verifiedBy}<br/>
               <strong>Status:</strong> <span class="badge">${grn.verificationStatus}</span>
             </div>
@@ -249,7 +288,19 @@ export const GoodsReceivingPage = () => {
       {/* Page Header */}
       <PageHeader
         title="Goods Receiving & Delivery Verification (GRN)"
-        subtitle="Verify incoming supplier deliveries, inspect damaged goods, generate Goods Received Notes (GRNs), and issue QR-tracked batches."
+        subtitle={
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-slate-500">
+              Verify incoming supplier deliveries, inspect damaged goods, generate Goods Received Notes (GRNs), and issue QR-tracked batches.
+            </span>
+            {currentBranch && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Active Dock: <strong>{currentBranch.name}</strong></span>
+              </span>
+            )}
+          </div>
+        }
         action={
           <div className="flex items-center gap-2">
             <Button
@@ -318,7 +369,7 @@ export const GoodsReceivingPage = () => {
         <StatCard
           title="Damaged Stock Loss"
           value={formatINR(totalDamageLoss)}
-          subtitle="Claimed for Return / Credit"
+          subtitle={totalDamageLoss > 0 ? "Claimed for Return / Credit" : "Zero Damaged Items"}
           icon={IndianRupee}
           variant={totalDamageLoss > 0 ? "danger" : "default"}
         />
@@ -335,152 +386,274 @@ export const GoodsReceivingPage = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by GRN number, PO number, supplier, or invoice..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
+      {/* Main Delivery Records & Empty State */}
+      {totalDeliveries === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-10 sm:p-14 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4 text-slate-400">
+            <PackageCheck className="w-8 h-8 text-slate-400" />
           </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          <h3 className="text-base font-bold text-slate-900 mb-1">
+            No deliveries recorded for this branch yet.
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto mb-6">
+            Purchase orders and verified supplier deliveries for this branch will appear here.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={ShoppingBag}
+              onClick={() => navigate('/purchase-orders')}
             >
-              <option value="all">All Verification Statuses</option>
-              <option value="Verified & Accepted">Verified &amp; Accepted</option>
-              <option value="Partially Accepted">Partially Accepted (Damaged)</option>
-              <option value="Rejected">Rejected at Dock</option>
-            </select>
+              View Purchase Orders
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => {
+                if (eligiblePOs.length > 0) {
+                  handleSelectPO(eligiblePOs[0].id);
+                }
+                setIsCreateGRNOpen(true);
+              }}
+            >
+              Receive Delivery &amp; Issue GRN
+            </Button>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Search and Filters */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by GRN number, PO number, supplier, or invoice..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
 
-      {/* GRN Records Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3.5 px-4">GRN &amp; Date</th>
-                <th className="py-3.5 px-4">Supplier &amp; PO Ref</th>
-                <th className="py-3.5 px-4">Invoice &amp; Challan</th>
-                <th className="py-3.5 px-4">Items Breakdown</th>
-                <th className="py-3.5 px-4">Accepted Value</th>
-                <th className="py-3.5 px-4">Damage / Loss</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredGRNs.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-xs text-slate-500">
-                    No Goods Received Notes match your search criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredGRNs.map((grn) => {
-                  const isPartial = grn.verificationStatus === 'Partially Accepted';
+              <div className="flex items-center gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="all">All Verification Statuses</option>
+                  <option value="Verified & Accepted">Verified &amp; Accepted</option>
+                  <option value="Partially Accepted">Partially Accepted (Damaged)</option>
+                  <option value="Rejected">Rejected at Dock</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-                  return (
-                    <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <div className="font-mono font-bold text-slate-900">{grn.grnNumber}</div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>{grn.receivedDate} • {grn.receivedTime || '10:00 AM'}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{grn.supplierName}</div>
-                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                          <span>PO: {grn.poNumber}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="text-slate-800 font-medium">{grn.invoiceNumber}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">Challan: {grn.deliveryChallan}</div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span className="font-bold text-slate-800">{grn.items.length} Product Line(s)</span>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
-                          {grn.items.map((it) => `${it.name} (${it.acceptedQty}/${it.receivedQty})`).join(', ')}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span className="font-bold text-emerald-800 text-sm">
-                          {formatINR(grn.totalAcceptedAmount)}
-                        </span>
-                        <div className="text-[10px] text-emerald-600">Added to Inventory</div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        {grn.totalDamageLoss > 0 ? (
-                          <div className="text-rose-600 font-bold">
-                            {formatINR(grn.totalDamageLoss)}
-                            <div className="text-[10px] text-rose-500">Claimed as Return</div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 font-medium">₹0 (Zero Loss)</span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            isPartial
-                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          }`}
-                        >
-                          {isPartial ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                          <span>{grn.verificationStatus}</span>
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setSelectedGRNDetails(grn)}
-                            className="text-slate-600"
-                          >
-                            <Eye className="w-3.5 h-3.5 mr-1" />
-                            Details
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            onClick={() => handlePrintGRN(grn)}
-                            className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                          >
-                            <Printer className="w-3.5 h-3.5 mr-1" />
-                            Print GRN
-                          </Button>
-                        </div>
+          {/* GRN Records Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="py-3.5 px-4">GRN &amp; Date</th>
+                    <th className="py-3.5 px-4">Supplier &amp; PO Ref</th>
+                    <th className="py-3.5 px-4">Invoice &amp; Challan</th>
+                    <th className="py-3.5 px-4">Items Breakdown</th>
+                    <th className="py-3.5 px-4">Accepted Value</th>
+                    <th className="py-3.5 px-4">Damage / Loss</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredGRNs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-xs text-slate-500">
+                        No Goods Received Notes match your search criteria.
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ) : (
+                    filteredGRNs.map((grn) => {
+                      const isPartial = grn.verificationStatus === 'Partially Accepted';
+
+                      return (
+                        <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="font-mono font-bold text-slate-900">{grn.grnNumber}</div>
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>{grn.receivedDate} • {grn.receivedTime || '10:00 AM'}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-900">{grn.supplierName}</div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                              <span>PO: {grn.poNumber}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="text-slate-800 font-medium">{grn.invoiceNumber}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">Challan: {grn.deliveryChallan}</div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-slate-800">{grn.items.length} Product Line(s)</span>
+                            <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                              {grn.items.map((it) => `${it.name} (${it.acceptedQty}/${it.receivedQty})`).join(', ')}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-emerald-800 text-sm">
+                              {formatINR(grn.totalAcceptedAmount)}
+                            </span>
+                            <div className="text-[10px] text-emerald-600">Added to Inventory</div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            {grn.totalDamageLoss > 0 ? (
+                              <div className="text-rose-600 font-bold">
+                                {formatINR(grn.totalDamageLoss)}
+                                <div className="text-[10px] text-rose-500">Claimed as Return</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-medium">₹0 (Zero Loss)</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                isPartial
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}
+                            >
+                              {isPartial ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                              <span>{grn.verificationStatus}</span>
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setSelectedGRNDetails(grn)}
+                                className="text-slate-600"
+                              >
+                                <Eye className="w-3.5 h-3.5 mr-1" />
+                                Details
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => handlePrintGRN(grn)}
+                                className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                              >
+                                <Printer className="w-3.5 h-3.5 mr-1" />
+                                Print GRN
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Honest Damaged Items & Rejections Section */}
+      {totalDamageLoss === 0 ? (
+        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 text-emerald-950 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div>
+              <span className="font-bold text-emerald-950 text-sm">No damaged items recorded</span>
+              <p className="text-emerald-800 text-xs mt-0.5">
+                All deliveries received at <strong>{currentBranch?.name || 'this branch'}</strong> passed physical dock verification with ₹0 damage loss and zero rejected stock.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-bold text-emerald-700 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0">
+            ₹0 Loss
+          </span>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-rose-200 shadow-xs overflow-hidden">
+          <div className="px-5 py-4 bg-rose-50/60 border-b border-rose-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wider">
+                Itemized Damage Details &amp; Dock Rejections ({damagedItems.length} Records)
+              </h4>
+            </div>
+            <span className="text-xs font-bold text-rose-700 bg-rose-100/80 px-2.5 py-1 rounded-full border border-rose-200">
+              Total Loss: {formatINR(totalDamageLoss)}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <th className="py-3 px-4">Damaged Product</th>
+                  <th className="py-3 px-4">Damaged Qty</th>
+                  <th className="py-3 px-4">Unit Cost</th>
+                  <th className="py-3 px-4">Calculated Loss</th>
+                  <th className="py-3 px-4">Damage Reason / Evidence</th>
+                  <th className="py-3 px-4">Linked GRN &amp; Supplier</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {damagedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-rose-50/30 transition-colors">
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {item.name}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-rose-700">
+                      {item.damagedQty} {item.unit}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 font-mono">
+                      {formatINR(item.unitCost)}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-rose-600 font-mono">
+                      {formatINR(item.lossAmount)}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      {item.damageReason}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-mono font-bold text-slate-800">{item.grnNumber}</div>
+                      <div className="text-[10px] text-slate-500">{item.supplierName}</div>
+                    </td>
+                    <td className="py-3 px-4 text-slate-500 font-mono">
+                      {item.receivedDate}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Create GRN / Verify Delivery Modal */}
       <Modal

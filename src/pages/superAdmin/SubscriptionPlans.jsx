@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   CreditCard,
@@ -10,6 +11,7 @@ import {
   Shield,
   Layers,
   Sparkles,
+  FileCheck,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -19,7 +21,10 @@ import { FormInput } from '../../components/common/FormInput';
 import { formatINR } from '../../data/inventoryBillingData';
 
 export const SubscriptionPlans = () => {
-  const { plans, restaurants, updatePlan, assignPlanToRestaurant } = useApp();
+  const navigate = useNavigate();
+  const { plans, restaurants, updatePlan, assignPlanToRestaurant, customPlanRequests } = useApp();
+
+  const pendingReviewsCount = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -94,6 +99,14 @@ export const SubscriptionPlans = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={FileCheck}
+              onClick={() => navigate('/admin/custom-plan-requests')}
+            >
+              Review Queue (${pendingReviewsCount})
+            </Button>
             <Button
               variant="brand"
               size="sm"

@@ -36,6 +36,8 @@ import {
   UserCog,
   QrCode,
   RotateCcw,
+  FileCheck,
+  Sliders,
 } from 'lucide-react';
 
 export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
@@ -51,6 +53,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     currentBranch,
     switchBranch,
     ownerNotifications,
+    customPlanRequests,
   } = useApp();
 
   const getHomeRoute = () => {
@@ -68,6 +71,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
   const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
   const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
+  const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
 
   // Define nav links by role
   const getNavLinks = () => {
@@ -97,6 +101,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             items: [
               { to: '/admin/finance/payments', label: 'Payments', icon: CreditCard, badge: '₹' },
               { to: '/admin/finance/subscriptions', label: 'Subscriptions', icon: CalendarCheck },
+              { to: '/admin/custom-plan-requests', label: 'Plan Review Queue', icon: FileCheck, badge: pendingCustomPlanReviews > 0 ? pendingCustomPlanReviews : null },
               { to: '/admin/finance/invoices', label: 'Invoices & Receipts', icon: Receipt },
               { to: '/admin/finance/revenue', label: 'Revenue Reports', icon: TrendingUp },
             ],
@@ -132,6 +137,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/branches', label: 'Branches', icon: Building2 },
               { to: '/branch-subscriptions', label: 'Branch Subscriptions', icon: CalendarCheck },
               { to: '/branch-plans', label: 'Plan & Billing', icon: Sparkles },
+              { to: '/custom-plan', label: 'Custom Plan Builder', icon: Sliders },
               { to: '/branch-staff', label: 'Staff & Managers', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               {
