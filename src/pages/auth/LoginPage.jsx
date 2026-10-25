@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Loader2,
   CheckCircle2,
+  ChefHat,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 
@@ -53,6 +54,14 @@ const ROLE_OPTIONS = [
     placeholder: 'inventory@restaurant.com',
     description: 'Physical Goods Receiving, QR Batches & Dock',
     dashboard: '/goods-receiving',
+  },
+  {
+    id: 'kitchen_staff',
+    label: 'Kitchen Staff',
+    icon: ChefHat,
+    placeholder: 'kitchen@restaurant.com',
+    description: 'Kitchen Terminal, Stock Usage & Wastage',
+    dashboard: '/kitchen',
   },
   {
     id: 'supplier',
@@ -107,6 +116,9 @@ export const LoginPage = () => {
         break;
       case 'supplier':
         navigate('/supplier');
+        break;
+      case 'kitchen_staff':
+        navigate('/kitchen');
         break;
       default:
         navigate('/dashboard');

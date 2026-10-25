@@ -386,6 +386,8 @@ export const AppProvider = ({ children }) => {
         manager: 'restaurant_manager',
         inventory_manager: 'inventory_manager',
         supplier: 'supplier',
+        kitchen_staff: 'kitchen_staff',
+        kitchen: 'kitchen_staff',
       };
       const normalizedExpected = roleMap[requestedRole] || requestedRole;
 
