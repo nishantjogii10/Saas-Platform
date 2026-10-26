@@ -15,6 +15,7 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 
 // Super Admin Pages
 import { SuperAdminDashboard } from './pages/superAdmin/SuperAdminDashboard';
+import { CommunicationCenterPage } from './pages/superAdmin/CommunicationCenterPage';
 import { RestaurantManagement } from './pages/superAdmin/RestaurantManagement';
 import { UserManagement } from './pages/superAdmin/UserManagement';
 import { SubscriptionPlans } from './pages/superAdmin/SubscriptionPlans';
@@ -31,6 +32,7 @@ import { CustomPlanBuilderPage } from './pages/restaurant/CustomPlanBuilderPage'
 
 // Restaurant Owner & Manager Pages
 import { RestaurantDashboard } from './pages/restaurant/RestaurantDashboard';
+import { OwnerInboxPage } from './pages/restaurant/OwnerInboxPage';
 import { InventoryPage } from './pages/restaurant/InventoryPage';
 import { ExpiryTrackingPage } from './pages/restaurant/ExpiryTrackingPage';
 import { SuppliersPage } from './pages/restaurant/SuppliersPage';
@@ -154,6 +156,16 @@ function App() {
               <AppLayout>
                 <RoleGuard allowedRoles={['super_admin']}>
                   <SuperAdminDashboard />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/admin/communication"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['super_admin']}>
+                  <CommunicationCenterPage />
                 </RoleGuard>
               </AppLayout>
             }
@@ -314,6 +326,18 @@ function App() {
             element={
               <AppLayout>
                 <DashboardDispatcher />
+              </AppLayout>
+            }
+          />
+
+          {/* Restaurant Owner Inbox & Communication Center */}
+          <Route
+            path="/inbox"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner']}>
+                  <OwnerInboxPage />
+                </RoleGuard>
               </AppLayout>
             }
           />

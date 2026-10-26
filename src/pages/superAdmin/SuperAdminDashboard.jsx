@@ -10,7 +10,6 @@ import {
   Activity,
   ShieldCheck,
   CheckCircle2,
-  AlertTriangle,
   ArrowRight,
   Sparkles,
   Clock,
@@ -38,11 +37,10 @@ import { formatINR } from '../../data/inventoryBillingData';
 
 export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
-  const { restaurants, users, plans, platformLogs, approveRestaurant } = useApp();
+  const { restaurants, users, plans, platformLogs } = useApp();
 
   const totalRestaurants = restaurants.length;
   const activeRestaurants = restaurants.filter(r => r.status === 'active').length;
-  const pendingRestaurants = restaurants.filter(r => r.status === 'pending').length;
   const suspendedRestaurants = restaurants.filter(r => r.status === 'suspended').length;
   const totalUsers = users.length;
 
@@ -59,7 +57,7 @@ export const SuperAdminDashboard = () => {
     <div className="space-y-6">
       <PageHeader
         title="Super Admin Platform Dashboard"
-        subtitle="Global tenant oversight, platform revenue metrics, and account approvals"
+        subtitle="Global tenant oversight, platform revenue metrics, and multi-tenant subscriptions"
         badge={<Badge status="super_admin" label="Platform Owner Scope" />}
         actions={
           <div className="flex items-center gap-2">
@@ -91,32 +89,6 @@ export const SuperAdminDashboard = () => {
         }
       />
 
-      {/* Pending Approvals Alert Banner (Workflow A Highlight) */}
-      {pendingRestaurants > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-amber-950">
-                {pendingRestaurants} Restaurant Application{pendingRestaurants > 1 ? 's' : ''} Awaiting Approval
-              </h4>
-              <p className="text-xs text-amber-800">
-                New tenant workspaces submitted via Sign Up (Workflow A) require owner verification.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => navigate('/admin/restaurants?filter=pending')}
-          >
-            Review Pending Accounts
-          </Button>
-        </div>
-      )}
-
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <StatCard
@@ -124,7 +96,7 @@ export const SuperAdminDashboard = () => {
           value={totalRestaurants}
           change="+14.2%"
           trend="up"
-          subtext={`${activeRestaurants} Active • ${pendingRestaurants} Pending`}
+          subtext={`${activeRestaurants} Active Multi-Branch Tenants`}
           icon={Building2}
           accentColor="emerald"
           onClick={() => navigate('/admin/restaurants')}

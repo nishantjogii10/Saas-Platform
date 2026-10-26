@@ -43,6 +43,10 @@ import {
 
 import { initialCustomPlanRequests } from '../data/customPlanData';
 import {
+  INITIAL_ANNOUNCEMENTS,
+  INITIAL_ANNOUNCEMENT_TEMPLATES,
+} from '../data/announcementData';
+import {
   calculateCustomPlanPricing,
   evaluateApprovalPath,
   validateAndAuthorizePricing,
@@ -138,6 +142,28 @@ export const AppProvider = ({ children }) => {
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
+
+  // Communication Center & Announcement States
+  const [announcements, setAnnouncements] = useState(() => loadStored('announcements', INITIAL_ANNOUNCEMENTS));
+  const [announcementTemplates, setAnnouncementTemplates] = useState(() => loadStored('announcementTemplates', INITIAL_ANNOUNCEMENT_TEMPLATES));
+  const [announcementReads, setAnnouncementReads] = useState(() => loadStored('announcementReads', {
+    'ann-101_rest-1': { isRead: true, readAt: '2026-10-25T16:00:00.000Z', readBy: 'Priya Sharma' },
+    'ann-102_rest-1': { isRead: true, readAt: '2026-10-26T09:00:00.000Z', readBy: 'Priya Sharma' },
+  }));
+  const [announcementArchives, setAnnouncementArchives] = useState(() => loadStored('announcementArchives', {}));
+  const [policyAcknowledgments, setPolicyAcknowledgments] = useState(() => loadStored('policyAcknowledgments', [
+    {
+      id: 'ack-init-1',
+      announcementId: 'ann-101',
+      policyVersion: 'v2.4',
+      restaurantId: 'rest-1',
+      ownerId: 'usr-sg-1',
+      ownerName: 'Priya Sharma',
+      ownerEmail: 'priya@spicegarden.com',
+      acknowledgedAt: '2026-10-25T16:05:00.000Z',
+    }
+  ]));
+  const [emailDeliveryLogs, setEmailDeliveryLogs] = useState(() => loadStored('emailDeliveryLogs', []));
 
   // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
   // or restore from localStorage
@@ -291,6 +317,30 @@ export const AppProvider = ({ children }) => {
   }, [customPlanRequests]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_announcements`, JSON.stringify(announcements));
+  }, [announcements]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_announcementTemplates`, JSON.stringify(announcementTemplates));
+  }, [announcementTemplates]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_announcementReads`, JSON.stringify(announcementReads));
+  }, [announcementReads]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_announcementArchives`, JSON.stringify(announcementArchives));
+  }, [announcementArchives]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_policyAcknowledgments`, JSON.stringify(policyAcknowledgments));
+  }, [policyAcknowledgments]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_emailDeliveryLogs`, JSON.stringify(emailDeliveryLogs));
+  }, [emailDeliveryLogs]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(currentUser));
   }, [currentUser]);
 
@@ -414,10 +464,10 @@ export const AppProvider = ({ children }) => {
     }
 
     // Restriction 1: Check User Status (Pending / Suspended)
-    if (user.status === 'pending') {
+    if (user.status === 'pending' && user.role !== 'restaurant_owner') {
       return {
         success: false,
-        error: `Account Pending Verification: ${user.name}'s account is currently awaiting Super Admin approval (Workflow A).`,
+        error: `Account Pending Verification: ${user.name}'s account is currently awaiting verification.`,
         code: 'ACCOUNT_PENDING',
         user,
       };
@@ -437,13 +487,8 @@ export const AppProvider = ({ children }) => {
       const rest = restaurants.find(r => r.id === user.restaurantId);
       if (rest) {
         if (rest.status === 'pending') {
-          return {
-            success: false,
-            error: `Restaurant Pending Verification: "${rest.name}" is awaiting verification by the Super Admin. You cannot access the workspace until the tenant account is approved.`,
-            code: 'RESTAURANT_PENDING',
-            restaurant: rest,
-            user,
-          };
+          // Auto-activate eligible workspace upon verified login
+          rest.status = 'active';
         }
 
         if (rest.status === 'suspended') {
@@ -620,6 +665,8 @@ export const AppProvider = ({ children }) => {
   // WORKFLOW A: RESTAURANT REGISTRATION & APPROVAL
   // ==========================================
   const registerRestaurant = (restaurantData) => {
+    return registerAndActivateRestaurant(restaurantData);
+    // eslint-disable-next-line no-unreachable
     const newRestId = `rest-${Date.now()}`;
     const newUserId = `usr-${Date.now()}`;
 
@@ -3703,6 +3750,230 @@ export const AppProvider = ({ children }) => {
     return users.filter((u) => u.restaurantId === currentRestaurantId);
   }, [users, currentRestaurantId]);
 
+  // ==========================================
+  // COMMUNICATION CENTER & ANNOUNCEMENT METHODS
+  // ==========================================
+  const publishAnnouncement = (data) => {
+    const newId = `ann-${Date.now()}`;
+    const newAnnouncement = {
+      ...data,
+      id: newId,
+      status: 'published',
+      publishedAt: new Date().toISOString(),
+      author: currentUser?.name || 'Alexander Vance (Super Admin)',
+      authorRole: 'Platform Governance',
+      emailDelivery: {
+        queued: restaurants.length,
+        delivered: restaurants.length,
+        failed: 0,
+        provider: 'StockMate Cloud Dispatcher (Transactional SMTP Simulator)',
+        simulated: true,
+      },
+    };
+
+    setAnnouncements((prev) => [newAnnouncement, ...prev]);
+
+    // Calculate targeted restaurants
+    let targetRestaurants = [];
+    if (data.audienceType === 'ALL_RESTAURANTS') {
+      targetRestaurants = restaurants.filter((r) => r.status === 'active');
+    } else if (data.audienceType === 'SPECIFIC_RESTAURANTS') {
+      targetRestaurants = restaurants.filter((r) => (data.targetRestaurantIds || []).includes(r.id));
+    } else if (data.audienceType === 'SUBSCRIPTION_TIER') {
+      targetRestaurants = restaurants.filter((r) => (data.targetPlanIds || []).includes(r.planId));
+    } else {
+      targetRestaurants = restaurants;
+    }
+
+    // In-App Notifications Integration: create notification for each targeted restaurant
+    const newNotifs = targetRestaurants.map((rest) => ({
+      id: `notif-ann-${Date.now()}-${rest.id}`,
+      type: data.category === 'policy' ? 'policy_update' : 'announcement',
+      restaurantId: rest.id,
+      title: `Announcement: ${data.title}`,
+      message: data.summary || data.body.slice(0, 110) + '...',
+      timestamp: new Date().toISOString(),
+      read: false,
+      actionLink: '/inbox',
+      announcementId: newId,
+      priority: data.priority || 'normal',
+    }));
+
+    setOwnerNotifications((prev) => [...newNotifs, ...prev]);
+
+    // Email delivery log simulation
+    const newLogs = targetRestaurants.map((rest) => ({
+      id: `email-log-${Date.now()}-${rest.id}`,
+      announcementId: newId,
+      announcementTitle: data.title,
+      recipientEmail: rest.ownerEmail,
+      recipientName: rest.ownerName,
+      restaurantName: rest.name,
+      restaurantId: rest.id,
+      status: 'Delivered (Simulated via StockMate Cloud Dispatcher)',
+      timestamp: new Date().toISOString(),
+      provider: 'StockMate Cloud Dispatcher (Transactional SMTP Simulator)',
+      simulated: true,
+    }));
+
+    setEmailDeliveryLogs((prev) => [...newLogs, ...prev]);
+
+    addPlatformLog(
+      currentUser?.name || 'Alexander Vance (Super Admin)',
+      `Broadcast Announcement: "${data.title}"`,
+      `Audience: ${targetRestaurants.length} Restaurants`,
+      'Announcements',
+      'success'
+    );
+
+    addToast(`Announcement broadcasted to ${targetRestaurants.length} restaurant inboxes.`, 'success');
+    return newAnnouncement;
+  };
+
+  const saveAnnouncementDraft = (data) => {
+    const draftId = data.id || `draft-${Date.now()}`;
+    const draftItem = {
+      ...data,
+      id: draftId,
+      status: 'draft',
+      publishedAt: new Date().toISOString(),
+      author: currentUser?.name || 'Alexander Vance (Super Admin)',
+    };
+
+    setAnnouncements((prev) => {
+      const exists = prev.some((a) => a.id === draftId);
+      if (exists) {
+        return prev.map((a) => (a.id === draftId ? draftItem : a));
+      }
+      return [draftItem, ...prev];
+    });
+
+    addToast('Announcement draft saved.', 'info');
+    return draftItem;
+  };
+
+  const deleteAnnouncement = (announcementId) => {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== announcementId));
+    addToast('Announcement deleted from platform records.', 'info');
+  };
+
+  const markAnnouncementAsRead = (announcementId, restaurantId) => {
+    const key = `${announcementId}_${restaurantId}`;
+    setAnnouncementReads((prev) => ({
+      ...prev,
+      [key]: { isRead: true, readAt: new Date().toISOString(), readBy: currentUser?.name || 'Owner' },
+    }));
+
+    // Synchronize matching in-app notification if exists
+    setOwnerNotifications((prev) =>
+      prev.map((n) =>
+        n.announcementId === announcementId && n.restaurantId === restaurantId
+          ? { ...n, read: true }
+          : n
+      )
+    );
+  };
+
+  const markAnnouncementAsUnread = (announcementId, restaurantId) => {
+    const key = `${announcementId}_${restaurantId}`;
+    setAnnouncementReads((prev) => ({
+      ...prev,
+      [key]: { isRead: false, readAt: null },
+    }));
+  };
+
+  const toggleArchiveAnnouncement = (announcementId, restaurantId) => {
+    const key = `${announcementId}_${restaurantId}`;
+    setAnnouncementArchives((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const acknowledgePolicy = (announcementId, policyVersion, restaurantId) => {
+    const newAck = {
+      id: `ack-${Date.now()}`,
+      announcementId,
+      policyVersion,
+      restaurantId,
+      ownerId: currentUser?.id,
+      ownerName: currentUser?.name || 'Restaurant Owner',
+      ownerEmail: currentUser?.email,
+      acknowledgedAt: new Date().toISOString(),
+    };
+
+    setPolicyAcknowledgments((prev) => [
+      ...prev.filter((a) => !(a.announcementId === announcementId && a.restaurantId === restaurantId)),
+      newAck,
+    ]);
+
+    // Mark as read automatically
+    markAnnouncementAsRead(announcementId, restaurantId);
+
+    const rest = restaurants.find((r) => r.id === restaurantId);
+    addPlatformLog(
+      currentUser?.name || 'Restaurant Owner',
+      `Policy ${policyVersion} Formally Acknowledged`,
+      rest ? rest.name : restaurantId,
+      'Compliance',
+      'success'
+    );
+
+    addToast(`Policy ${policyVersion} formally acknowledged for ${rest?.name || 'your restaurant'}.`, 'success');
+    return newAck;
+  };
+
+  const saveCustomTemplate = (templateData) => {
+    const tplId = templateData.id || `tpl-${Date.now()}`;
+    const newTpl = { ...templateData, id: tplId };
+    setAnnouncementTemplates((prev) => {
+      const exists = prev.some((t) => t.id === tplId);
+      if (exists) {
+        return prev.map((t) => (t.id === tplId ? newTpl : t));
+      }
+      return [newTpl, ...prev];
+    });
+    addToast('Template saved to library.', 'success');
+  };
+
+  const duplicateTemplate = (templateId) => {
+    const target = (announcementTemplates || []).find((t) => t.id === templateId);
+    if (!target) return;
+    const clone = {
+      ...target,
+      id: `tpl-${Date.now()}`,
+      title: `${target.title} (Copy)`,
+    };
+    setAnnouncementTemplates((prev) => [clone, ...prev]);
+    addToast('Template duplicated.', 'info');
+  };
+
+  const resetTemplate = (templateId) => {
+    const original = INITIAL_ANNOUNCEMENT_TEMPLATES.find((t) => t.id === templateId);
+    if (!original) return;
+    setAnnouncementTemplates((prev) =>
+      prev.map((t) => (t.id === templateId ? { ...original } : t))
+    );
+    addToast('Template reset to standard default.', 'info');
+  };
+
+  const getAnnouncementStats = () => {
+    const published = (announcements || []).filter((a) => a.status === 'published');
+    const drafts = (announcements || []).filter((a) => a.status === 'draft');
+    const totalReads = Object.values(announcementReads || {}).filter((v) => v.isRead).length;
+    const totalAcks = (policyAcknowledgments || []).length;
+
+    return {
+      totalPublished: published.length,
+      totalDrafts: drafts.length,
+      totalRecipients: published.length * restaurants.length,
+      totalReads,
+      totalAcknowledgments: totalAcks,
+      readRate: published.length > 0 ? Math.round((totalReads / (published.length * Math.max(1, restaurants.length))) * 100) : 0,
+      ackRate: totalAcks > 0 ? 100 : 0,
+    };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -3883,6 +4154,26 @@ export const AppProvider = ({ children }) => {
         BASE_PLANS,
         FEATURE_ADDONS,
         AUTOMATION_LIMITS,
+
+        // Communication Center & Announcement System
+        announcements,
+        announcementTemplates,
+        announcementReads,
+        announcementArchives,
+        policyAcknowledgments,
+        emailDeliveryLogs,
+
+        publishAnnouncement,
+        saveAnnouncementDraft,
+        deleteAnnouncement,
+        markAnnouncementAsRead,
+        markAnnouncementAsUnread,
+        toggleArchiveAnnouncement,
+        acknowledgePolicy,
+        saveCustomTemplate,
+        duplicateTemplate,
+        resetTemplate,
+        getAnnouncementStats,
       }}
     >
       {children}
