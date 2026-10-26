@@ -48,12 +48,11 @@ import { SupplierReturnsPage } from './pages/restaurant/SupplierReturnsPage';
 import { SupplierBillingPage } from './pages/restaurant/SupplierBillingPage';
 
 // Multi-Branch Management, Branch Subscriptions, Staff Transfers & Notifications
-import { BranchOverviewPage } from './pages/restaurant/BranchOverviewPage';
-import { BranchesPage } from './pages/restaurant/BranchesPage';
+import { CombinedBranchesPage } from './pages/restaurant/CombinedBranchesPage';
+import { PlansAndBillingPage } from './pages/restaurant/PlansAndBillingPage';
 import { BranchSubscriptionsPage } from './pages/restaurant/BranchSubscriptionsPage';
 import { BranchPlansPage } from './pages/restaurant/BranchPlansPage';
-import { BranchStaffPage } from './pages/restaurant/BranchStaffPage';
-import { StaffTransfersPage } from './pages/restaurant/StaffTransfersPage';
+import { WorkforcePage } from './pages/restaurant/WorkforcePage';
 import { OwnerNotificationsPage } from './pages/restaurant/OwnerNotificationsPage';
 import { OwnerBillingPage } from './pages/restaurant/OwnerBillingPage';
 
@@ -463,98 +462,80 @@ function App() {
 
           {/* Restaurant Owner: Branch & Plan Management Module */}
           <Route
-            path="/branches/overview"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchOverviewPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
-          <Route
-            path="/branch-overview"
-            element={<Navigate to="/branches/overview" replace />}
-          />
-          <Route
             path="/branches"
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchesPage />
+                  <CombinedBranchesPage />
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/branches/overview"
+            element={<Navigate to="/branches" replace />}
+          />
+          <Route
+            path="/branch-overview"
+            element={<Navigate to="/branches" replace />}
           />
           <Route
             path="/branch"
             element={<Navigate to="/branches" replace />}
           />
           <Route
-            path="/branch-subscriptions"
+            path="/plans-billing"
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchSubscriptionsPage />
+                  <PlansAndBillingPage />
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/branch-subscriptions"
+            element={<Navigate to="/plans-billing?tab=subscriptions" replace />}
           />
           <Route
             path="/branches/subscriptions"
-            element={<Navigate to="/branch-subscriptions" replace />}
+            element={<Navigate to="/plans-billing?tab=subscriptions" replace />}
           />
           <Route
             path="/branch-plans"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchPlansPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/plans-billing?tab=comparison" replace />}
           />
-
-          {/* Automated Custom Plan Builder */}
-          <Route
-            path="/custom-plan"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager', 'super_admin']}>
-                  <CustomPlanBuilderPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
-          <Route path="/plan-builder" element={<Navigate to="/custom-plan" replace />} />
-          <Route path="/custom-plans" element={<Navigate to="/custom-plan" replace />} />
           <Route
             path="/branches/plans"
-            element={<Navigate to="/branch-plans" replace />}
+            element={<Navigate to="/plans-billing?tab=comparison" replace />}
+          />
+          <Route
+            path="/custom-plan"
+            element={<Navigate to="/plans-billing?tab=custom" replace />}
+          />
+          <Route path="/plan-builder" element={<Navigate to="/plans-billing?tab=custom" replace />} />
+          <Route path="/custom-plans" element={<Navigate to="/plans-billing?tab=custom" replace />} />
+          <Route
+            path="/workforce"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
+                  <WorkforcePage />
+                </RoleGuard>
+              </AppLayout>
+            }
           />
           <Route
             path="/branch-staff"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <BranchStaffPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/workforce" replace />}
           />
           <Route
             path="/staff-transfers"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <StaffTransfersPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/workforce?tab=transfers" replace />}
           />
           <Route
             path="/transfers"
-            element={<Navigate to="/staff-transfers" replace />}
+            element={<Navigate to="/workforce?tab=transfers" replace />}
           />
           <Route
             path="/notifications"
@@ -568,13 +549,7 @@ function App() {
           />
           <Route
             path="/billing"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <OwnerBillingPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/plans-billing?tab=invoices" replace />}
           />
 
           {/* Kitchen Staff Module */}

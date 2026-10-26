@@ -133,13 +133,9 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           {
             section: 'Branch & Plan Management',
             items: [
-              { to: '/branches/overview', label: 'Branch Overview', icon: Store },
-              { to: '/branches', label: 'Branches', icon: Building2 },
-              { to: '/branch-subscriptions', label: 'Branch Subscriptions', icon: CalendarCheck },
-              { to: '/branch-plans', label: 'Plan & Billing', icon: Sparkles },
-              { to: '/custom-plan', label: 'Custom Plan Builder', icon: Sliders },
-              { to: '/branch-staff', label: 'Staff & Managers', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/branches', label: 'Branch Overview & Outlets', icon: Store },
+              { to: '/plans-billing', label: 'Plans & Billing', icon: Sparkles },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               {
                 to: '/notifications',
                 label: 'Notifications',
@@ -149,13 +145,11 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             ],
           },
           {
-            section: 'Business & Team',
+            section: 'Business & Finance',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
-              { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
-              { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
+              { to: '/settings', label: 'Restaurant Settings', icon: Settings },
             ],
           },
         ];
@@ -192,8 +186,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Restaurant Operations & Staff',
             items: [
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
               {
                 to: '/alerts',
