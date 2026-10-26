@@ -78,7 +78,13 @@ const RoleGuard = ({ allowedRoles, children }) => {
   const location = useLocation();
 
   if (!currentUser) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    const safeFrom =
+      location.pathname === '/notifications' ||
+      location.pathname === '/login' ||
+      location.pathname === '/app'
+        ? undefined
+        : location.pathname;
+    return <Navigate to="/login" state={safeFrom ? { from: safeFrom } : undefined} replace />;
   }
 
   // Super Admin has master platform access to audit and view all tenant modules
@@ -134,6 +140,26 @@ const DashboardDispatcher = () => {
     case 'restaurant_owner':
     default:
       return <RestaurantDashboard />;
+  }
+};
+
+// Notifications Route Dispatcher: Dispatches each role to their proper notifications experience
+const NotificationsDispatcher = () => {
+  const { currentUser } = useApp();
+  if (!currentUser) return <Navigate to="/login" replace />;
+
+  switch (currentUser.role) {
+    case 'kitchen_staff':
+      return <Navigate to="/kitchen" replace />;
+    case 'inventory_manager':
+      return <Navigate to="/alerts" replace />;
+    case 'supplier':
+      return <Navigate to="/supplier" replace />;
+    case 'super_admin':
+    case 'restaurant_owner':
+    case 'restaurant_manager':
+    default:
+      return <OwnerNotificationsPage />;
   }
 };
 
@@ -444,7 +470,7 @@ function App() {
             path="/staff-legacy"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
                   <StaffManagementPage />
                 </RoleGuard>
               </AppLayout>
@@ -461,12 +487,12 @@ function App() {
             }
           />
 
-          {/* Restaurant Owner: Branch & Plan Management Module */}
+          {/* Restaurant Owner & Manager: Branch Management Module */}
           <Route
             path="/branches/overview"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
                   <BranchOverviewPage />
                 </RoleGuard>
               </AppLayout>
@@ -480,7 +506,7 @@ function App() {
             path="/branches"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
                   <BranchesPage />
                 </RoleGuard>
               </AppLayout>
@@ -560,9 +586,7 @@ function App() {
             path="/notifications"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <OwnerNotificationsPage />
-                </RoleGuard>
+                <NotificationsDispatcher />
               </AppLayout>
             }
           />

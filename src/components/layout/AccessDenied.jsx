@@ -18,6 +18,7 @@ export const AccessDenied = ({ requiredRoles = [], currentRole }) => {
       case 'kitchen_staff':
         return '/kitchen';
       case 'inventory_manager':
+        return '/goods-receiving';
       case 'restaurant_manager':
       case 'restaurant_owner':
       default:

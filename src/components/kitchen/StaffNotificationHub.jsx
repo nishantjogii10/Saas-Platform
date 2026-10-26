@@ -142,6 +142,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
               <div
                 key={notif.id}
                 onClick={() => markStaffNotificationRead(notif.id)}
+                title={!notif.read ? 'Click anywhere on this notice to mark as read' : undefined}
                 className={`p-4 sm:p-5 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                   !notif.read
                     ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-l-4 border-l-emerald-600'

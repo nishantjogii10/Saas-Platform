@@ -97,33 +97,44 @@ export const LoginPage = () => {
 
   // Route directly to the authenticated role's dashboard
   const routeToUserDashboard = (role) => {
-    if (redirectDestination && redirectDestination !== '/dashboard') {
-      navigate(redirectDestination);
+    const getRoleDashboard = (r) => {
+      switch (r) {
+        case 'super_admin':
+          return '/admin/dashboard';
+        case 'restaurant_owner':
+        case 'restaurant_manager':
+          return '/dashboard';
+        case 'inventory_manager':
+          return '/goods-receiving';
+        case 'supplier':
+          return '/supplier';
+        case 'kitchen_staff':
+          return '/kitchen';
+        default:
+          return '/dashboard';
+      }
+    };
+
+    const targetDashboard = getRoleDashboard(role);
+
+    // If logging in as manager, staff, or operational roles, ALWAYS redirect directly to their dashboard.
+    // Also prevent redirecting to /notifications, /login, or invalid paths to avoid Access Denied loops.
+    if (
+      role === 'restaurant_manager' ||
+      role === 'kitchen_staff' ||
+      role === 'inventory_manager' ||
+      role === 'supplier' ||
+      !redirectDestination ||
+      redirectDestination === '/notifications' ||
+      redirectDestination === '/dashboard' ||
+      redirectDestination === '/login' ||
+      redirectDestination === '/'
+    ) {
+      navigate(targetDashboard, { replace: true });
       return;
     }
-    switch (role) {
-      case 'super_admin':
-        navigate('/admin/dashboard');
-        break;
-      case 'restaurant_owner':
-        navigate('/dashboard');
-        break;
-      case 'restaurant_manager':
-        navigate('/dashboard');
-        break;
-      case 'inventory_manager':
-        navigate('/goods-receiving');
-        break;
-      case 'supplier':
-        navigate('/supplier');
-        break;
-      case 'kitchen_staff':
-        navigate('/kitchen');
-        break;
-      default:
-        navigate('/dashboard');
-        break;
-    }
+
+    navigate(redirectDestination, { replace: true });
   };
 
   const validateForm = () => {

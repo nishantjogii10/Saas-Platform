@@ -1158,7 +1158,7 @@ export const AppProvider = ({ children }) => {
 
     setPurchaseOrders(prev => [newPO, ...prev]);
 
-    // Also add PO update alert
+    // Also add PO update alert (marked read for creator)
     const newAlert = {
       id: `alt-${Date.now()}`,
       restaurantId: currentRestaurantId,
@@ -1167,12 +1167,18 @@ export const AppProvider = ({ children }) => {
       title: `Order Created: ${newPO.poNumber}`,
       message: `Sent to ${newPO.supplierName} for ${newPO.items.length} items (₹${Number(newPO.totalAmount).toLocaleString('en-IN')}).`,
       poId: newPO.id,
-      read: false,
+      read: true,
       timestamp: new Date().toISOString(),
       actionLink: '/purchase-orders',
       actionLabel: 'View Order',
     };
-    setAlerts(prev => [newAlert, ...prev]);
+
+    // Mark any low stock alerts for ordered ingredients as read
+    const orderedIds = new Set((poData.items || []).map(it => it.ingredientId));
+    setAlerts(prev => [
+      newAlert,
+      ...prev.map(a => (orderedIds.has(a.ingredientId) && (a.type === 'low_stock' || a.type === 'out_of_stock')) ? { ...a, read: true } : a)
+    ]);
 
     addToast(`Purchase Order ${newPO.poNumber} created with status "Pending".`, 'success');
     return newPO;
@@ -2705,7 +2711,7 @@ export const AppProvider = ({ children }) => {
 
     setBranches((prev) => [newBranch, ...prev]);
 
-    // Create notification
+    // Create notification (marked read for creator)
     const newNotif = {
       id: `notif-${Date.now()}`,
       type: 'branch_created',
@@ -2713,7 +2719,7 @@ export const AppProvider = ({ children }) => {
       message: `Successfully provisioned ${newBranch.name} with ${newBranch.planName} plan.`,
       branchId: newBranch.id,
       branchName: newBranch.name,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branches',
       actionLabel: 'View Branch',
@@ -2755,7 +2761,7 @@ export const AppProvider = ({ children }) => {
         message: `${targetBranch.name} status updated to ${nextStatus}.`,
         branchId: targetBranch.id,
         branchName: targetBranch.name,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branches',
         actionLabel: 'View Branches',
@@ -2805,7 +2811,7 @@ export const AppProvider = ({ children }) => {
         branchName: targetBranch.name,
         planName: planConfig.name,
         amount: totalRenewalPrice,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branch-subscriptions',
         actionLabel: 'View Subscription',
@@ -2863,7 +2869,7 @@ export const AppProvider = ({ children }) => {
       message: `${newStaff.name} assigned to ${newStaff.branchName} as ${newStaff.roleLabel}.`,
       branchId: newStaff.branchId,
       branchName: newStaff.branchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -2921,7 +2927,7 @@ export const AppProvider = ({ children }) => {
       message: `${mgr.name} appointed as Branch Manager for ${targetBranch?.name}.`,
       branchId,
       branchName: targetBranch?.name || 'Branch',
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Managers',
@@ -2980,7 +2986,7 @@ export const AppProvider = ({ children }) => {
       branchId: toB.id,
       branchName: toB.name,
       transferId: newTransfer.id,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'Review Request',
@@ -3056,7 +3062,12 @@ export const AppProvider = ({ children }) => {
       })
     );
 
-    // Create notification
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
+    // Create decision notification (marked read for decider)
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3064,7 +3075,7 @@ export const AppProvider = ({ children }) => {
       message: `${transfer.employeeName} successfully transferred to ${transfer.toBranchName}.`,
       branchId: transfer.toBranchId,
       branchName: transfer.toBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -3104,6 +3115,11 @@ export const AppProvider = ({ children }) => {
       })
     );
 
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3111,7 +3127,7 @@ export const AppProvider = ({ children }) => {
       message: `Transfer of ${transfer.employeeName} to ${transfer.toBranchName} was declined. Reason: ${reason}.`,
       branchId: transfer.fromBranchId,
       branchName: transfer.fromBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'View Transfers',
@@ -3345,7 +3361,7 @@ export const AppProvider = ({ children }) => {
     };
     setOwnerNotifications(prev => [managerNotif, ...prev]);
 
-    // Staff in-app notification
+    // Staff in-app notification (marked read for applicant)
     const staffNotif = {
       id: `snotif-${Date.now()}`,
       targetStaffId: targetId,
@@ -3354,7 +3370,7 @@ export const AppProvider = ({ children }) => {
       message: `Your leave request for ${startDate} – ${endDate} (${durationDays} days) has been dispatched to the Manager for approval.`,
       status: 'pending',
       timestamp: 'Just now',
-      read: false,
+      read: true,
     };
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
@@ -3382,6 +3398,9 @@ export const AppProvider = ({ children }) => {
       }
       return l;
     }));
+
+    // Automatically mark the leave request notification in ownerNotifications as read
+    setOwnerNotifications(prev => prev.map(n => n.leaveId === leaveId ? { ...n, read: true } : n));
 
     // Real-time Staff Notification
     const staffNotif = {

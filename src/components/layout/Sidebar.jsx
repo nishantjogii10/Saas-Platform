@@ -53,6 +53,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     currentBranch,
     switchBranch,
     ownerNotifications,
+    staffNotifications,
     customPlanRequests,
   } = useApp();
 
@@ -71,6 +72,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
   const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
   const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
+  const myStaffNotifs = (staffNotifications || []).filter(n => n.targetStaffId === currentUser?.id);
+  const unreadStaffNotifs = myStaffNotifs.filter(n => !n.read).length;
   const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
 
   // Define nav links by role
@@ -201,6 +204,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 icon: Bell,
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
+              {
+                to: '/notifications',
+                label: 'Notifications',
+                icon: Bell,
+                badge: unreadOwnerNotifs > 0 ? unreadOwnerNotifs : null,
+              },
             ],
           },
         ];
@@ -210,7 +219,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           {
             section: 'Kitchen Station',
             items: [
-              { to: '/kitchen', label: 'Staff Dashboard', icon: LayoutDashboard },
+              {
+                to: '/kitchen',
+                label: 'Staff Dashboard',
+                icon: LayoutDashboard,
+                badge: unreadStaffNotifs > 0 ? unreadStaffNotifs : null,
+              },
               { to: '/kitchen/ingredients', label: 'Available Stock', icon: Boxes },
               { to: '/kitchen/usage', label: 'Record Ingredient Usage', icon: Scale },
               { to: '/kitchen/wastage', label: 'Record Food Wastage', icon: Trash2 },

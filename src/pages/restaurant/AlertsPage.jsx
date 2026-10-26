@@ -105,10 +105,14 @@ export const AlertsPage = () => {
           filteredAlerts.map((alt) => (
             <div
               key={alt.id}
-              className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs ${
+              onClick={() => {
+                if (!alt.read) markAlertRead(alt.id);
+              }}
+              title={!alt.read ? 'Click anywhere on this alert to mark as read' : undefined}
+              className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs cursor-pointer ${
                 !alt.read
-                  ? 'bg-white border-emerald-300/80 ring-1 ring-emerald-500/10'
-                  : 'bg-white/80 border-slate-200 opacity-80'
+                  ? 'bg-white border-emerald-300/80 ring-1 ring-emerald-500/10 hover:border-emerald-400 hover:shadow-sm'
+                  : 'bg-white/80 border-slate-200 opacity-80 hover:opacity-100'
               }`}
             >
               <div className="flex items-start gap-3.5 flex-1">
@@ -137,7 +141,7 @@ export const AlertsPage = () => {
                     <span className="font-bold text-slate-900 text-sm">{alt.title}</span>
                     <Badge status={alt.severity} size="xs" />
                     {!alt.read && (
-                      <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Unread"></span>
                     )}
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">{alt.message}</p>
@@ -153,13 +157,14 @@ export const AlertsPage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center" onClick={(e) => e.stopPropagation()}>
                 {alt.actionLink && (
                   <Button
                     variant="brand"
                     size="xs"
                     iconRight={ExternalLink}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       markAlertRead(alt.id);
                       navigate(alt.actionLink);
                     }}
@@ -168,19 +173,28 @@ export const AlertsPage = () => {
                   </Button>
                 )}
 
-                {!alt.read && (
+                {!alt.read ? (
                   <Button
                     variant="ghost"
                     size="xs"
-                    onClick={() => markAlertRead(alt.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markAlertRead(alt.id);
+                    }}
                     title="Mark as Read"
+                    className="text-emerald-700 hover:bg-emerald-50"
                   >
                     <Check className="w-3.5 h-3.5" />
                   </Button>
+                ) : (
+                  <span className="text-[11px] text-slate-400 font-medium px-1.5">Read</span>
                 )}
 
                 <button
-                  onClick={() => dismissAlert(alt.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissAlert(alt.id);
+                  }}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
                   title="Dismiss notification"
                 >

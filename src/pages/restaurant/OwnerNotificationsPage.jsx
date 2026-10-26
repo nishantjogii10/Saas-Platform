@@ -188,7 +188,7 @@ export const OwnerNotificationsPage = () => {
                   className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                     filterType === tab.id
                       ? 'bg-white/20 text-white'
-                      : tab.highlight
+                      : tab.highlight && tab.count > 0
                       ? 'bg-amber-200 text-amber-900 font-bold'
                       : 'bg-slate-200 text-slate-700'
                   }`}
@@ -231,9 +231,13 @@ export const OwnerNotificationsPage = () => {
             return (
               <div
                 key={notif.id}
-                className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-sm ${
+                onClick={() => {
+                  if (!notif.read) markOwnerNotificationRead(notif.id);
+                }}
+                title={isUnread ? 'Click anywhere on this notice to mark as read' : undefined}
+                className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs hover:shadow-sm cursor-pointer ${
                   isUnread
-                    ? 'border-emerald-400/80 bg-emerald-50/10 ring-1 ring-emerald-500/20'
+                    ? 'border-emerald-400/80 bg-emerald-50/10 ring-1 ring-emerald-500/20 hover:border-emerald-500'
                     : 'border-slate-200/90'
                 }`}
               >
@@ -250,7 +254,7 @@ export const OwnerNotificationsPage = () => {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       {isUnread && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 animate-pulse" title="Unread" />
                       )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
                         {notif.badge || 'Alert'}
@@ -277,12 +281,18 @@ export const OwnerNotificationsPage = () => {
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 w-full sm:w-auto justify-between sm:justify-end">
+                <div
+                  className="flex items-center gap-2 shrink-0 self-end sm:self-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 w-full sm:w-auto justify-between sm:justify-end"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {notif.actionLabel && (
                     <Button
                       variant="primary"
                       size="xs"
-                      onClick={() => handleActionClick(notif)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleActionClick(notif);
+                      }}
                       className="text-xs bg-emerald-600 hover:bg-emerald-700"
                     >
                       {notif.actionLabel}
@@ -294,7 +304,10 @@ export const OwnerNotificationsPage = () => {
                     <Button
                       variant="ghost"
                       size="xs"
-                      onClick={() => markOwnerNotificationRead(notif.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markOwnerNotificationRead(notif.id);
+                      }}
                       className="text-xs text-slate-500 hover:text-slate-800"
                     >
                       Mark as Read
