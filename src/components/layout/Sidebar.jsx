@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Building2,
   Users,
+  User,
   CreditCard,
   BarChart3,
   FileText,
@@ -32,8 +33,6 @@ import {
   GitBranch,
   Layers,
   Sparkles,
-  LogOut,
-  UserCog,
   QrCode,
   RotateCcw,
   FileCheck,
@@ -46,8 +45,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     currentUser,
     currentRestaurant,
     restaurantAlerts,
-    logout,
-    openProfileModal,
     branches,
     currentBranchId,
     currentBranch,
@@ -152,6 +149,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Business & Team',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/profile', label: 'My Profile', icon: User },
               { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
               { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
@@ -194,10 +192,10 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
               { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
-              { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
+              { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
                 to: '/alerts',
-                label: 'Alerts & Notices',
+                label: 'Staff Notices',
                 icon: Bell,
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
@@ -215,6 +213,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/kitchen/usage', label: 'Record Ingredient Usage', icon: Scale },
               { to: '/kitchen/wastage', label: 'Record Food Wastage', icon: Trash2 },
               { to: '/kitchen/report-stock', label: 'Report Low Stock', icon: AlertCircle },
+              { to: '/profile', label: 'My Profile', icon: User },
             ],
           },
         ];
@@ -373,8 +372,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-indigo-950/60 border border-indigo-800/40 text-indigo-200">
                 <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
                 <div className="truncate">
-                  <div className="text-xs font-semibold text-white">Platform Owner</div>
-                  <div className="text-[11px] text-indigo-300">All Restaurants Scope</div>
+                  <div className="text-xs font-semibold text-white">All Restaurants Scope</div>
                 </div>
               </div>
             ) : currentUser?.role === 'supplier' ? (
@@ -382,7 +380,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 <Truck className="w-4 h-4 text-sky-400 shrink-0" />
                 <div className="truncate">
                   <div className="text-xs font-semibold text-white truncate">{currentUser?.supplierName || 'Supplier Partner'}</div>
-                  <div className="text-[11px] text-sky-300">Supplier Portal</div>
                 </div>
               </div>
             ) : currentUser?.role === 'kitchen_staff' ? (
@@ -390,7 +387,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 <ChefHat className="w-4 h-4 text-amber-400 shrink-0" />
                 <div className="truncate">
                   <div className="text-xs font-semibold text-white truncate">{currentRestaurant?.name}</div>
-                  <div className="text-[11px] text-amber-300 font-medium">Kitchen Terminal</div>
                 </div>
               </div>
             ) : (
@@ -398,7 +394,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 <span className="text-lg">{currentRestaurant?.logo || '🌿'}</span>
                 <div className="truncate">
                   <div className="text-xs font-semibold text-white truncate">{currentRestaurant?.name}</div>
-                  <div className="text-[11px] text-emerald-400 capitalize">{currentUser?.role?.replace('_', ' ')}</div>
                 </div>
               </div>
             )}
@@ -453,53 +448,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           ))}
         </nav>
 
-        {/* Fixed Footer: User Profile summary & Actions */}
-        <div className="shrink-0 p-3 border-t border-slate-800 bg-slate-900/90">
-          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-800/80 transition-colors">
-            <button
-              type="button"
-              onClick={openProfileModal}
-              title="Click to Edit Personal Profile"
-              className="flex items-center gap-2.5 min-w-0 text-left flex-1 group"
-            >
-              <img
-                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                alt={currentUser?.name || 'User'}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/40 shrink-0 group-hover:ring-emerald-400 transition-all"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">
-                  {currentUser?.name}
-                </div>
-                <div className="text-[10px] text-slate-400 capitalize truncate">
-                  {currentUser?.role?.replace('_', ' ')}
-                </div>
-              </div>
-            </button>
 
-            <div className="flex items-center gap-0.5 shrink-0 ml-1">
-              <button
-                type="button"
-                onClick={openProfileModal}
-                title="Edit Personal Profile"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-700/80 transition-colors"
-              >
-                <UserCog className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  logout();
-                  window.location.hash = '#/login';
-                }}
-                title="Log out and terminate session"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-700/80 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );

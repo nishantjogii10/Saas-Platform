@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Sparkles,
   User,
+  AlertCircle,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -69,11 +70,29 @@ export const ProcessSalaryModal = ({ isOpen, onClose, selectedStaff = null }) =>
   const currentStaffObj = branchStaff.find((s) => s.id === staffId);
   const profileInfo = STAFF_SALARY_PROFILES?.[staffId];
 
+  const isStaffActive = (currentStaffObj?.status || 'Active').toLowerCase() === 'active';
+  const isBankVerified = (currentStaffObj?.bankStatus || '').toLowerCase() === 'verified';
+  const canDisburse = isStaffActive && isBankVerified;
+
+  let disburseReason = '';
+  if (!isStaffActive && !isBankVerified) {
+    disburseReason = 'Cannot disburse: Staff is not Active and bank details are not Verified.';
+  } else if (!isStaffActive) {
+    disburseReason = `Cannot disburse: Staff status is "${currentStaffObj?.status || 'Invited'}" (must be Active).`;
+  } else if (!isBankVerified) {
+    disburseReason = `Cannot disburse: Bank status is "${currentStaffObj?.bankStatus || 'Not Added'}" (must be Verified).`;
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
     if (!staffId) {
       addToast('Please select a staff member to disburse salary.', 'error');
+      return;
+    }
+
+    if (!canDisburse) {
+      addToast(disburseReason, 'error');
       return;
     }
 

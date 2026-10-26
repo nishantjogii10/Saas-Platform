@@ -65,6 +65,79 @@ const AppContext = createContext(null);
 
 const STORAGE_KEY = 'stockmate_saas_v2';
 
+// Synchronous SHA-256 implementation for hashing staff credentials in service layer
+export const hashPassword = (password) => {
+  if (!password) return '';
+  function rightRotate(value, amount) {
+    return (value >>> amount) | (value << (32 - amount));
+  }
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let lengthProperty = 'length';
+  let i, j;
+  let result = '';
+  const words = [];
+  const asciiBitLength = password[lengthProperty] * 8;
+  let hash = [];
+  const k = [];
+  let primeCounter = 0;
+  const isComposite = {};
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (i = 0; i < 313; i += candidate) {
+        isComposite[i] = candidate;
+      }
+      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+  password += '\x80';
+  while ((password[lengthProperty] % 64) - 56) password += '\x00';
+  for (i = 0; i < password[lengthProperty]; i++) {
+    j = password.charCodeAt(i);
+    words[i >> 2] |= j << (((3 - i) % 4) * 8);
+  }
+  words[words[lengthProperty]] = (asciiBitLength / maxWord) | 0;
+  words[words[lengthProperty]] = asciiBitLength;
+  for (j = 0; j < words[lengthProperty]; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = hash;
+    hash = hash.slice(0, 8);
+    for (i = 0; i < 64; i++) {
+      const w15 = w[i - 15],
+        w2 = w[i - 2];
+      const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
+      const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
+      const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
+      const temp1 =
+        hash[7] +
+        (rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25)) +
+        ch +
+        k[i] +
+        (w[i] =
+          i < 16
+            ? w[i]
+            : (w[i - 16] + s0 + w[i - 7] + s1) | 0);
+      const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
+      const temp2 =
+        (rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22)) +
+        maj;
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += (b < 16 ? 0 : '') + b.toString(16);
+    }
+  }
+  return result;
+};
+
 export const AppProvider = ({ children }) => {
   // Load from localStorage or fallback to defaults (with seed merge for newly added records)
   const loadStored = (key, fallback) => {
@@ -138,6 +211,18 @@ export const AppProvider = ({ children }) => {
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
+
+  // Staff alerts read & dismissed tracking for Restaurant Manager
+  const [readStaffAlertIds, setReadStaffAlertIds] = useState(() => loadStored('read_staff_alert_ids', []));
+  const [dismissedStaffAlertIds, setDismissedStaffAlertIds] = useState(() => loadStored('dismissed_staff_alert_ids', []));
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_read_staff_alert_ids`, JSON.stringify(readStaffAlertIds));
+  }, [readStaffAlertIds]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_dismissed_staff_alert_ids`, JSON.stringify(dismissedStaffAlertIds));
+  }, [dismissedStaffAlertIds]);
 
   // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
   // or restore from localStorage
@@ -342,7 +427,10 @@ export const AppProvider = ({ children }) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
     let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
 
-    // Fallback: If user not found in state, check initialUsers (handles older localStorage snapshots)
+    // Fallback: If user not found in users state, check branchStaff and initialUsers
+    if (!user) {
+      user = branchStaff.find(s => (s.email || '').toLowerCase() === normalizedEmail);
+    }
     if (!user) {
       const initialUser = initialUsers.find(u => (u.email || '').toLowerCase() === normalizedEmail);
       if (initialUser) {
@@ -365,9 +453,14 @@ export const AppProvider = ({ children }) => {
       };
     }
 
-    // Credential check: validate against stored password / standard auth
-    const validPassword = user.password || 'password123';
-    if (password !== validPassword && password !== 'password123' && password !== 'admin123') {
+    // Credential check: validate against stored password hash / stored password / standard demo auth
+    const passwordMatches =
+      (user.passwordHash && hashPassword(password) === user.passwordHash) ||
+      (user.password && user.password === password) ||
+      password === 'password123' ||
+      password === 'admin123';
+
+    if (!passwordMatches) {
       return {
         success: false,
         error: 'Invalid work email address or password. Please verify your credentials.',
@@ -2820,9 +2913,31 @@ export const AppProvider = ({ children }) => {
   };
 
   const addBranchStaffMember = (staffData) => {
+    // 1. Validate email format and uniqueness in service layer
+    const emailLower = (staffData.email || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!staffData.email || !emailRegex.test(emailLower)) {
+      addToast('Invalid email address format.', 'error');
+      return null;
+    }
+
+    const emailExists = (branchStaff || []).some(
+      (s) => (s.email || '').toLowerCase() === emailLower
+    );
+    if (emailExists) {
+      addToast(`A staff member with email "${staffData.email}" already exists.`, 'error');
+      return null;
+    }
+
+    // 2. Hash temporary password - NEVER store in plain text!
+    const tempPass = staffData.tempPassword || '';
+    const passwordHash = tempPass ? hashPassword(tempPass) : null;
+
     const branch = branches.find((b) => b.id === staffData.branchId) || branches[0];
+
     const newStaff = {
       id: `usr-br-${Date.now().toString().slice(-4)}`,
+      employeeId: staffData.employeeId || `EMP-${String(branchStaff.length + 1).padStart(4, '0')}`,
       name: staffData.name,
       email: staffData.email,
       phone: staffData.phone || '+91 98220 00000',
@@ -2838,16 +2953,35 @@ export const AppProvider = ({ children }) => {
       branchId: branch?.id || 'branch-pune-central',
       branchName: branch?.name || 'Spice Garden — Pune Central',
       restaurantId: currentRestaurantId || 'rest-1',
-      status: 'active',
-      joinedDate: new Date().toISOString().split('T')[0],
-      pin: staffData.pin || '1234',
+      status: staffData.status || 'Invited',
+      mustChangePassword: staffData.mustChangePassword !== undefined ? staffData.mustChangePassword : true,
+      joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
+      shift: staffData.shift || 'Morning Shift (07:00 AM - 03:30 PM)',
+      baseSalary: Number(staffData.baseSalary) || 25000,
+      passwordHash: passwordHash, // Stored as SHA-256 hash!
+      // Plain text password is NEVER stored!
       avatar: staffData.avatar || `https://images.unsplash.com/photo-${1507003211169 + Math.floor(Math.random() * 1000)}?w=150&auto=format&fit=crop&q=80`,
-      assignedModules: staffData.role === 'restaurant_manager' ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Operations Reports', 'Alerts'] : staffData.role === 'inventory_manager'
-        ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
-        : ['Kitchen Terminal', 'Prep Usage', 'Wastage'],
+      assignedModules: staffData.assignedModules || (
+        staffData.role === 'restaurant_manager'
+          ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Staff Reports', 'Alerts']
+          : staffData.role === 'inventory_manager'
+          ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
+          : ['Kitchen Terminal', 'Prep Usage', 'Wastage']
+      ),
     };
 
     setBranchStaff((prev) => [newStaff, ...prev]);
+    setUsers((prev) => [newStaff, ...prev.filter(u => (u.email || '').toLowerCase() !== newStaff.email.toLowerCase())]);
+
+    // Update salary profile for payroll if baseSalary provided
+    if (newStaff.baseSalary) {
+      STAFF_SALARY_PROFILES[newStaff.id] = {
+        baseSalary: newStaff.baseSalary,
+        role: newStaff.roleLabel,
+        bankAccount: 'Direct Bank Transfer',
+        pan: 'PENDING_ONBOARDING',
+      };
+    }
 
     // Increment branch staff count
     setBranches((prev) =>
@@ -2859,19 +2993,19 @@ export const AppProvider = ({ children }) => {
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'staff_added',
-      title: 'New Staff Member Onboarded',
-      message: `${newStaff.name} assigned to ${newStaff.branchName} as ${newStaff.roleLabel}.`,
+      title: 'New Staff Member Invited',
+      message: `${newStaff.name} invited to ${newStaff.branchName} (${newStaff.roleLabel}). Temporary credentials dispatched.`,
       branchId: newStaff.branchId,
       branchName: newStaff.branchName,
       read: false,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
-      badge: 'Team Update',
+      badge: 'Team Invite',
     };
     setOwnerNotifications((prev) => [notif, ...prev]);
 
-    addToast(`Added ${newStaff.name} to ${newStaff.branchName}.`, 'success');
+    addToast(`Staff invitation created for ${newStaff.name}.`, 'success');
     return newStaff;
   };
 
@@ -3172,15 +3306,28 @@ export const AppProvider = ({ children }) => {
 
   // Alerts helpers
   const markAlertRead = (alertId) => {
+    if (String(alertId).startsWith('alert-')) {
+      setReadStaffAlertIds(prev => prev.includes(alertId) ? prev : [...prev, alertId]);
+    }
     setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, read: true } : a));
   };
 
   const markAllAlertsRead = () => {
+    if (currentUser?.role === 'restaurant_manager') {
+      const allIds = staffAlerts.map(a => a.id);
+      setReadStaffAlertIds(prev => Array.from(new Set([...prev, ...allIds])));
+      addToast('All staff notifications marked as read.', 'info');
+      return;
+    }
     setAlerts(prev => prev.map(a => ({ ...a, read: true })));
     addToast(`All alerts marked as read.`, 'info');
   };
 
   const dismissAlert = (alertId) => {
+    if (String(alertId).startsWith('alert-')) {
+      setDismissedStaffAlertIds(prev => [...prev, alertId]);
+      return;
+    }
     setAlerts(prev => prev.filter(a => a.id !== alertId));
   };
 
@@ -3402,6 +3549,20 @@ export const AppProvider = ({ children }) => {
   // --- SALARY & PAYROLL NOTIFICATIONS ---
   const processSalaryPayment = ({ staffId, staffName, staffRole, branchId, payPeriod, amount, baseSalary, bonus, deductions, paymentMethod, referenceNumber, notes }) => {
     const targetStaff = branchStaff.find(s => s.id === staffId) || users.find(u => u.id === staffId);
+
+    // Rule 1: Staff member must have Active status
+    const isStaffActive = (targetStaff?.status || 'Active').toLowerCase() === 'active';
+    if (!isStaffActive) {
+      addToast(`Disbursement blocked: ${targetStaff?.name || 'Staff'} is not Active (status: ${targetStaff?.status || 'Invited'}).`, 'error');
+      return { success: false, error: 'Staff member is not Active.' };
+    }
+
+    // Rule 2: Staff bankStatus must be Verified
+    const isBankVerified = (targetStaff?.bankStatus || '').toLowerCase() === 'verified';
+    if (!isBankVerified) {
+      addToast(`Disbursement blocked: Bank details for ${targetStaff?.name || 'Staff'} are ${targetStaff?.bankStatus || 'Not Added'} (must be Verified).`, 'error');
+      return { success: false, error: 'Staff bank details must be Verified.' };
+    }
     const targetName = staffName || targetStaff?.name || 'Staff Member';
     const targetRole = staffRole || targetStaff?.roleLabel || targetStaff?.role || 'Kitchen Staff';
     const targetBranchId = branchId || targetStaff?.branchId || currentBranchId;
@@ -3647,13 +3808,122 @@ export const AppProvider = ({ children }) => {
     });
   }, [stockMovements, currentRestaurantId, currentBranchId]);
 
+  // Dedicated staff-related notifications for Restaurant Manager
+  const staffAlerts = useMemo(() => {
+    const list = [];
+
+    // 1. Pending and recent leave requests
+    (leaveRequests || []).forEach((leave) => {
+      const isCurrentRest = !currentRestaurantId || leave.restaurantId === currentRestaurantId;
+      const isCurrentBr = !currentBranchId || !leave.branchId || leave.branchId === currentBranchId;
+      if (isCurrentRest && isCurrentBr) {
+        const id = `alert-leave-${leave.id}`;
+        list.push({
+          id,
+          restaurantId: leave.restaurantId,
+          branchId: leave.branchId,
+          type: 'leave_request',
+          category: 'staff',
+          severity: leave.status === 'pending' ? 'high' : 'low',
+          title: `Staff Leave: ${leave.staffName} (${leave.leaveType})`,
+          message: `${leave.staffName} (${leave.staffRole || 'Staff'}) requested ${leave.durationDays} day(s) leave (${leave.startDate} to ${leave.endDate}). Reason: "${leave.reason}"`,
+          read: leave.status !== 'pending' || readStaffAlertIds.includes(id),
+          timestamp: leave.appliedDate || new Date().toISOString(),
+          actionLink: '/branch-staff?tab=leave',
+          actionLabel: 'Review Leave',
+          badge: 'Leave Request',
+        });
+      }
+    });
+
+    // 2. Staff inter-branch transfers
+    (staffTransfers || []).forEach((tr) => {
+      const isFrom = !currentBranchId || tr.fromBranchId === currentBranchId;
+      const isTo = !currentBranchId || tr.toBranchId === currentBranchId;
+      if (isFrom || isTo) {
+        const id = `alert-tr-${tr.id}`;
+        list.push({
+          id,
+          restaurantId: currentRestaurantId,
+          branchId: tr.fromBranchId,
+          type: 'transfer_request',
+          category: 'staff',
+          severity: tr.status === 'Pending' ? 'medium' : 'low',
+          title: `Staff Transfer: ${tr.employeeName}`,
+          message: `${tr.requestedBy || 'Management'} requested transfer of ${tr.employeeName} (${tr.roleLabel || tr.role}) from ${tr.fromBranchName} to ${tr.toBranchName}. Reason: "${tr.reason}"`,
+          read: tr.status !== 'Pending' || readStaffAlertIds.includes(id),
+          timestamp: tr.requestDate ? `${tr.requestDate}T10:00:00.000Z` : new Date().toISOString(),
+          actionLink: '/staff-transfers',
+          actionLabel: 'Review Transfer',
+          badge: 'Staff Transfer',
+        });
+      }
+    });
+
+    // 3. Staff notifications from ownerNotifications (workflow transfers, etc.)
+    (ownerNotifications || []).forEach((notif) => {
+      if (notif.type === 'leave_request' || notif.type === 'transfer_request' || notif.badge === 'Staff Workflow') {
+        const id = `alert-onotif-${notif.id}`;
+        const alreadyExists = list.some(item =>
+          (notif.transferId && item.id.includes(notif.transferId)) ||
+          (notif.leaveId && item.id.includes(notif.leaveId))
+        );
+        if (!alreadyExists) {
+          list.push({
+            id,
+            restaurantId: currentRestaurantId,
+            branchId: notif.branchId,
+            type: notif.type,
+            category: 'staff',
+            severity: 'medium',
+            title: notif.title,
+            message: notif.message,
+            read: notif.read || readStaffAlertIds.includes(id),
+            timestamp: new Date().toISOString(),
+            actionLink: notif.actionLink || '/branch-staff',
+            actionLabel: notif.actionLabel || 'View',
+            badge: notif.badge || 'Staff Notice',
+          });
+        }
+      }
+    });
+
+    // 4. Kitchen shift & attendance live status
+    const activeAttendanceList = (attendanceRecords || []).filter(
+      r => r.status === 'active' && (!currentBranchId || r.branchId === currentBranchId)
+    );
+    if (activeAttendanceList.length > 0) {
+      const id = 'alert-shift-live';
+      list.push({
+        id,
+        restaurantId: currentRestaurantId,
+        branchId: currentBranchId,
+        type: 'attendance_notice',
+        category: 'staff',
+        severity: 'low',
+        title: 'Live Shift Attendance',
+        message: `${activeAttendanceList.length} staff member(s) actively clocked in on station duty at this branch.`,
+        read: readStaffAlertIds.includes(id) || true,
+        timestamp: new Date().toISOString(),
+        actionLink: '/branch-staff?tab=attendance',
+        actionLabel: 'Shift Monitor',
+        badge: 'Attendance',
+      });
+    }
+
+    return list.filter(a => !dismissedStaffAlertIds.includes(a.id));
+  }, [leaveRequests, staffTransfers, ownerNotifications, attendanceRecords, currentRestaurantId, currentBranchId, readStaffAlertIds, dismissedStaffAlertIds]);
+
   const restaurantAlerts = useMemo(() => {
+    if (currentUser?.role === 'restaurant_manager') {
+      return staffAlerts;
+    }
     return alerts.filter((a) => {
       if (a.restaurantId !== currentRestaurantId) return false;
       if (currentBranchId && a.branchId) return a.branchId === currentBranchId;
       return true;
     });
-  }, [alerts, currentRestaurantId, currentBranchId]);
+  }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId]);
 
   const branchGRNs = useMemo(() => {
     return goodsReceivedNotes.filter((g) => {
@@ -3698,6 +3968,182 @@ export const AppProvider = ({ children }) => {
   const restaurantSuppliers = useMemo(() => {
     return suppliers.filter((s) => !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId));
   }, [suppliers, currentRestaurantId]);
+
+  // Bank Details Verification Service (Restricted to Restaurant Owner and Restaurant Manager)
+  const verifyStaffBankDetails = (staffId) => {
+    if (!currentUser) return { success: false, error: 'No active session' };
+    const canVerify = currentUser.role === 'restaurant_owner' || currentUser.role === 'restaurant_manager';
+    if (!canVerify) {
+      addToast('Unauthorized: Only Restaurant Managers and Owners can verify staff bank details.', 'error');
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const staff = branchStaff.find((s) => s.id === staffId) || users.find((u) => u.id === staffId);
+    if (!staff) {
+      addToast('Staff member not found.', 'error');
+      return { success: false, error: 'Staff not found' };
+    }
+
+    const updatedStaff = {
+      ...staff,
+      bankStatus: 'Verified',
+      bankDetails: {
+        ...(staff.bankDetails || {}),
+        bankStatus: 'Verified',
+        verifiedBy: currentUser.name,
+        verifiedAt: new Date().toISOString(),
+      },
+    };
+
+    setBranchStaff((prev) => prev.map((s) => (s.id === staffId ? updatedStaff : s)));
+    setUsers((prev) => prev.map((u) => (u.id === staffId ? updatedStaff : u)));
+
+    if (currentUser.id === staffId) {
+      setCurrentUser(updatedStaff);
+    }
+
+    try {
+      const stored = branchStaff.map((s) => (s.id === staffId ? updatedStaff : s));
+      localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(stored));
+    } catch (e) {}
+
+    addToast(`Bank details for ${staff.name} have been verified successfully.`, 'success');
+    return { success: true, staff: updatedStaff };
+  };
+
+  // Staff Profile & Banking Update Service
+  const updateStaffProfile = (profileData) => {
+    if (!currentUser) return { success: false, error: 'No authenticated user session' };
+
+    // Validate IFSC code format: 4 letters, 0, then 6 alphanumeric characters
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+    if (profileData.ifscCode && !ifscRegex.test(profileData.ifscCode.trim())) {
+      return {
+        success: false,
+        error: 'Invalid IFSC format. Must be 4 letters, followed by 0, and 6 alphanumeric characters (e.g. HDFC0001234).',
+      };
+    }
+
+    // Mask account number: e.g. "•••• 4421"
+    const rawAccNum = profileData.accountNumber ? String(profileData.accountNumber).trim() : '';
+    const last4 = rawAccNum.slice(-4) || '4421';
+    const maskedAccountNumber = `•••• ${last4}`;
+    const formattedBankString = profileData.bankName
+      ? `${profileData.bankName} ${maskedAccountNumber}`
+      : maskedAccountNumber;
+
+    // Status transitions:
+    // 1. bankStatus = "Pending Verification"
+    // 2. Staff status becomes "Active"
+    const updatedUser = {
+      ...currentUser,
+      avatar: profileData.avatar !== undefined ? profileData.avatar : currentUser.avatar,
+      dateOfBirth: profileData.dateOfBirth || currentUser.dateOfBirth,
+      address: profileData.address || currentUser.address,
+      emergencyContact: {
+        name: profileData.emergencyContactName || currentUser.emergencyContact?.name || '',
+        phone: profileData.emergencyContactPhone || currentUser.emergencyContact?.phone || '',
+      },
+      bankDetails: {
+        accountHolderName: profileData.accountHolderName || currentUser.name,
+        bankName: profileData.bankName || 'HDFC Bank',
+        maskedAccountNumber: maskedAccountNumber,
+        // Store hash ready for encryption later
+        accountNumberHash: rawAccNum ? hashPassword(rawAccNum) : '',
+        last4: last4,
+        ifscCode: profileData.ifscCode ? profileData.ifscCode.toUpperCase().trim() : 'HDFC0001234',
+        bankStatus: 'Pending Verification',
+        submittedAt: new Date().toISOString(),
+      },
+      bankAccount: formattedBankString,
+      bankStatus: 'Pending Verification',
+      status: 'Active',
+      profileCompleted: true,
+    };
+
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(updatedUser));
+    } catch (err) {}
+
+    // Persist to users collection
+    setUsers((prev) => {
+      const updated = prev.map((u) => (u.id === currentUser.id ? updatedUser : u));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    // Persist to branchStaff collection
+    setBranchStaff((prev) => {
+      const updated = prev.map((s) => (s.id === currentUser.id ? updatedUser : s));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    // Update STAFF_SALARY_PROFILES for payroll module
+    if (STAFF_SALARY_PROFILES[currentUser.id]) {
+      STAFF_SALARY_PROFILES[currentUser.id].bankAccount = formattedBankString;
+    } else {
+      STAFF_SALARY_PROFILES[currentUser.id] = {
+        baseSalary: updatedUser.baseSalary || 35000,
+        role: updatedUser.roleLabel || updatedUser.role,
+        bankAccount: formattedBankString,
+        pan: updatedUser.pan || 'ABCPA1234D',
+      };
+    }
+
+    addToast('Profile and banking details submitted for verification.', 'success');
+    return { success: true, user: updatedUser };
+  };
+
+  // Change / Set Permanent Password Service (hashes password and clears mustChangePassword)
+  const setNewPassword = (newPassword) => {
+    if (!currentUser) return { success: false, error: 'No active session found.' };
+    if (!newPassword || newPassword.length < 8) {
+      return { success: false, error: 'Password must be at least 8 characters long.' };
+    }
+
+    const hashedPassword = hashPassword(newPassword);
+
+    const updatedUser = {
+      ...currentUser,
+      mustChangePassword: false,
+      status: currentUser.status === 'Invited' ? 'active' : currentUser.status,
+      passwordHash: hashedPassword,
+    };
+    delete updatedUser.password;
+
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(updatedUser));
+    } catch (err) {}
+
+    setUsers((prev) => {
+      const updated = prev.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+      if (!updated.some((u) => u.id === updatedUser.id)) {
+        updated.unshift(updatedUser);
+      }
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    setBranchStaff((prev) => {
+      const updated = prev.map((s) => (s.id === updatedUser.id ? updatedUser : s));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    addToast('Permanent password saved successfully! Welcome to your dashboard.', 'success');
+    return { success: true, user: updatedUser };
+  };
 
   const restaurantStaff = useMemo(() => {
     return users.filter((u) => u.restaurantId === currentRestaurantId);
@@ -3763,6 +4209,7 @@ export const AppProvider = ({ children }) => {
         restaurantOrders,
         restaurantMovements,
         restaurantAlerts,
+        staffAlerts,
         restaurantSuppliers,
         restaurantStaff,
 
@@ -3789,6 +4236,10 @@ export const AppProvider = ({ children }) => {
         toggleBranchStatus,
         updateBranchSubscription,
         addBranchStaffMember,
+        hashPassword,
+        setNewPassword,
+        updateStaffProfile,
+        verifyStaffBankDetails,
         removeBranchStaffMember,
         assignBranchManager,
         requestStaffTransfer,

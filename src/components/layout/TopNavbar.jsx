@@ -21,6 +21,11 @@ import {
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
+const formatBranchName = (name) => {
+  if (!name) return '';
+  return name.replace(/^Spice Garden\s*[-–—]\s*/i, '');
+};
+
 export const TopNavbar = ({ onOpenMobile }) => {
   const {
     currentUser,
@@ -78,27 +83,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Restaurant selector for Restaurant-level roles */}
-        {currentUser?.role !== 'super_admin' && currentUser?.role !== 'supplier' ? (
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xl">{currentRestaurant?.logo || '🌿'}</span>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-900 tracking-tight">
-                  {currentRestaurant?.name}
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  {currentRestaurant?.planName} Plan
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 font-medium">
-                {currentRestaurant?.cuisine}
-              </span>
-            </div>
-
-            {/* Branch Selector Dropdown for Restaurant Roles */}
-            {authorizedBranches && authorizedBranches.length > 0 && (
-              <div className="relative ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200" ref={branchRef}>
+        {/* Branch Selector Dropdown for Restaurant Owner (Restaurant name removed from header) */}
+        {currentUser?.role === 'restaurant_owner' && authorizedBranches && authorizedBranches.length > 0 ? (
+          <div className="relative" ref={branchRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -114,12 +101,12 @@ export const TopNavbar = ({ onOpenMobile }) => {
                   title={
                     authorizedBranches.length > 1
                       ? 'Switch Active Branch'
-                      : `Assigned Branch: ${currentBranch?.name || 'Assigned Outlet'}`
+                      : `Assigned Branch: ${formatBranchName(currentBranch?.name) || 'Assigned Outlet'}`
                   }
                 >
                   <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="max-w-[130px] sm:max-w-[190px] truncate">
-                    {currentBranch?.name || 'Select Branch'}
+                    {formatBranchName(currentBranch?.name) || 'Select Branch'}
                   </span>
                   {authorizedBranches.length > 1 ? (
                     <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
@@ -157,7 +144,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className={`text-xs truncate ${isCurrent ? 'font-bold text-emerald-950' : 'font-semibold text-slate-900'}`}>
-                                  {b.name}
+                                  {formatBranchName(b.name)}
                                 </span>
                                 {isCurrent && (
                                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-200" />
@@ -218,8 +205,6 @@ export const TopNavbar = ({ onOpenMobile }) => {
                     )}
                   </div>
                 )}
-              </div>
-            )}
           </div>
         ) : currentUser?.role === 'super_admin' ? (
           <div className="flex items-center gap-2">
@@ -235,7 +220,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
               </span>
             </div>
           </div>
-        ) : (
+        ) : currentUser?.role === 'supplier' ? (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">
               SP
@@ -249,7 +234,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
               </span>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Right: Notifications, Role Badge & User Profile Dropdown */}
@@ -276,7 +261,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200/90 shadow-xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">Notifications</span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {currentUser?.role === 'restaurant_manager' ? 'Staff Notifications' : 'Notifications'}
+                    </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
                       {unreadAlerts.length} new
                     </span>
@@ -294,20 +281,40 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                   {restaurantAlerts.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500">
-                      No alerts at this time. All stock levels healthy!
+                      {currentUser?.role === 'restaurant_manager'
+                        ? 'No active staff notices. All shift rosters and leave requests are clear!'
+                        : 'No alerts at this time. All stock levels healthy!'}
                     </div>
                   ) : (
                     restaurantAlerts.slice(0, 5).map((alt) => (
                       <div
                         key={alt.id}
-                        onClick={() => markAlertRead(alt.id)}
+                        onClick={() => {
+                        markAlertRead(alt.id);
+                        if (alt.actionLink) {
+                          navigate(alt.actionLink);
+                          setShowNotifications(false);
+                        }
+                      }}
                         className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${
                           !alt.read ? 'bg-emerald-50/20' : ''
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
                           <div className="shrink-0 mt-0.5">
-                            {alt.severity === 'critical' ? (
+                            {alt.type === 'leave_request' ? (
+                              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                                📋
+                              </span>
+                            ) : alt.type === 'transfer_request' ? (
+                              <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                                ⇄
+                              </span>
+                            ) : alt.type === 'attendance_notice' ? (
+                              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                                ⏱️
+                              </span>
+                            ) : alt.severity === 'critical' ? (
                               <AlertCircle className="w-4 h-4 text-rose-600" />
                             ) : alt.severity === 'high' ? (
                               <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -334,11 +341,15 @@ export const TopNavbar = ({ onOpenMobile }) => {
 
                 <div className="border-t border-slate-100 p-2.5 bg-slate-50/50 text-center">
                   <Link
-                    to="/alerts"
+                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
                     onClick={() => setShowNotifications(false)}
                     className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
                   >
-                    <span>View all {restaurantAlerts.length} alerts</span>
+                    <span>
+                      {currentUser?.role === 'restaurant_manager'
+                        ? `Manage all ${restaurantAlerts.length} staff notices`
+                        : `View all ${restaurantAlerts.length} alerts`}
+                    </span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                 </div>
@@ -375,7 +386,11 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    openProfileModal();
+                    if (currentUser?.role === 'kitchen_staff' || currentUser?.role === 'inventory_manager') {
+                      navigate('/profile');
+                    } else {
+                      openProfileModal();
+                    }
                     setShowUserDropdown(false);
                   }}
                   className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition-colors border-b border-slate-100"

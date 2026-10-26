@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Boxes,
+  ArrowLeftRight,
+  Bell,
   AlertTriangle,
   ClockAlert,
   XCircle,
@@ -57,6 +59,7 @@ export const RestaurantDashboard = () => {
     leaveRequests,
     reviewLeaveRequest,
     branchStaff,
+    staffTransfers,
     currentBranch,
     currentUser,
   } = useApp();
@@ -64,6 +67,9 @@ export const RestaurantDashboard = () => {
   const activeStaffAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
   const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
   const totalStaffCount = branchStaff?.length || 0;
+  const pendingTransfers = staffTransfers?.filter(
+    (t) => t.status === 'Pending' && (!currentBranch?.id || t.fromBranchId === currentBranch.id || t.toBranchId === currentBranch.id)
+  ) || [];
 
   // Metrics calculations for the current restaurant tenant
   const totalIngredients = restaurantIngredients.length;
@@ -84,27 +90,29 @@ export const RestaurantDashboard = () => {
       <PageHeader
         title={
           currentUser?.role === 'restaurant_manager'
-            ? `${currentRestaurant?.name} Operations & Staff Overview`
-            : `${currentRestaurant?.name} Inventory Overview`
+            ? 'Operations & Staff Overview'
+            : 'Inventory Overview'
         }
         subtitle={
           currentUser?.role === 'restaurant_manager'
-            ? `${currentRestaurant?.cuisine} • Real-time staff attendance, station shifts, leave approvals & operations tracking`
-            : `${currentRestaurant?.cuisine} • Real-time stock counts, active alerts, and consumption analytics`
+            ? 'Real-time staff attendance, station shifts, leave approvals & operations tracking'
+            : 'Real-time stock counts, active alerts, and consumption analytics'
         }
         badge={
-          <div className="flex items-center gap-2">
-            {currentBranch && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                <Store className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{currentBranch.name}</span>
+          currentUser?.role === 'restaurant_owner' ? (
+            <div className="flex items-center gap-2">
+              {currentBranch && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                  <Store className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{currentBranch.name.replace(/^Spice Garden\s*[-–—]\s*/i, '')}</span>
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span>{currentRestaurant?.logo || '🌿'}</span>
+                <span>{currentRestaurant?.planName} Tier</span>
               </span>
-            )}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <span>{currentRestaurant?.logo || '🌿'}</span>
-              <span>{currentRestaurant?.planName} Tier</span>
-            </span>
-          </div>
+            </div>
+          ) : null
         }
         actions={
           currentUser?.role === 'restaurant_manager' ? (
@@ -149,8 +157,8 @@ export const RestaurantDashboard = () => {
         }
       />
 
-      {/* Critical Stock Alert Banner if any out of stock or low stock items */}
-      {(lowStockItems > 0 || outOfStockItems > 0) && (
+      {/* Critical Stock Alert Banner if any out of stock or low stock items (hidden for restaurant manager) */}
+      {currentUser?.role !== 'restaurant_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
@@ -226,23 +234,23 @@ export const RestaurantDashboard = () => {
           />
 
           <StatCard
-            title="Expiring Items (FEFO)"
-            value={expiringSoonItems}
-            change={expiringSoonItems > 0 ? 'Stock Alert' : 'Fresh'}
-            trend={expiringSoonItems > 0 ? 'down' : 'up'}
-            subtext="Safety & kitchen compliance"
-            icon={ClockAlert}
-            accentColor={expiringSoonItems > 0 ? 'amber' : 'emerald'}
-            onClick={() => navigate('/alerts')}
+            title="Pending Transfers"
+            value={pendingTransfers.length}
+            change={pendingTransfers.length > 0 ? 'Requires Action' : 'All Clear'}
+            trend={pendingTransfers.length > 0 ? 'down' : 'up'}
+            subtext="Inter-branch requests"
+            icon={ArrowLeftRight}
+            accentColor={pendingTransfers.length > 0 ? 'purple' : 'emerald'}
+            onClick={() => navigate('/staff-transfers')}
           />
 
           <StatCard
-            title="Active System Alerts"
+            title="Staff Notices"
             value={restaurantAlerts.filter((a) => !a.read).length}
-            change="Operations Notices"
+            change="Staff Alerts"
             trend="neutral"
-            subtext="Unread branch notices"
-            icon={AlertTriangle}
+            subtext="Unread staff notices"
+            icon={Bell}
             accentColor="teal"
             onClick={() => navigate('/alerts')}
           />

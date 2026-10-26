@@ -18,7 +18,9 @@ import {
   History,
   FileText,
   Printer,
+  Users,
 } from 'lucide-react';
+import { StaffReports } from './StaffReports';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/common/Card';
 import { StatCard } from '../../components/common/StatCard';
@@ -44,6 +46,7 @@ import { restaurantConsumptionTrends, restaurantCategoryValuation } from '../../
 
 export const ReportsPage = () => {
   const {
+    currentUser,
     currentRestaurant,
     restaurantIngredients,
     restaurantMovements,
@@ -54,8 +57,19 @@ export const ReportsPage = () => {
     addToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState('procurement_audit'); // 'procurement_audit' | 'inventory_analytics'
+  // Route & Logic Guard: Restaurant Manager can ONLY see Staff Reports.
+  // Stock data calculations and views are strictly bypassed.
+  if (currentUser?.role === 'restaurant_manager') {
+    return <StaffReports isEmbedded={false} />;
+  }
+
+  const isOwner = currentUser?.role === 'restaurant_owner';
+
+  const [activeTab, setActiveTab] = useState('procurement_audit'); // 'procurement_audit' | 'inventory_analytics' | 'staff_reports'
   const [timeframe, setTimeframe] = useState('month');
+
+  // Enforce tab permissions: only Owner can access 'staff_reports'
+  const currentTab = !isOwner && activeTab === 'staff_reports' ? 'procurement_audit' : activeTab;
 
   // Dynamic calculations
   const totalValuation = restaurantIngredients.reduce((acc, i) => acc + (i.quantity * i.costPerUnit), 0);
@@ -81,7 +95,7 @@ export const ReportsPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${currentRestaurant?.name} Analytics & Audits`}
+        title="Analytics & Audits"
         subtitle="Procurement verification, dock damage loss audits, fresh bread returns & inventory valuation"
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
@@ -122,7 +136,7 @@ export const ReportsPage = () => {
         <button
           onClick={() => setActiveTab('procurement_audit')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'procurement_audit'
+            currentTab === 'procurement_audit'
               ? 'bg-emerald-800 text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
@@ -133,16 +147,35 @@ export const ReportsPage = () => {
         <button
           onClick={() => setActiveTab('inventory_analytics')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'inventory_analytics'
+            currentTab === 'inventory_analytics'
               ? 'bg-emerald-800 text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
           <BarChart3 className="w-4 h-4" /> Kitchen Valuation & Spoilage Trends
         </button>
+
+        {isOwner && (
+          <button
+            onClick={() => setActiveTab('staff_reports')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              currentTab === 'staff_reports'
+                ? 'bg-emerald-800 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4" /> Staff Reports
+          </button>
+        )}
       </div>
 
-      {activeTab === 'procurement_audit' ? (
+      {currentTab === 'staff_reports' && isOwner ? (
+        <StaffReports
+          isEmbedded={true}
+          externalTimeframe={timeframe}
+          onTimeframeChange={setTimeframe}
+        />
+      ) : currentTab === 'procurement_audit' ? (
         <div className="space-y-6">
           {/* Executive Supplier Procurement KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
