@@ -3,6 +3,8 @@ import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
+  Megaphone,
+  Inbox,
   Building2,
   Users,
   CreditCard,
@@ -54,6 +56,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     switchBranch,
     ownerNotifications,
     customPlanRequests,
+    announcements,
+    announcementReads,
   } = useApp();
 
   const getHomeRoute = () => {
@@ -72,6 +76,13 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
   const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
   const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
+  const unreadAnnouncementsCount = (announcements || []).filter(ann => {
+    if (ann.status !== 'published') return false;
+    if (ann.audienceType === 'SPECIFIC_RESTAURANTS' && currentRestaurant && !ann.targetRestaurantIds?.includes(currentRestaurant.id)) return false;
+    if (ann.audienceType === 'SUBSCRIPTION_TIER' && currentRestaurant && !ann.targetPlanIds?.includes(currentRestaurant.planId)) return false;
+    const readKey = `${ann.id}_${currentRestaurant?.id || 'rest-1'}`;
+    return !announcementReads?.[readKey]?.isRead;
+  }).length;
 
   // Define nav links by role
   const getNavLinks = () => {
@@ -82,6 +93,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Platform Administration',
             items: [
               { to: '/admin/dashboard', label: 'Admin Dashboard', icon: LayoutDashboard },
+              { to: '/admin/communication', label: 'Communication Center', icon: Megaphone },
               { to: '/admin/restaurants', label: 'Restaurants', icon: Building2 },
               { to: '/admin/users', label: 'Platform Users', icon: Users },
               { to: '/admin/plans', label: 'Subscription Plans', icon: CreditCard },
@@ -114,6 +126,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Kitchen & Operations',
             items: [
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+              { to: '/inbox', label: 'Inbox & Announcements', icon: Inbox, badge: unreadAnnouncementsCount > 0 ? unreadAnnouncementsCount : null },
               { to: '/inventory', label: 'Inventory Items', icon: Boxes },
               { to: '/expiry-tracking', label: 'Expiry Tracking', icon: ClockAlert },
               { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
@@ -133,13 +146,9 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           {
             section: 'Branch & Plan Management',
             items: [
-              { to: '/branches/overview', label: 'Branch Overview', icon: Store },
-              { to: '/branches', label: 'Branches', icon: Building2 },
-              { to: '/branch-subscriptions', label: 'Branch Subscriptions', icon: CalendarCheck },
-              { to: '/branch-plans', label: 'Plan & Billing', icon: Sparkles },
-              { to: '/custom-plan', label: 'Custom Plan Builder', icon: Sliders },
-              { to: '/branch-staff', label: 'Staff & Managers', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/branches', label: 'Branch Overview & Outlets', icon: Store },
+              { to: '/plans-billing', label: 'Plans & Billing', icon: Sparkles },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               {
                 to: '/notifications',
                 label: 'Notifications',
@@ -149,13 +158,11 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             ],
           },
           {
-            section: 'Business & Team',
+            section: 'Business & Finance',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
-              { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
-              { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
+              { to: '/settings', label: 'Restaurant Settings', icon: Settings },
             ],
           },
         ];
@@ -192,8 +199,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Restaurant Operations & Staff',
             items: [
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
               {
                 to: '/alerts',
