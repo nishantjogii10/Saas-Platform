@@ -70,8 +70,18 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     }
   };
 
-  const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
-  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
+  const unreadAlertsCount = restaurantAlerts.filter(a => {
+    if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !a.read;
+  }).length;
+  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => {
+    if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !n.read;
+  }).length;
   const myStaffNotifs = (staffNotifications || []).filter(n => n.targetStaffId === currentUser?.id);
   const unreadStaffNotifs = myStaffNotifs.filter(n => !n.read).length;
   const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
@@ -199,7 +209,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
               { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
-              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
               {
                 to: '/alerts',
@@ -243,7 +252,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             items: [
               { to: '/supplier', label: 'Supplier Dashboard', icon: LayoutDashboard },
               { to: '/supplier/products', label: 'Product Catalog', icon: Boxes },
-              { to: '/marketplace', label: 'Marketplace View', icon: Store },
+              { to: '/supplier/marketplace', label: 'Marketplace View', icon: Store },
               { to: '/supplier/orders', label: 'Assigned Orders', icon: ShoppingBag },
               { to: '/supplier/invoices', label: 'Invoices & Receivables', icon: Receipt },
               { to: '/supplier/returns', label: 'Returns & Credit Claims', icon: RotateCcw },

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Boxes,
+  Store,
   Plus,
   Search,
   Filter,
@@ -56,9 +57,10 @@ export const SupplierProductsPage = () => {
   const [productToDelete, setProductToDelete] = useState(null);
 
   // Active supplier details
-  const activeSupplierId = currentUser?.supplierId || 'sup-1';
-  const mySupplier = suppliers.find((s) => s.id === activeSupplierId) || {
-    name: currentUser?.supplierName || 'Metro Food Distributors',
+  const activeSupplierId = currentUser?.supplierId;
+  const mySupplier = suppliers.find((s) => s.id === activeSupplierId || s.name === currentUser?.supplierName) || {
+    id: activeSupplierId,
+    name: currentUser?.supplierName || currentUser?.name || 'Partner',
     planName: 'Pro Vendor',
     rating: 4.8,
   };
@@ -67,15 +69,17 @@ export const SupplierProductsPage = () => {
     SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.name === mySupplier.planName) ||
     SUPPLIER_SUBSCRIPTION_PLANS[1];
 
-  // Filter products for this supplier (or show all with this supplier highlighted)
+  // Strictly filter products for this supplier only - no other supplier products!
   const myProducts = useMemo(() => {
-    return supplierProducts.filter(
-      (p) => p.supplierId === activeSupplierId || p.supplierName === mySupplier.name
+    return (supplierProducts || []).filter(
+      (p) =>
+        (activeSupplierId && p.supplierId === activeSupplierId) ||
+        (mySupplier.name && p.supplierName === mySupplier.name)
     );
   }, [supplierProducts, activeSupplierId, mySupplier.name]);
 
-  // If new supplier has no products yet, fall back to global supplier products for display
-  const displayProducts = myProducts.length > 0 ? myProducts : supplierProducts;
+  // Suppliers can ONLY see products they added themselves
+  const displayProducts = myProducts;
 
   const filteredProducts = useMemo(() => {
     return displayProducts.filter((prod) => {
@@ -183,9 +187,9 @@ export const SupplierProductsPage = () => {
               variant="outline"
               size="sm"
               icon={Store}
-              onClick={() => navigate('/marketplace')}
+              onClick={() => navigate('/supplier/marketplace')}
             >
-              Preview in Marketplace
+              Marketplace View
             </Button>
             <Button
               variant="brand"
@@ -479,6 +483,28 @@ export const SupplierProductsPage = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {filteredProducts.length === 0 && (
+        <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-200">
+          <Boxes className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-800">
+            {myProducts.length === 0 ? 'No Products Listed Yet' : 'No Matching Products Found'}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            {myProducts.length === 0
+              ? "You haven't added any products to your catalog yet. Click 'Add New Product' to list your wholesale ingredients and make them available to restaurants."
+              : 'Try clearing your search term or category filters to see your listed items.'}
+          </p>
+          {myProducts.length === 0 && (
+            <div className="mt-4">
+              <Button variant="brand" size="sm" icon={Plus} onClick={handleOpenAdd}>
+                Add Your First Product
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

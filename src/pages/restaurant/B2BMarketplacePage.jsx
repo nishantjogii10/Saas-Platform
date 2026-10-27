@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Store,
@@ -145,14 +145,14 @@ export const B2BMarketplacePage = () => {
 
     setTimeout(() => {
       try {
-        // Create PO for each distinct supplier in cart
+        // Create PO for each distinct supplier in cart - directly dispatches to supplier!
         cartBySupplier.forEach((supGroup) => {
           createMarketplacePO({
             supplierId: supGroup.supplierId,
             items: supGroup.items,
             notes: poNotes,
             expectedDelivery: expectedDate,
-            requireApproval: currentUser?.role !== 'restaurant_owner',
+            requireApproval: false,
           });
         });
 
@@ -237,7 +237,7 @@ export const B2BMarketplacePage = () => {
             target="_blank"
             className="text-xs font-bold text-emerald-400 hover:text-emerald-300 bg-slate-950/60 hover:bg-slate-950 px-3 py-2 rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5"
           >
-            <span>Are you a Supplier? Join Platform</span>
+            <span>Are you a Supplier? Vendor Portal Login</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>

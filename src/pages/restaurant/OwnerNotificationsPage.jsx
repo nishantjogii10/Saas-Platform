@@ -32,17 +32,28 @@ export const OwnerNotificationsPage = () => {
     markOwnerNotificationRead,
     markAllOwnerNotificationsRead,
     addToast,
+    currentUser,
   } = useApp();
 
   const [filterType, setFilterType] = useState('all'); // 'all' | 'unread' | 'subscription' | 'transfer' | 'payment'
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Unread count
-  const unreadCount = ownerNotifications.filter((n) => !n.read).length;
+  // Unread count (filtered by role permissions)
+  const unreadCount = ownerNotifications.filter((n) => {
+    if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !n.read;
+  }).length;
 
   // Filtered notifications
   const filteredNotifications = useMemo(() => {
     return ownerNotifications.filter((n) => {
+      // Role-based visibility
+      if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+
       const matchesSearch =
         n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         n.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -61,7 +72,7 @@ export const OwnerNotificationsPage = () => {
 
       return matchesSearch && matchesType;
     });
-  }, [ownerNotifications, searchTerm, filterType]);
+  }, [ownerNotifications, searchTerm, filterType, currentUser]);
 
   const getNotificationIcon = (type) => {
     switch (type) {

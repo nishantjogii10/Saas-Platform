@@ -238,7 +238,7 @@ export const RestaurantDashboard = () => {
 
           <StatCard
             title="Active System Alerts"
-            value={restaurantAlerts.filter((a) => !a.read).length}
+            value={restaurantAlerts.filter((a) => !a.read && (!a.targetRoles || a.targetRoles.includes(currentUser?.role) || currentUser?.role === 'super_admin')).length}
             change="Operations Notices"
             trend="neutral"
             subtext="Unread branch notices"

@@ -72,20 +72,43 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadAlerts = restaurantAlerts.filter(a => !a.read);
-  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read);
+  const roleFilteredAlerts = React.useMemo(() => {
+    return (restaurantAlerts || []).filter(a => {
+      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [restaurantAlerts, currentUser]);
+
+  const unreadAlerts = roleFilteredAlerts.filter(a => !a.read);
+  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => {
+    if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !n.read;
+  });
   const myStaffNotifs = (staffNotifications || []).filter(n => n.targetStaffId === currentUser?.id);
   const unreadStaffNotifs = myStaffNotifs.filter(n => !n.read);
 
   const isKitchenStaff = currentUser?.role === 'kitchen_staff';
-  const relevantNotifs = isKitchenStaff ? myStaffNotifs : (ownerNotifications || []);
+  const roleFilteredOwnerNotifs = React.useMemo(() => {
+    return (ownerNotifications || []).filter(n => {
+      if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerNotifications, currentUser]);
+
+  const relevantNotifs = isKitchenStaff ? myStaffNotifs : roleFilteredOwnerNotifs;
   const relevantUnreadNotifs = isKitchenStaff ? unreadStaffNotifs : unreadOwnerNotifs;
   const totalUnreadCount = unreadAlerts.length + relevantUnreadNotifs.length;
 
   const combinedItems = React.useMemo(() => {
     const list = [];
     if (notifTab === 'all' || notifTab === 'alerts') {
-      restaurantAlerts.forEach(a => {
+      roleFilteredAlerts.forEach(a => {
         list.push({
           id: a.id,
           sourceType: 'alert',

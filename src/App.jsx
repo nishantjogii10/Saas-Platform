@@ -71,8 +71,9 @@ import { SupplierHistoryPage } from './pages/supplier/SupplierHistoryPage';
 import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage';
 import { SupplierInvoicesPage } from './pages/supplier/SupplierInvoicesPage';
 import { SupplierReturnsPage as SupplierPortalReturnsPage } from './pages/supplier/SupplierReturnsPage';
-import { SupplierLandingPage } from './pages/supplier/SupplierLandingPage';
+import { SupplierLoginPage } from './pages/supplier/SupplierLoginPage';
 import { SupplierProductsPage } from './pages/supplier/SupplierProductsPage';
+import { SupplierMarketplaceViewPage } from './pages/supplier/SupplierMarketplaceViewPage';
 import { B2BMarketplacePage } from './pages/restaurant/B2BMarketplacePage';
 
 // Role Guard Component
@@ -176,7 +177,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/supplier-portal" element={<SupplierLandingPage />} />
+          <Route path="/supplier-portal" element={<SupplierLoginPage />} />
+          <Route path="/supplier/login" element={<Navigate to="/supplier-portal" replace />} />
           <Route path="/supplier-landing" element={<Navigate to="/supplier-portal" replace />} />
           <Route path="/suppliers-join" element={<Navigate to="/supplier-portal" replace />} />
 
@@ -374,7 +376,7 @@ function App() {
             path="/suppliers"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SuppliersPage />
                 </RoleGuard>
               </AppLayout>
@@ -384,7 +386,7 @@ function App() {
             path="/purchase-orders"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <PurchaseOrdersPage />
                 </RoleGuard>
               </AppLayout>
@@ -394,7 +396,7 @@ function App() {
             path="/marketplace"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager', 'inventory_manager', 'super_admin', 'supplier']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin', 'supplier']}>
                   <B2BMarketplacePage />
                 </RoleGuard>
               </AppLayout>
@@ -433,7 +435,7 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierReturnsPage />
                 </RoleGuard>
               </AppLayout>
@@ -443,7 +445,7 @@ function App() {
             path="/supplier-billing"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierBillingPage />
                 </RoleGuard>
               </AppLayout>
@@ -692,6 +694,16 @@ function App() {
             }
           />
           <Route path="/supplier/catalog" element={<Navigate to="/supplier/products" replace />} />
+          <Route
+            path="/supplier/marketplace"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['supplier', 'super_admin']}>
+                  <SupplierMarketplaceViewPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
           <Route
             path="/supplier/orders"
             element={

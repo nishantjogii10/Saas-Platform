@@ -290,6 +290,14 @@ export const LandingPage = () => {
                   >
                     Sign In
                   </Link>
+                  <Link
+                    to="/supplier-portal"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-2.5 rounded-xl bg-slate-900 border border-emerald-500/30 text-emerald-400 font-semibold text-xs text-center flex items-center justify-center gap-1.5"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Supplier Portal</span>
+                  </Link>
                 </>
               )}
             </div>

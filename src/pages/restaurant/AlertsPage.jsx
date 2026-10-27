@@ -24,18 +24,26 @@ export const AlertsPage = () => {
     markAlertRead,
     markAllAlertsRead,
     dismissAlert,
+    currentUser,
   } = useApp();
 
   const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry
 
-  const filteredAlerts = restaurantAlerts.filter((a) => {
+  const roleFilteredAlerts = (restaurantAlerts || []).filter((a) => {
+    if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredAlerts = roleFilteredAlerts.filter((a) => {
     if (filterMode === 'unread') return !a.read;
     if (filterMode === 'critical') return a.severity === 'critical' || a.severity === 'high';
     if (filterMode === 'expiry') return a.type === 'expiring_soon' || a.type === 'expired';
     return true;
   });
 
-  const unreadCount = restaurantAlerts.filter(a => !a.read).length;
+  const unreadCount = roleFilteredAlerts.filter(a => !a.read).length;
 
   return (
     <div className="space-y-6">
@@ -64,7 +72,7 @@ export const AlertsPage = () => {
       <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {[
-            { id: 'all', label: 'All Alerts', count: restaurantAlerts.length },
+            { id: 'all', label: 'All Alerts', count: roleFilteredAlerts.length },
             { id: 'unread', label: 'Unread Only', count: unreadCount },
             { id: 'critical', label: 'Critical & High' },
             { id: 'expiry', label: 'Expiry Warnings' },

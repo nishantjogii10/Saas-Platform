@@ -81,8 +81,27 @@ export const LoginPage = () => {
   // Redirect destination after authentication
   const redirectDestination = location.state?.from;
 
-  // Selected Role Hint (Default: Restaurant Owner)
-  const [selectedRole, setSelectedRole] = useState('restaurant_owner');
+  // Selected Role Hint (Default: Restaurant Owner, auto-detects from query/state/from)
+  const [selectedRole, setSelectedRole] = useState(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryRole = searchParams.get('role');
+    if (queryRole && ROLE_OPTIONS.some((r) => r.id === queryRole)) {
+      return queryRole;
+    }
+    if (location.state?.role && ROLE_OPTIONS.some((r) => r.id === location.state.role)) {
+      return location.state.role;
+    }
+    if (location.state?.from && location.state.from.startsWith('/supplier')) {
+      return 'supplier';
+    }
+    if (location.state?.from && location.state.from.startsWith('/kitchen')) {
+      return 'kitchen_staff';
+    }
+    if (location.state?.from && location.state.from.startsWith('/admin')) {
+      return 'super_admin';
+    }
+    return 'restaurant_owner';
+  });
 
   // Form states - empty defaults for security and privacy
   const [email, setEmail] = useState('');
@@ -406,7 +425,7 @@ export const LoginPage = () => {
                 to="/supplier-portal"
                 className="font-bold text-teal-400 hover:text-teal-300 transition-colors"
               >
-                Join Supplier B2B Network →
+                Supplier Portal Login →
               </Link>
             </div>
           </div>

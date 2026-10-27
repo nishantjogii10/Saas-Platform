@@ -245,9 +245,9 @@ export const PurchaseOrdersPage = () => {
             Details
           </Button>
 
-          {/* Manager / Admin Approval for Requisitions */}
+          {/* Owner / Admin Direct Requisition Fallback (if any legacy PO pending approval) */}
           {row.status === 'pending_approval' &&
-            (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'restaurant_manager' || currentUser?.role === 'super_admin') && (
+            (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
               <Button
                 variant="brand"
                 size="xs"
@@ -566,7 +566,7 @@ export const PurchaseOrdersPage = () => {
                 Supplier: <strong>{selectedPO.supplierName}</strong>
               </span>
               <div className="flex items-center gap-2">
-                {selectedPO.status === 'pending_approval' && (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'restaurant_manager' || currentUser?.role === 'super_admin') && (
+                {selectedPO.status === 'pending_approval' && (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
                   <Button
                     variant="brand"
                     size="sm"

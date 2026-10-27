@@ -49,14 +49,14 @@ export const SupplierReturnsPage = () => {
   const [rejectionReason, setRejectionReason] = useState('Stock condition outside agreement window');
 
   // Supplier filter
-  const currentSupplierId = currentUser?.supplierId || 'sup-1';
+  const currentSupplierId = currentUser?.supplierId;
   const myReturns = useMemo(() => {
     return (supplierReturns || []).filter(
       (ret) => ret.supplierId === currentSupplierId || ret.supplierName === currentUser?.supplierName
     );
   }, [supplierReturns, currentSupplierId, currentUser]);
 
-  const displayReturns = myReturns.length > 0 ? myReturns : supplierReturns || [];
+  const displayReturns = myReturns;
 
   const pendingCount = displayReturns.filter((r) => r.status === 'Pending').length;
   const approvedCount = displayReturns.filter(

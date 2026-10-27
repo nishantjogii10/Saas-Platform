@@ -40,9 +40,10 @@ export const SupplierDashboard = () => {
     suppliers,
   } = useApp();
 
-  const currentSupplierId = currentUser?.supplierId || 'sup-1';
-  const mySupplier = suppliers.find((s) => s.id === currentSupplierId) || {
-    name: currentUser?.supplierName || 'Metro Food Distributors',
+  const currentSupplierId = currentUser?.supplierId;
+  const mySupplier = suppliers.find((s) => s.id === currentSupplierId || s.name === currentUser?.supplierName) || {
+    id: currentSupplierId,
+    name: currentUser?.supplierName || currentUser?.name || 'Partner',
     planName: 'Pro Vendor',
     rating: 4.8,
   };
@@ -52,12 +53,12 @@ export const SupplierDashboard = () => {
     SUPPLIER_SUBSCRIPTION_PLANS[1];
 
   const myProducts = (supplierProducts || []).filter(
-    (p) => p.supplierId === currentSupplierId || p.supplierName === mySupplier.name
+    (p) => (currentSupplierId && p.supplierId === currentSupplierId) || (mySupplier.name && p.supplierName === mySupplier.name)
   );
 
   // Filter only orders assigned to this supplier!
   const myOrders = purchaseOrders.filter(
-    (po) => po.supplierId === currentSupplierId
+    (po) => (currentSupplierId && po.supplierId === currentSupplierId) || (mySupplier.name && po.supplierName === mySupplier.name)
   );
 
   const pendingOrders = myOrders.filter((po) => po.status === 'pending');
@@ -73,7 +74,7 @@ export const SupplierDashboard = () => {
   const myInvoices = (supplierInvoices || []).filter(
     (inv) => inv.supplierId === currentSupplierId || inv.supplierName === currentUser?.supplierName
   );
-  const displayInvoices = myInvoices.length > 0 ? myInvoices : supplierInvoices || [];
+  const displayInvoices = myInvoices;
   const totalReceivables = displayInvoices.reduce((sum, inv) => sum + (inv.outstandingBalance || 0), 0);
   const totalInvoiced = displayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
 
@@ -81,7 +82,7 @@ export const SupplierDashboard = () => {
   const myReturns = (supplierReturns || []).filter(
     (ret) => ret.supplierId === currentSupplierId || ret.supplierName === currentUser?.supplierName
   );
-  const displayReturns = myReturns.length > 0 ? myReturns : supplierReturns || [];
+  const displayReturns = myReturns;
   const pendingReturnClaims = displayReturns.filter((r) => r.status === 'Pending').length;
 
   return (
@@ -136,7 +137,7 @@ export const SupplierDashboard = () => {
             variant="secondary"
             size="sm"
             icon={Store}
-            onClick={() => navigate('/marketplace')}
+            onClick={() => navigate('/supplier/marketplace')}
           >
             Marketplace View
           </Button>

@@ -20,8 +20,16 @@ export const SupplierProfilePage = () => {
   const { suppliers, currentUser, restaurants, addToast } = useApp();
 
   const currentSup =
-    suppliers.find((s) => s.id === (currentUser.supplierId || 'sup-1')) ||
-    suppliers[0];
+    suppliers.find((s) => s.id === currentUser?.supplierId || s.name === currentUser?.supplierName) ||
+    {
+      name: currentUser?.supplierName || currentUser?.name || 'Vendor Partner',
+      contactPerson: currentUser?.name || 'Partner',
+      email: currentUser?.email || 'vendor@supplier.com',
+      phone: '+91 98000 00000',
+      address: 'Central Logistics Hub, Sector 4, Pune',
+      leadTimeDays: 1,
+      paymentTerms: 'Net 14',
+    };
 
   const [formData, setFormData] = useState({
     name: currentSup?.name || '',
