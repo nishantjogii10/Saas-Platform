@@ -97,7 +97,7 @@ export const InventoryAttendancePage = () => {
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Track your daily dock shifts, live clock-in hours, monthly attendance roster, leave balance requests, and official holiday schedules.
+              Track your daily duty shifts, live clock-in hours, monthly attendance roster, leave balance requests, and official holiday schedules.
             </p>
 
             {/* Quick Status Chips */}

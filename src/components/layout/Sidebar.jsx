@@ -205,6 +205,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 icon: Bell,
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
+            ],
+          },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
               { to: '/profile', label: 'My Profile', icon: User },
             ],
           },

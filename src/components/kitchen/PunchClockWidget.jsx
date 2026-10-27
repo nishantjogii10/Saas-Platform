@@ -190,6 +190,8 @@ export const PunchClockWidget = () => {
     if (stationName.includes('Procurement') || stationName.includes('Desk')) return '📋';
     if (stationName.includes('Floor')) return '🏢';
     if (stationName.includes('Billing')) return '🧾';
+    if (stationName.includes('Briefing') || stationName.includes('Admin')) return '👔';
+    if (stationName.includes('Management')) return '💼';
     return '⏱️';
   };
 
