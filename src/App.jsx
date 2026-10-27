@@ -67,6 +67,9 @@ import { RecordUsagePage } from './pages/kitchen/RecordUsagePage';
 import { RecordWastagePage } from './pages/kitchen/RecordWastagePage';
 import { ReportLowStockPage } from './pages/kitchen/ReportLowStockPage';
 
+// Staff Attendance & Shifts
+import { InventoryAttendancePage } from './pages/inventory/InventoryAttendancePage';
+
 // Supplier Pages
 import { SupplierDashboard } from './pages/supplier/SupplierDashboard';
 import { SupplierOrdersPage } from './pages/supplier/SupplierOrdersPage';
@@ -587,6 +590,19 @@ function App() {
             path="/billing"
             element={<Navigate to="/plans-billing?tab=invoices" replace />}
           />
+
+          {/* Personal Staff Attendance & Shifts */}
+          <Route
+            path="/my-attendance"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['inventory_manager', 'kitchen_staff', 'restaurant_manager', 'restaurant_owner']}>
+                  <InventoryAttendancePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/attendance" element={<Navigate to="/my-attendance" replace />} />
 
           {/* Kitchen Staff Module */}
           <Route

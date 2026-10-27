@@ -60,7 +60,10 @@ import {
   initialLeaveRequests,
   initialSalaryPayments,
   initialStaffNotifications,
+  initialHolidays,
+  INITIAL_STAFF_LEAVE_BALANCES,
   LEAVE_TYPES,
+  LEAVE_POLICIES,
   KITCHEN_STATIONS,
   STAFF_SALARY_PROFILES,
 } from '../data/staffAttendanceData';
@@ -212,6 +215,8 @@ export const AppProvider = ({ children }) => {
   const [leaveRequests, setLeaveRequests] = useState(() => loadStored('leaveRequests', initialLeaveRequests));
   const [salaryPayments, setSalaryPayments] = useState(() => loadStored('salaryPayments', initialSalaryPayments));
   const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
+  const [holidays, setHolidays] = useState(() => loadStored('holidays', initialHolidays));
+  const [staffLeaveBalances, setStaffLeaveBalances] = useState(() => loadStored('staffLeaveBalances', INITIAL_STAFF_LEAVE_BALANCES));
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
@@ -396,6 +401,14 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_staffNotifications`, JSON.stringify(staffNotifications));
   }, [staffNotifications]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_holidays`, JSON.stringify(holidays));
+  }, [holidays]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_staffLeaveBalances`, JSON.stringify(staffLeaveBalances));
+  }, [staffLeaveBalances]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
@@ -3401,16 +3414,16 @@ export const AppProvider = ({ children }) => {
     addToast(`Ticket status updated to ${newStatus}.`, 'info');
   };
 
-  // --- KITCHEN ATTENDANCE (PUNCH-IN / PUNCH-OUT) ---
+  // --- KITCHEN & EMPLOYEE ATTENDANCE (PUNCH-IN / PUNCH-OUT / BREAKS) ---
   const punchInStaff = ({ staffId, staffName, staffRole, branchId, branchName, station, notes }) => {
     const user = currentUser;
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
-    // Check if already active
+    // Prevent duplicate active session
     const existingActive = attendanceRecords.find(r => r.staffId === targetId && r.status === 'active');
     if (existingActive) {
       addToast(`${targetName} is already clocked in!`, 'warning');
@@ -3418,6 +3431,12 @@ export const AppProvider = ({ children }) => {
     }
 
     const now = new Date();
+    // Late arrival check: past 09:30 AM on morning shift
+    const hrs = now.getHours();
+    const mins = now.getMinutes();
+    const isLate = hrs > 9 || (hrs === 9 && mins > 30);
+    const initialStatus = isLate ? 'late' : 'present';
+
     const newRecord = {
       id: `att-${Date.now()}`,
       staffId: targetId,
@@ -3431,14 +3450,20 @@ export const AppProvider = ({ children }) => {
       punchInTime: now.toISOString(),
       punchOutTime: null,
       status: 'active',
+      attendanceStatus: initialStatus,
       totalHours: null,
       station: station || 'Main Prep Line',
-      notes: notes || 'Started station shift prep',
+      notes: notes || 'Clocked in via Workstation',
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: 0,
+      isCorrected: false,
+      correctionAudit: [],
     };
 
     setAttendanceRecords(prev => [newRecord, ...prev]);
 
-    // Live notification for Manager
+    // Live notification for Manager/Owner
     const notif = {
       id: `notif-punch-${Date.now()}`,
       type: 'staff_punch_in',
@@ -3448,14 +3473,50 @@ export const AppProvider = ({ children }) => {
       branchName: newRecord.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Attendance',
       badge: 'Attendance',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punch-in recorded! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
+    addToast(`Clocked in successfully! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
     return newRecord;
+  };
+
+  const startStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec) {
+      addToast('No active attendance session found.', 'error');
+      return false;
+    }
+    if (rec.isOnBreak) {
+      addToast('You are already on break.', 'warning');
+      return false;
+    }
+    const now = new Date().toISOString();
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? { ...r, isOnBreak: true, breakStartTime: now } : r));
+    addToast('Break started. Enjoy your rest!', 'info');
+    return true;
+  };
+
+  const endStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec || !rec.isOnBreak) {
+      addToast('No active break found to end.', 'error');
+      return false;
+    }
+    const now = Date.now();
+    const breakStart = new Date(rec.breakStartTime).getTime();
+    const breakMins = Math.max(1, Math.round((now - breakStart) / 60000));
+    const totalBreak = (rec.totalBreakMinutes || 0) + breakMins;
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? {
+      ...r,
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: totalBreak,
+    } : r));
+    addToast(`Break ended (${breakMins} mins). Back on duty!`, 'success');
+    return true;
   };
 
   const punchOutStaff = (recordId, notes = '') => {
@@ -3467,7 +3528,12 @@ export const AppProvider = ({ children }) => {
 
     const now = new Date();
     const inTime = new Date(record.punchInTime);
-    const diffHours = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const totalElapsedHrs = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const breakHrs = Number(((record.totalBreakMinutes || 0) / 60).toFixed(2));
+    const netWorkedHrs = Math.max(0.1, Number((totalElapsedHrs - breakHrs).toFixed(2)));
+    
+    // Determine attendance status: half-day if < 5 hrs, else keep existing (present or late)
+    const attStatus = netWorkedHrs < 5.0 ? 'half_day' : (record.attendanceStatus || 'present');
 
     setAttendanceRecords(prev => prev.map(r => {
       if (r.id === record.id) {
@@ -3475,7 +3541,10 @@ export const AppProvider = ({ children }) => {
           ...r,
           punchOutTime: now.toISOString(),
           status: 'completed',
-          totalHours: diffHours,
+          attendanceStatus: attStatus,
+          totalHours: netWorkedHrs,
+          isOnBreak: false,
+          breakStartTime: null,
           notes: notes ? `${r.notes ? r.notes + ' • ' : ''}Closing: ${notes}` : r.notes,
         };
       }
@@ -3487,18 +3556,79 @@ export const AppProvider = ({ children }) => {
       id: `notif-punchout-${Date.now()}`,
       type: 'staff_punch_out',
       title: `Staff Punched Out: ${record.staffName}`,
-      message: `${record.staffName} completed shift. Total work duration: ${diffHours} hrs.`,
+      message: `${record.staffName} completed shift. Total work duration: ${netWorkedHrs} hrs.`,
       branchId: record.branchId,
       branchName: record.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Timesheet',
       badge: 'Shift End',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punched out successfully. Total shift duration: ${diffHours} hrs.`, 'success');
+    addToast(`Punched out successfully. Total shift duration: ${netWorkedHrs} hrs.`, 'success');
+    return true;
+  };
+
+  // --- ATTENDANCE CORRECTIONS (AUDIT TRAIL) ---
+  const correctAttendanceRecord = (recordId, correctionData) => {
+    const record = attendanceRecords.find(r => r.id === recordId);
+    if (!record) {
+      addToast('Attendance record not found.', 'error');
+      return false;
+    }
+    if (!correctionData.reason || !correctionData.reason.trim()) {
+      addToast('Correction reason is mandatory.', 'error');
+      return false;
+    }
+
+    const inTime = correctionData.punchInTime ? new Date(correctionData.punchInTime) : (record.punchInTime ? new Date(record.punchInTime) : null);
+    const outTime = correctionData.punchOutTime ? new Date(correctionData.punchOutTime) : (record.punchOutTime ? new Date(record.punchOutTime) : null);
+    
+    if (inTime && outTime && outTime < inTime) {
+      addToast('Clock-out time cannot be earlier than clock-in time.', 'error');
+      return false;
+    }
+
+    let newTotalHours = record.totalHours;
+    if (inTime && outTime) {
+      newTotalHours = Math.max(0.1, Number(((outTime - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    }
+
+    const auditEntry = {
+      id: `audit-${Date.now()}`,
+      correctedBy: `${currentUser?.name || 'Authorized Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      correctedAt: new Date().toISOString(),
+      originalPunchIn: record.punchInTime,
+      originalPunchOut: record.punchOutTime,
+      originalStatus: record.attendanceStatus || 'present',
+      originalTotalHours: record.totalHours,
+      newPunchIn: correctionData.punchInTime || record.punchInTime,
+      newPunchOut: correctionData.punchOutTime || record.punchOutTime,
+      newStatus: correctionData.attendanceStatus || record.attendanceStatus,
+      newTotalHours,
+      reason: correctionData.reason.trim(),
+    };
+
+    setAttendanceRecords(prev => prev.map(r => {
+      if (r.id === recordId) {
+        return {
+          ...r,
+          punchInTime: correctionData.punchInTime !== undefined ? correctionData.punchInTime : r.punchInTime,
+          punchOutTime: correctionData.punchOutTime !== undefined ? correctionData.punchOutTime : r.punchOutTime,
+          attendanceStatus: correctionData.attendanceStatus || r.attendanceStatus,
+          totalHours: newTotalHours,
+          station: correctionData.station || r.station,
+          notes: correctionData.notes ? `${r.notes ? r.notes + ' • ' : ''}Correction Note: ${correctionData.notes}` : r.notes,
+          isCorrected: true,
+          correctionAudit: [auditEntry, ...(r.correctionAudit || [])],
+        };
+      }
+      return r;
+    }));
+
+    addToast('Attendance record corrected and audit trail logged.', 'success');
     return true;
   };
 
@@ -3508,13 +3638,37 @@ export const AppProvider = ({ children }) => {
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    const durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (end < start) {
+      addToast('End date cannot precede start date.', 'error');
+      return null;
+    }
+
+    const durationDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Overlap validation with existing active/pending leave requests
+    const hasOverlap = leaveRequests.some(l => {
+      if (l.staffId !== targetId || l.status === 'rejected' || l.status === 'cancelled') return false;
+      const lStart = new Date(l.startDate);
+      const lEnd = new Date(l.endDate);
+      return (start <= lEnd && end >= lStart);
+    });
+
+    if (hasOverlap) {
+      addToast('You already have an existing leave request spanning these dates.', 'error');
+      return null;
+    }
+
+    // Leave balance check
+    const currentStaffBal = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {};
+    const bal = currentStaffBal[leaveType];
+    if (bal && (bal.total - bal.used) < durationDays && leaveType !== 'Unpaid Leave') {
+      addToast(`Notice: Requested duration (${durationDays}d) exceeds current ${leaveType} balance (${Math.max(0, bal.total - bal.used)}d remaining). Will require Manager special sign-off.`, 'warning');
+    }
 
     const newLeave = {
       id: `leave-${Date.now()}`,
@@ -3550,7 +3704,7 @@ export const AppProvider = ({ children }) => {
       leaveId: newLeave.id,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=leave',
       actionLabel: 'Review Request',
       badge: 'Leave Request',
     };
@@ -3569,14 +3723,35 @@ export const AppProvider = ({ children }) => {
     };
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
-    addToast(`Leave request for ${durationDays} days submitted to Manager!`, 'success');
+    addToast(`Leave request for ${durationDays} days submitted for Manager review!`, 'success');
     return newLeave;
+  };
+
+  const cancelLeaveRequest = (leaveId) => {
+    const req = leaveRequests.find(l => l.id === leaveId);
+    if (!req) {
+      addToast('Leave request not found.', 'error');
+      return false;
+    }
+    if (req.status !== 'pending') {
+      addToast(`Cannot cancel request that is already ${req.status}.`, 'error');
+      return false;
+    }
+    setLeaveRequests(prev => prev.map(l => l.id === leaveId ? { ...l, status: 'cancelled' } : l));
+    addToast('Leave request cancelled.', 'info');
+    return true;
   };
 
   const reviewLeaveRequest = (leaveId, decision, reviewNotes = '') => {
     const req = leaveRequests.find(l => l.id === leaveId);
     if (!req) {
       addToast('Leave request not found.', 'error');
+      return;
+    }
+
+    // Manager self-approval prevention check
+    if (req.staffId === currentUser?.id && currentUser?.role === 'restaurant_manager') {
+      addToast('Managers cannot approve their own leave applications. An Owner must review your request.', 'error');
       return;
     }
 
@@ -3594,6 +3769,70 @@ export const AppProvider = ({ children }) => {
       return l;
     }));
 
+    // If approved, deduct leave balance and mark dates on attendance calendar
+    if (decision === 'approved') {
+      setStaffLeaveBalances(prev => {
+        const currentStaffBal = prev[req.staffId] || INITIAL_STAFF_LEAVE_BALANCES[req.staffId] || {};
+        const typeBal = currentStaffBal[req.leaveType] || { total: 12, used: 0 };
+        return {
+          ...prev,
+          [req.staffId]: {
+            ...currentStaffBal,
+            [req.leaveType]: {
+              ...typeBal,
+              used: (typeBal.used || 0) + req.durationDays,
+            },
+          },
+        };
+      });
+
+      // Update/insert attendance records for leave dates
+      const startDate = new Date(req.startDate);
+      const endDate = new Date(req.endDate);
+      const datesToMark = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        datesToMark.push(d.toISOString().split('T')[0]);
+      }
+
+      setAttendanceRecords(prev => {
+        let updated = [...prev];
+        datesToMark.forEach(dateStr => {
+          const existingIdx = updated.findIndex(r => r.staffId === req.staffId && r.date === dateStr);
+          if (existingIdx !== -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+            };
+          } else {
+            updated.unshift({
+              id: `att-leave-${Date.now()}-${dateStr}`,
+              staffId: req.staffId,
+              staffName: req.staffName,
+              staffRole: req.staffRole,
+              staffAvatar: req.staffAvatar,
+              branchId: req.branchId,
+              branchName: req.branchName,
+              restaurantId: req.restaurantId || currentRestaurantId,
+              date: dateStr,
+              punchInTime: null,
+              punchOutTime: null,
+              status: 'completed',
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              totalHours: 0,
+              station: 'On Approved Leave',
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+              isCorrected: false,
+              correctionAudit: [],
+            });
+          }
+        });
+        return updated;
+      });
+    }
+
     // Real-time Staff Notification
     const staffNotif = {
       id: `snotif-${Date.now()}`,
@@ -3608,6 +3847,72 @@ export const AppProvider = ({ children }) => {
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
     addToast(`Leave request ${decision} for ${req.staffName}.`, decision === 'approved' ? 'success' : 'info');
+  };
+
+  const getStaffLeaveBalance = (staffId) => {
+    const targetId = staffId || currentUser?.id || 'usr-sg-3';
+    const balances = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {
+      'Casual Leave': { total: 12, used: 0 },
+      'Sick Leave': { total: 10, used: 0 },
+      'Earned Leave': { total: 15, used: 0 },
+      'Emergency Leave': { total: 5, used: 0 },
+      'Unpaid Leave': { total: 99, used: 0 },
+      'Festival / Compensatory Off': { total: 6, used: 0 },
+    };
+    const result = {};
+    Object.keys(balances).forEach(type => {
+      const b = balances[type];
+      result[type] = {
+        total: b.total,
+        used: b.used,
+        remaining: Math.max(0, b.total - b.used),
+      };
+    });
+    return result;
+  };
+
+  // --- HOLIDAY MANAGEMENT ---
+  const addHoliday = (holidayData) => {
+    if (!holidayData.name || !holidayData.date) {
+      addToast('Holiday name and date are required.', 'error');
+      return null;
+    }
+    // Check duplicate date for same scope
+    const existing = holidays.find(h => 
+      h.date === holidayData.date && 
+      h.restaurantId === currentRestaurantId &&
+      (h.scope === 'all' || holidayData.scope === 'all' || h.branchId === holidayData.branchId)
+    );
+    if (existing) {
+      addToast(`A holiday ("${existing.name}") is already scheduled for ${holidayData.date}.`, 'warning');
+      return null;
+    }
+
+    const newHol = {
+      id: `hol-${Date.now()}`,
+      name: holidayData.name.trim(),
+      date: holidayData.date,
+      type: holidayData.type || 'Festival',
+      scope: holidayData.scope || 'all',
+      branchId: holidayData.scope === 'all' ? null : (holidayData.branchId || currentBranchId),
+      restaurantId: currentRestaurantId,
+      description: holidayData.description || 'Official restaurant holiday',
+      createdBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      createdAt: new Date().toISOString(),
+    };
+    setHolidays(prev => [...prev, newHol]);
+    addToast(`Holiday "${newHol.name}" scheduled for ${newHol.date}.`, 'success');
+    return newHol;
+  };
+
+  const updateHoliday = (holidayId, updatedData) => {
+    setHolidays(prev => prev.map(h => h.id === holidayId ? { ...h, ...updatedData, modifiedBy: currentUser?.name, modifiedAt: new Date().toISOString() } : h));
+    addToast('Holiday details updated successfully.', 'success');
+  };
+
+  const deleteHoliday = (holidayId) => {
+    setHolidays(prev => prev.filter(h => h.id !== holidayId));
+    addToast('Holiday removed from calendar.', 'info');
   };
 
   // --- SALARY & PAYROLL NOTIFICATIONS ---
@@ -4794,8 +5099,19 @@ export const AppProvider = ({ children }) => {
         STAFF_SALARY_PROFILES,
         punchInStaff,
         punchOutStaff,
+        startStaffBreak,
+        endStaffBreak,
+        correctAttendanceRecord,
         submitLeaveRequest,
+        cancelLeaveRequest,
         reviewLeaveRequest,
+        getStaffLeaveBalance,
+        staffLeaveBalances,
+        LEAVE_POLICIES,
+        holidays,
+        addHoliday,
+        updateHoliday,
+        deleteHoliday,
         processSalaryPayment,
         markStaffNotificationRead,
         markAllStaffNotificationsRead,

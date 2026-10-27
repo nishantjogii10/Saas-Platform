@@ -10,6 +10,8 @@ import {
   Plus,
   FileText,
   User,
+  ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -20,6 +22,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
     currentUser,
     currentBranch,
     submitLeaveRequest,
+    getStaffLeaveBalance,
     LEAVE_TYPES,
     addToast,
   } = useApp();
@@ -33,6 +36,9 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
     reason: '',
   });
 
+  const staffBalances = getStaffLeaveBalance ? getStaffLeaveBalance(currentUser?.id) : {};
+  const currentCategoryBal = staffBalances[form.leaveType] || { total: 0, used: 0, remaining: 0 };
+
   // Calculate duration in days
   const startD = new Date(form.startDate);
   const endD = new Date(form.endDate);
@@ -40,6 +46,11 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
     !isNaN(startD) && !isNaN(endD) && endD >= startD
       ? Math.ceil(Math.abs(endD - startD) / (1000 * 60 * 60 * 24)) + 1
       : 0;
+
+  const isOverQuota =
+    form.leaveType !== 'Unpaid Leave' &&
+    currentCategoryBal.remaining !== undefined &&
+    diffDays > currentCategoryBal.remaining;
 
   const QUICK_REASONS = [
     'Family wedding / function',
@@ -67,10 +78,10 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
       return;
     }
 
-    submitLeaveRequest({
+    const res = submitLeaveRequest({
       staffId: currentUser?.id,
       staffName: currentUser?.name,
-      staffRole: currentUser?.roleLabel || 'Head Chef',
+      staffRole: currentUser?.roleLabel || 'Staff Member',
       branchId: currentBranch?.id,
       leaveType: form.leaveType,
       reason: form.reason.trim(),
@@ -78,13 +89,15 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
       endDate: form.endDate,
     });
 
-    onClose();
-    setForm({
-      leaveType: LEAVE_TYPES?.[0] || 'Casual Leave',
-      startDate: tomorrow,
-      endDate: tomorrow,
-      reason: '',
-    });
+    if (res) {
+      onClose();
+      setForm({
+        leaveType: LEAVE_TYPES?.[0] || 'Casual Leave',
+        startDate: tomorrow,
+        endDate: tomorrow,
+        reason: '',
+      });
+    }
   };
 
   return (
@@ -92,7 +105,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="Apply for Staff Leave"
-      subtitle="Submit a leave application for Manager review and roster rescheduling."
+      subtitle="Submit an official leave request for Manager review and roster adjustment."
       size="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -102,15 +115,49 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
             <User className="w-4 h-4 text-emerald-600" />
             <div>
               <span className="font-bold text-slate-800">{currentUser?.name}</span>
-              <span className="text-slate-500"> ({currentUser?.roleLabel || 'Kitchen Staff'})</span>
+              <span className="text-slate-500"> ({currentUser?.roleLabel || 'Staff Member'})</span>
             </div>
           </div>
           <span className="text-slate-500 font-medium">
-            {currentBranch?.name || 'Pune Central Outlet'}
+            {currentBranch?.name || 'Assigned Branch'}
           </span>
         </div>
 
-        {/* Leave Type */}
+        {/* Live Leave Balances Overview */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+            Your Available Leave Balances (Annual Quota)
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {Object.entries(staffBalances).map(([type, b]) => {
+              const isSelected = form.leaveType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setForm({ ...form, leaveType: type })}
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-[10px] text-slate-500 font-medium block truncate">
+                    {type}
+                  </span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-sm font-black text-slate-900 font-mono">
+                      {b.remaining}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">/ {b.total}d</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Leave Category Selection */}
         <div>
           <label className="text-xs font-semibold text-slate-700 block mb-1">
             Leave Category <span className="text-rose-500">*</span>
@@ -122,7 +169,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
           >
             {LEAVE_TYPES?.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {t} ({staffBalances[t]?.remaining ?? 0} days remaining)
               </option>
             ))}
           </select>
@@ -158,7 +205,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Duration Preview Banner */}
+        {/* Duration & Quota Status Banner */}
         <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900">
           <span className="font-semibold flex items-center gap-1.5">
             <Calendar className="w-4 h-4 text-emerald-600" />
@@ -169,19 +216,32 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
           </span>
         </div>
 
+        {/* Warning if over quota */}
+        {isOverQuota && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/90 flex items-start gap-2.5 text-xs text-amber-800 animate-in fade-in">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Requested days exceed remaining {form.leaveType} balance ({currentCategoryBal.remaining}d left).</p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                The manager may review and adjust this as Unpaid Leave or approve with discretionary sign-off.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Reason for Leave */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-xs font-semibold text-slate-700">
               Reason for Leave <span className="text-rose-500">*</span>
             </label>
-            <span className="text-[10px] text-slate-400">Be specific for manager approval</span>
+            <span className="text-[10px] text-slate-400">Be clear for speedy manager approval</span>
           </div>
           <textarea
             rows={3}
             value={form.reason}
             onChange={(e) => setForm({ ...form, reason: e.target.value })}
-            placeholder="Explain why you require leave and any handover details..."
+            placeholder="Explain why you require leave and any shift coverage / handover arrangements..."
             className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
             required
           />
@@ -214,4 +274,3 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
     </Modal>
   );
 };
-

@@ -40,6 +40,7 @@ import {
   RotateCcw,
   FileCheck,
   Sliders,
+  Clock,
 } from 'lucide-react';
 
 export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
@@ -179,6 +180,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+            ],
+          },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
               { to: '/profile', label: 'My Profile', icon: User },
             ],
           },

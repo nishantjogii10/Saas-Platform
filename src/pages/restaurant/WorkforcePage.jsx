@@ -47,6 +47,11 @@ import { FormInput } from '../../components/common/FormInput';
 import { BRANCH_PLANS_CONFIG } from '../../data/branchData';
 import { formatINR } from '../../data/financeData';
 import { ProcessSalaryModal } from '../../components/restaurant/ProcessSalaryModal';
+import { MonthlyAttendanceCalendar } from '../../components/attendance/MonthlyAttendanceCalendar';
+import { AttendanceCorrectionModal } from '../../components/attendance/AttendanceCorrectionModal';
+import { HolidayManagerModal } from '../../components/attendance/HolidayManagerModal';
+import { LeaveRequestModal } from '../../components/kitchen/LeaveRequestModal';
+import { CalendarDays, Palmtree, Coffee, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
 import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 import { ExcelImportDialog } from '../../components/common/ExcelImportDialog';
@@ -79,6 +84,15 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
+  const [correctingRecord, setCorrectingRecord] = useState(null);
+  const [isManagerLeaveModalOpen, setIsManagerLeaveModalOpen] = useState(false);
+  const [attendanceSearchTerm, setAttendanceSearchTerm] = useState('');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
+  const [attendanceDateFilter, setAttendanceDateFilter] = useState('');
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [isAttendanceExportOpen, setIsAttendanceExportOpen] = useState(false);
+  const ATTENDANCE_PER_PAGE = 8;
   const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
 
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -148,6 +162,42 @@ export const WorkforcePage = () => {
   });
 
   // Live calculations (scoped strictly by branch for manager)
+  const filteredAttendanceRecords = useMemo(() => {
+    let list = isManager
+      ? (attendanceRecords || []).filter((r) => r.branchId === assignedBranchId)
+      : (attendanceRecords || []);
+
+    if (attendanceSearchTerm.trim()) {
+      const q = attendanceSearchTerm.toLowerCase();
+      list = list.filter((r) =>
+        (r.staffName || '').toLowerCase().includes(q) ||
+        (r.station || '').toLowerCase().includes(q) ||
+        (r.staffRole || '').toLowerCase().includes(q) ||
+        (r.notes || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (attendanceStatusFilter !== 'all') {
+      if (attendanceStatusFilter === 'corrected') {
+        list = list.filter((r) => r.isCorrected);
+      } else {
+        list = list.filter((r) => r.status === attendanceStatusFilter);
+      }
+    }
+
+    if (attendanceDateFilter) {
+      list = list.filter((r) => (r.date || '').startsWith(attendanceDateFilter));
+    }
+
+    return list;
+  }, [attendanceRecords, isManager, assignedBranchId, attendanceSearchTerm, attendanceStatusFilter, attendanceDateFilter]);
+
+  const totalAttendancePages = Math.max(1, Math.ceil(filteredAttendanceRecords.length / ATTENDANCE_PER_PAGE));
+  const paginatedAttendance = useMemo(() => {
+    const start = (attendancePage - 1) * ATTENDANCE_PER_PAGE;
+    return filteredAttendanceRecords.slice(start, start + ATTENDANCE_PER_PAGE);
+  }, [filteredAttendanceRecords, attendancePage]);
+
   const scopedStaff = isManager
     ? branchStaff.filter((s) => s.branchId === assignedBranchId)
     : branchStaff;
@@ -482,6 +532,19 @@ export const WorkforcePage = () => {
             )}
           </button>
 
+          {/* Tab 2.5: Monthly Attendance Calendar */}
+          <button
+            onClick={() => handleTabChange('calendar')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'calendar'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>Monthly Attendance Calendar</span>
+          </button>
+
           {/* Tab 3: Leave & Shifts */}
           <button
             onClick={() => handleTabChange('leave')}
@@ -759,7 +822,8 @@ export const WorkforcePage = () => {
       {/* TAB 2: LIVE ATTENDANCE & TIMESHEETS */}
       {activeTab === 'attendance' && (
         <div className="space-y-6">
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+          {/* Live Station Clock-In Board */}
+          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -770,14 +834,22 @@ export const WorkforcePage = () => {
                   Currently active shifts clocked in via terminal time clocks across outlets.
                 </p>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                {activeAttendance.length} Staff Clocked In Right Now
-              </span>
+              <div className="flex items-center gap-2">
+                <Button size="xs" variant="outline" icon={Calendar} onClick={() => setIsHolidayModalOpen(true)}>
+                  Manage Holidays
+                </Button>
+                <Button size="xs" variant="outline" icon={Download} onClick={() => setIsAttendanceExportOpen(true)}>
+                  Export Timesheet
+                </Button>
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                  {activeAttendance.length} Staff On Duty Now
+                </span>
+              </div>
             </div>
 
             {activeAttendance.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-100">
-                No staff members currently punched in.
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
+                No staff members currently clocked in.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -788,7 +860,7 @@ export const WorkforcePage = () => {
                   return (
                     <div
                       key={rec.id}
-                      className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 flex items-start gap-3 shadow-2xs"
+                      className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 flex items-start gap-3 shadow-2xs"
                     >
                       <img
                         src={rec.staffAvatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'}
@@ -819,65 +891,215 @@ export const WorkforcePage = () => {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 text-sm">Historical Shift Attendance Logs</h4>
-              <span className="text-xs text-slate-400">{attendanceRecords.length} Total Logs</span>
+          {/* Historical Shift Attendance Logs with Search, Filter & Corrections */}
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            {/* Table Header and Filters Bar */}
+            <div className="p-5 border-b border-slate-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">Historical Shift Attendance Logs</h4>
+                  <p className="text-xs text-slate-500">
+                    Audit punch records, inspect breaks, and record manager corrections with reason trail.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-mono">
+                    {filteredAttendanceRecords.length} Filtered Records
+                  </span>
+                </div>
+              </div>
+
+              {/* Filter controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search by staff, station, role..."
+                    value={attendanceSearchTerm}
+                    onChange={(e) => {
+                      setAttendanceSearchTerm(e.target.value);
+                      setAttendancePage(1);
+                    }}
+                    className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                <div>
+                  <select
+                    value={attendanceStatusFilter}
+                    onChange={(e) => {
+                      setAttendanceStatusFilter(e.target.value);
+                      setAttendancePage(1);
+                    }}
+                    className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="all">All Shift Statuses</option>
+                    <option value="active">Active Shifts Only</option>
+                    <option value="completed">Completed Shifts Only</option>
+                    <option value="corrected">Audited / Corrected Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <input
+                    type="date"
+                    value={attendanceDateFilter}
+                    onChange={(e) => {
+                      setAttendanceDateFilter(e.target.value);
+                      setAttendancePage(1);
+                    }}
+                    placeholder="Filter by date"
+                    className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
             </div>
+
+            {/* Attendance Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Employee</th>
-                    <th className="py-3 px-4">Outlet / Branch</th>
+                    <th className="py-3 px-4">Outlet</th>
                     <th className="py-3 px-4">Station</th>
                     <th className="py-3 px-4">Punch In</th>
                     <th className="py-3 px-4">Punch Out</th>
+                    <th className="py-3 px-4">Break</th>
                     <th className="py-3 px-4">Hours</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Notes</th>
+                    <th className="py-3 px-4">Notes / Audit</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {attendanceRecords.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-medium text-slate-800">{rec.date}</td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-slate-900 block">{rec.staffName}</span>
-                        <span className="text-[10px] text-slate-400">{rec.staffRole}</span>
+                  {paginatedAttendance.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="py-8 text-center text-xs text-slate-400">
+                        No shift records found matching your filters.
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{rec.branchName}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800">{rec.station}</td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
-                        {new Date(rec.punchInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
-                        {rec.punchOutTime
-                          ? new Date(rec.punchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                          : '—'}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-900">
-                        {rec.totalHours ? `${rec.totalHours} hrs` : <span className="text-emerald-600">Active</span>}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            rec.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {rec.status === 'active' ? 'Active' : 'Completed'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-[11px] text-slate-500 truncate max-w-xs">{rec.notes || '—'}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    paginatedAttendance.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900 font-mono">{rec.date}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={rec.staffAvatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'}
+                              alt={rec.staffName}
+                              className="w-7 h-7 rounded-full object-cover border border-slate-200"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 block">{rec.staffName}</span>
+                              <span className="text-[10px] text-slate-400">{rec.staffRole}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{rec.branchName}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{rec.station}</td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                          {new Date(rec.punchInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                          {rec.punchOutTime
+                            ? new Date(rec.punchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                          {rec.breakMinutes ? `${rec.breakMinutes}m` : '0m'}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                          {rec.totalHours ? `${rec.totalHours} hrs` : <span className="text-emerald-600">Active</span>}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col gap-1">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-block w-fit ${
+                                rec.status === 'active'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {rec.status === 'active' ? 'Active' : 'Completed'}
+                            </span>
+                            {rec.isCorrected && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded w-fit">
+                                Audited
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-[11px] text-slate-500 max-w-xs truncate">
+                          {rec.correctionReason ? (
+                            <span className="text-amber-800 font-medium" title={rec.correctionReason}>
+                              ✏️ {rec.correctionReason}
+                            </span>
+                          ) : (
+                            rec.notes || '—'
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            icon={Edit2}
+                            onClick={() => setCorrectingRecord(rec)}
+                            className="text-slate-600 hover:text-emerald-700 cursor-pointer"
+                          >
+                            Correct
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalAttendancePages > 1 && (
+              <div className="p-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+                <span>
+                  Showing {(attendancePage - 1) * ATTENDANCE_PER_PAGE + 1} to{' '}
+                  {Math.min(attendancePage * ATTENDANCE_PER_PAGE, filteredAttendanceRecords.length)} of{' '}
+                  {filteredAttendanceRecords.length} records
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    icon={ChevronLeft}
+                    disabled={attendancePage === 1}
+                    onClick={() => setAttendancePage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <span className="px-2 font-mono font-bold text-slate-700">
+                    Page {attendancePage} of {totalAttendancePages}
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    icon={ChevronRight}
+                    disabled={attendancePage === totalAttendancePages}
+                    onClick={() => setAttendancePage((p) => Math.min(totalAttendancePages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* TAB 2.5: MONTHLY ATTENDANCE CALENDAR */}
+      {activeTab === 'calendar' && (
+        <div className="space-y-6">
+          <MonthlyAttendanceCalendar />
         </div>
       )}
 
@@ -893,6 +1115,14 @@ export const WorkforcePage = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="brand"
+                icon={Plus}
+                onClick={() => setIsManagerLeaveModalOpen(true)}
+              >
+                Apply for My Leave
+              </Button>
               <select
                 value={leaveStatusFilter}
                 onChange={(e) => setLeaveStatusFilter(e.target.value)}
@@ -991,23 +1221,30 @@ export const WorkforcePage = () => {
 
                         <td className="py-3.5 px-4 text-right">
                           {leave.status === 'pending' ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Kitchen coverage constraints during service')}
-                                className="text-rose-600 hover:bg-rose-50"
-                              >
-                                Reject
-                              </Button>
-                              <Button
-                                variant="brand"
-                                size="xs"
-                                onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager')}
-                              >
-                                Accept
-                              </Button>
-                            </div>
+                            leave.staffId === currentUser?.id && isManager ? (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg inline-block" title="Managers cannot approve own leave. Owner approval required.">
+                                Manager Self-Approval Prohibited
+                              </span>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Shift coverage constraints at outlet')}
+                                  className="text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                >
+                                  Reject
+                                </Button>
+                                <Button
+                                  variant="brand"
+                                  size="xs"
+                                  onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager')}
+                                  className="cursor-pointer"
+                                >
+                                  Accept
+                                </Button>
+                              </div>
+                            )
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">
                               Reviewed by {leave.reviewedBy || 'Manager'}
@@ -1830,6 +2067,50 @@ export const WorkforcePage = () => {
           type="danger"
         />
       )}
+
+      {/* Attendance Correction Modal */}
+      {correctingRecord && (
+        <AttendanceCorrectionModal
+          isOpen={!!correctingRecord}
+          onClose={() => setCorrectingRecord(null)}
+          record={correctingRecord}
+        />
+      )}
+
+      {/* Holiday Manager Modal */}
+      <HolidayManagerModal
+        isOpen={isHolidayModalOpen}
+        onClose={() => setIsHolidayModalOpen(false)}
+        branchId={isManager ? assignedBranchId : currentBranchId}
+      />
+
+      {/* Manager Personal Leave Modal */}
+      <LeaveRequestModal
+        isOpen={isManagerLeaveModalOpen}
+        onClose={() => setIsManagerLeaveModalOpen(false)}
+      />
+
+      {/* Attendance Timesheet Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isAttendanceExportOpen}
+        onClose={() => setIsAttendanceExportOpen(false)}
+        data={filteredAttendanceRecords}
+        reportTitle={`Staff Shift Timesheet — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_attendance_timesheet"
+        availableColumns={[
+          { key: 'date', header: 'Shift Date' },
+          { key: 'staffName', header: 'Staff Name' },
+          { key: 'staffRole', header: 'Role / Designation' },
+          { key: 'branchName', header: 'Outlet' },
+          { key: 'station', header: 'Station / Line' },
+          { key: 'punchInTime', header: 'Punch In', format: (v) => v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' },
+          { key: 'punchOutTime', header: 'Punch Out', format: (v) => v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' },
+          { key: 'breakMinutes', header: 'Break (Mins)', format: (v) => v || 0 },
+          { key: 'totalHours', header: 'Worked Hours', format: (v) => v ? `${v} hrs` : 'Active' },
+          { key: 'status', header: 'Status', format: (v) => (v || '').toUpperCase() },
+          { key: 'notes', header: 'Notes' },
+        ]}
+      />
 
       {/* Salary Disbursement Modal */}
       <ProcessSalaryModal
