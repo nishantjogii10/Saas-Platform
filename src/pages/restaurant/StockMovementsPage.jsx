@@ -17,11 +17,13 @@ import { DataTable } from '../../components/common/DataTable';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 
 export const StockMovementsPage = () => {
-  const { restaurantMovements, addToast } = useApp();
+  const { restaurantMovements, currentBranch, addToast } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all'); // all | received | consumption | wastage | adjustment
 
   const filteredMovements = restaurantMovements.filter((m) => {
@@ -147,9 +149,9 @@ export const StockMovementsPage = () => {
             variant="outline"
             size="sm"
             icon={Download}
-            onClick={handleExportCSV}
+            onClick={() => setIsExportOpen(true)}
           >
-            Export Ledger (CSV)
+            Export to Excel
           </Button>
         }
       />
@@ -187,6 +189,31 @@ export const StockMovementsPage = () => {
         pageSize={10}
         emptyTitle="No stock movements recorded"
         emptyDescription="When stock is received, consumed, or recorded as wastage, events appear here."
+      />
+
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={filteredMovements}
+        availableColumns={[
+          { key: 'timestamp', header: 'Timestamp', format: (val) => new Date(val).toLocaleString('en-IN') },
+          { key: 'ingredientName', header: 'Ingredient Name' },
+          { key: 'type', header: 'Movement Type', format: (val) => (val || '').toUpperCase() },
+          { key: 'quantity', header: 'Quantity Changed', format: (val, row) => `${val > 0 ? '+' : ''}${val} ${row.unit || ''}` },
+          { key: 'qtyBefore', header: 'Stock Before', format: (val, row) => `${val} ${row.unit || ''}` },
+          { key: 'qtyAfter', header: 'Stock After', format: (val, row) => `${val} ${row.unit || ''}` },
+          { key: 'performedBy', header: 'Performed By' },
+          { key: 'role', header: 'Operator Role' },
+          { key: 'reason', header: 'Reason / Usage Note' },
+          { key: 'batchNumber', header: 'Batch Number' },
+        ]}
+        reportTitle={`Stock Movement Ledger — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_stock_movements"
+        filtersSummary={{
+          Type: typeFilter.toUpperCase(),
+          Search: searchTerm || 'All Logs',
+          Outlet: currentBranch?.name || 'All Outlets',
+        }}
       />
     </div>
   );

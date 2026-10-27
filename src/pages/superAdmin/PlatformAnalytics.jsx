@@ -18,6 +18,7 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/common/Card';
 import { StatCard } from '../../components/common/StatCard';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import {
@@ -41,6 +42,7 @@ import { platformMonthlyRegistrations, planDistributionData } from '../../data/m
 
 export const PlatformAnalytics = () => {
   const [dateRange, setDateRange] = useState('12m');
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
 
@@ -180,9 +182,9 @@ export const PlatformAnalytics = () => {
               variant="outline"
               size="sm"
               icon={Download}
-              onClick={handleExportCSV}
+              onClick={() => setIsExportOpen(true)}
             >
-              Export Tabular Report (CSV)
+              Export to Excel
             </Button>
           </div>
         }
@@ -414,6 +416,26 @@ export const PlatformAnalytics = () => {
           </table>
         </div>
       </div>
+
+      {/* Customizable Platform Analytics Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={enrichedRegistrations}
+        availableColumns={[
+          { key: 'month', header: 'Reporting Month' },
+          { key: 'count', header: 'New Tenant Signups' },
+          { key: 'cumulative', header: 'Total Active Tenants' },
+          { key: 'revenue', header: 'Monthly Platform GMV (INR)', format: (val) => `₹${val.toLocaleString('en-IN')}` },
+          { key: 'momGrowth', header: 'MoM Growth Rate' },
+          { key: 'uptime', header: 'Service Availability SLA' },
+        ]}
+        reportTitle="Platform Analytics & Registration Velocity"
+        fileNamePrefix="stockmate_platform_analytics"
+        filtersSummary={{
+          Range: dateRange.toUpperCase(),
+        }}
+      />
     </div>
   );
 };

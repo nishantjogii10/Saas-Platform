@@ -2792,6 +2792,23 @@ export const AppProvider = ({ children }) => {
   // Multi-Branch Management & Staff Transfer Operations
   // --------------------------------------------------------------------------
   const switchBranch = (branchId) => {
+    if (!currentUser) return false;
+
+    // Strict role check: Only restaurant_owner or super_admin can switch active branch
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+      addToast('Access Denied: Only restaurant owners are authorized to switch active branches.', 'error');
+      return false;
+    }
+
+    if (branchId === 'all') {
+      setCurrentBranchId('all');
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify('all'));
+      } catch (e) {}
+      addToast('Switched to Aggregated View (All Authorized Outlets).', 'info');
+      return true;
+    }
+
     const isAllowed = authorizedBranches.some((b) => b.id === branchId);
     if (!isAllowed) {
       addToast('Access Denied: You are not authorized to view or manage this branch.', 'error');
@@ -3780,13 +3797,20 @@ export const AppProvider = ({ children }) => {
 
     const userRestId = currentUser.restaurantId || currentRestaurantId;
 
+    // Restaurant Owner sees all branches belonging to their restaurant tenant
     if (currentUser.role === 'restaurant_owner') {
       return branches.filter((b) => b.restaurantId === userRestId);
     }
 
-    if (currentUser.branchId) {
+    // ALL OTHER ROLES (restaurant_manager, inventory_manager, kitchen_staff, supplier):
+    // Strictly limited to their single assigned branch!
+    const assignedId =
+      currentUser.branchId ||
+      branchStaff.find((s) => s.id === currentUser.id || s.email === currentUser.email)?.branchId;
+
+    if (assignedId) {
       return branches.filter(
-        (b) => b.restaurantId === userRestId && b.id === currentUser.branchId
+        (b) => b.restaurantId === userRestId && b.id === assignedId
       );
     }
 
@@ -3798,12 +3822,10 @@ export const AppProvider = ({ children }) => {
       );
     }
 
-    if (currentUser.role === 'restaurant_manager') {
-      return branches.filter((b) => b.restaurantId === userRestId);
-    }
-
-    return branches.filter((b) => b.restaurantId === userRestId);
-  }, [branches, currentUser, currentRestaurantId]);
+    // Fallback: at most the single first branch of their restaurant tenant
+    const fallback = branches.filter((b) => b.restaurantId === userRestId);
+    return fallback.slice(0, 1);
+  }, [branches, currentUser, currentRestaurantId, branchStaff]);
 
   const organizationBranches = useMemo(() => {
     const userRestId = currentUser?.restaurantId || currentRestaurantId;
@@ -3813,6 +3835,21 @@ export const AppProvider = ({ children }) => {
   // Keep currentBranchId synchronized with authorizedBranches
   useEffect(() => {
     if (authorizedBranches.length > 0) {
+      // Non-owners are strictly locked to their single authorized branch
+      if (currentUser && currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+        const singleBranchId = authorizedBranches[0].id;
+        if (currentBranchId !== singleBranchId) {
+          setCurrentBranchId(singleBranchId);
+        }
+        return;
+      }
+
+      if (currentBranchId === 'all') {
+        if (authorizedBranches.length > 1) return;
+        setCurrentBranchId(authorizedBranches[0].id);
+        return;
+      }
+
       const isAllowed = authorizedBranches.some((b) => b.id === currentBranchId);
       if (!isAllowed) {
         setCurrentBranchId(authorizedBranches[0].id);
@@ -3823,10 +3860,19 @@ export const AppProvider = ({ children }) => {
     } else {
       if (currentBranchId !== null) setCurrentBranchId(null);
     }
-  }, [authorizedBranches, currentBranchId]);
+  }, [authorizedBranches, currentBranchId, currentUser]);
 
   const currentBranch = useMemo(() => {
     if (!authorizedBranches || authorizedBranches.length === 0) return null;
+    if (currentBranchId === 'all') {
+      return {
+        id: 'all',
+        name: 'All Outlets (Aggregated)',
+        code: 'ALL',
+        type: 'Aggregated View',
+        status: 'active',
+      };
+    }
     return authorizedBranches.find((b) => b.id === currentBranchId) || authorizedBranches[0];
   }, [authorizedBranches, currentBranchId]);
 
@@ -3834,7 +3880,7 @@ export const AppProvider = ({ children }) => {
   const restaurantIngredients = useMemo(() => {
     return ingredients.filter((i) => {
       if (i.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && i.branchId) return i.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && i.branchId) return i.branchId === currentBranchId;
       return true;
     });
   }, [ingredients, currentRestaurantId, currentBranchId]);
@@ -3842,7 +3888,7 @@ export const AppProvider = ({ children }) => {
   const restaurantOrders = useMemo(() => {
     return purchaseOrders.filter((p) => {
       if (p.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && p.branchId) return p.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && p.branchId) return p.branchId === currentBranchId;
       return true;
     });
   }, [purchaseOrders, currentRestaurantId, currentBranchId]);
@@ -3850,7 +3896,7 @@ export const AppProvider = ({ children }) => {
   const restaurantMovements = useMemo(() => {
     return stockMovements.filter((m) => {
       if (m.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && m.branchId) return m.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && m.branchId) return m.branchId === currentBranchId;
       return true;
     });
   }, [stockMovements, currentRestaurantId, currentBranchId]);
@@ -3967,7 +4013,7 @@ export const AppProvider = ({ children }) => {
     }
     return alerts.filter((a) => {
       if (a.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && a.branchId) return a.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && a.branchId) return a.branchId === currentBranchId;
       return true;
     });
   }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId]);
@@ -3975,7 +4021,7 @@ export const AppProvider = ({ children }) => {
   const branchGRNs = useMemo(() => {
     return goodsReceivedNotes.filter((g) => {
       if (g.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && g.branchId) return g.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && g.branchId) return g.branchId === currentBranchId;
       return true;
     });
   }, [goodsReceivedNotes, currentRestaurantId, currentBranchId]);
@@ -3983,7 +4029,7 @@ export const AppProvider = ({ children }) => {
   const branchBatches = useMemo(() => {
     return productBatches.filter((b) => {
       if (b.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && b.branchId) return b.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && b.branchId) return b.branchId === currentBranchId;
       return true;
     });
   }, [productBatches, currentRestaurantId, currentBranchId]);
@@ -3991,7 +4037,7 @@ export const AppProvider = ({ children }) => {
   const branchReturns = useMemo(() => {
     return supplierReturns.filter((r) => {
       if (r.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && r.branchId) return r.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && r.branchId) return r.branchId === currentBranchId;
       return true;
     });
   }, [supplierReturns, currentRestaurantId, currentBranchId]);
@@ -3999,7 +4045,7 @@ export const AppProvider = ({ children }) => {
   const branchSupplierInvoices = useMemo(() => {
     return supplierInvoices.filter((inv) => {
       if (inv.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && inv.branchId) return inv.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
   }, [supplierInvoices, currentRestaurantId, currentBranchId]);
@@ -4007,7 +4053,7 @@ export const AppProvider = ({ children }) => {
   const branchStaffList = useMemo(() => {
     return branchStaff.filter((s) => {
       if (s.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && s.branchId) return s.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && s.branchId) return s.branchId === currentBranchId;
       return true;
     });
   }, [branchStaff, currentRestaurantId, currentBranchId]);
@@ -4420,6 +4466,164 @@ export const AppProvider = ({ children }) => {
     };
   };
 
+
+  // ==========================================
+  // EXCEL / CSV BULK IMPORT OPERATIONS
+  // ==========================================
+  const importIngredientsBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role === 'kitchen_staff' || currentUser.role === 'supplier') {
+      addToast('Permission Denied: Your role is not authorized to import inventory records.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const qty = Number(item.quantity) || 0;
+      const minThresh = Number(item.minThreshold) || 5;
+      const status = qty === 0 ? 'out_of_stock' : qty <= minThresh ? 'low_stock' : 'in_stock';
+      return {
+        id: `ing-imported-${Date.now()}-${idx}`,
+        restaurantId: currentRestaurantId,
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        name: item.name,
+        category: item.category || 'General',
+        quantity: qty,
+        unit: item.unit || 'kg',
+        costPerUnit: Number(item.costPerUnit) || 0,
+        minThreshold: minThresh,
+        status,
+        supplierId: item.supplierId || null,
+        supplierName: item.supplierName || 'Imported via Excel',
+        batchNumber: item.batchNumber || `BCH-IMP-${Math.floor(100 + Math.random() * 900)}`,
+        storageLocation: item.storageLocation || 'Store Room',
+        expiryDate: item.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        daysUntilExpiry: 30,
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setIngredients((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_ingredients`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} ingredient(s) into inventory!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Ingredients into ${currentBranch?.name || 'Branch'}`,
+      'Inventory',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importSuppliersBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'inventory_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only owners and inventory leads can import suppliers.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const mapped = newItems.map((item, idx) => {
+      const rawCats = item.categories
+        ? (Array.isArray(item.categories) ? item.categories : String(item.categories).split(',').map((c) => c.trim()))
+        : ['Produce'];
+      return {
+        id: `sup-imported-${Date.now()}-${idx}`,
+        restaurantIds: [currentRestaurantId],
+        name: item.name,
+        contactPerson: item.contactPerson || item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        address: item.address || 'Local Delivery Depot',
+        leadTimeDays: Number(item.leadTimeDays) || 2,
+        paymentTerms: item.paymentTerms || 'Net 30',
+        categories: rawCats,
+        rating: 4.8,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setSuppliers((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_suppliers`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} supplier(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Suppliers`,
+      'Procurement',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importStaffBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'restaurant_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only restaurant owners and managers can import staff.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const baseSalary = Number(item.baseSalary) || 25000;
+      return {
+        id: `usr-imported-${Date.now()}-${idx}`,
+        name: item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        role: 'kitchen_staff',
+        roleLabel: item.roleLabel || 'Kitchen Team Member',
+        department: item.department || 'Kitchen Operations',
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        restaurantId: currentRestaurantId,
+        baseSalary,
+        bankAccount: item.bankAccount || 'Direct Bank Deposit',
+        status: 'active',
+        joinedDate: new Date().toISOString().split('T')[0],
+        avatar: `https://images.unsplash.com/photo-${1500000000000 + (idx % 1000)}?w=150`,
+      };
+    });
+
+    setBranchStaff((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} staff member(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Staff records into ${currentBranch?.name || 'Branch'}`,
+      'Workforce',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -4483,6 +4687,9 @@ export const AppProvider = ({ children }) => {
         staffAlerts,
         restaurantSuppliers,
         restaurantStaff,
+        importIngredientsBulk,
+        importSuppliersBulk,
+        importStaffBulk,
 
         // Role Matrix & Employee Access
         updateEmployeeRole,

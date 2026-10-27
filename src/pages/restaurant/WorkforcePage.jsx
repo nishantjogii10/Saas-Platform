@@ -48,6 +48,9 @@ import { BRANCH_PLANS_CONFIG } from '../../data/branchData';
 import { formatINR } from '../../data/financeData';
 import { ProcessSalaryModal } from '../../components/restaurant/ProcessSalaryModal';
 import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
+import { ExcelImportDialog } from '../../components/common/ExcelImportDialog';
+import { Download, UploadCloud } from 'lucide-react';
 
 export const WorkforcePage = () => {
   const navigate = useNavigate();
@@ -56,6 +59,8 @@ export const WorkforcePage = () => {
   const {
     branches,
     currentBranchId,
+    currentBranch,
+    currentUser,
     branchStaff,
     addBranchStaffMember,
     removeBranchStaffMember,
@@ -69,8 +74,12 @@ export const WorkforcePage = () => {
     requestStaffTransfer,
     approveStaffTransfer,
     rejectStaffTransfer,
+    importStaffBulk,
     addToast,
   } = useApp();
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
   const initialTab = searchParams.get('tab') || 'roster';
@@ -313,6 +322,24 @@ export const WorkforcePage = () => {
         subtitle="Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              onClick={() => setIsExportOpen(true)}
+            >
+              Export Roster
+            </Button>
+            {currentUser?.role !== 'kitchen_staff' && currentUser?.role !== 'supplier' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={UploadCloud}
+                onClick={() => setIsImportOpen(true)}
+              >
+                Import Staff
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1790,6 +1817,41 @@ export const WorkforcePage = () => {
         isOpen={!!viewingSalarySlip}
         onClose={() => setViewingSalarySlip(null)}
         paymentRecord={viewingSalarySlip}
+      />
+
+      {/* Export to Excel & Bulk Import Modals */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={branchStaff}
+        availableColumns={[
+          { key: 'name', header: 'Staff Full Name' },
+          { key: 'email', header: 'Email Address' },
+          { key: 'phone', header: 'Phone Number' },
+          { key: 'roleLabel', header: 'Role / Designation' },
+          { key: 'department', header: 'Department' },
+          { key: 'branchName', header: 'Assigned Outlet' },
+          { key: 'status', header: 'Employment Status' },
+          { key: 'baseSalary', header: 'Base Salary (INR)', format: (val) => formatINR(val || 25000) },
+          { key: 'bankAccount', header: 'Bank Account' },
+          { key: 'joinedDate', header: 'Date Joined' },
+        ]}
+        reportTitle={`Workforce Roster — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_staff_roster"
+        filtersSummary={{
+          Branch: branchFilter !== 'all' ? branchFilter : 'All Branches',
+          Role: roleFilter !== 'all' ? roleFilter : 'All Roles',
+          Search: searchTerm || 'None',
+        }}
+      />
+
+      <ExcelImportDialog
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        moduleType="staff"
+        targetBranchName={currentBranch?.name || 'Active Branch'}
+        existingRecords={branchStaff}
+        onImportConfirm={importStaffBulk}
       />
     </div>
   );

@@ -19,6 +19,7 @@ import {
   Store,
   Check,
   Lock,
+  Layers,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
@@ -130,68 +131,68 @@ export const TopNavbar = ({ onOpenMobile }) => {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Restaurant selector for Restaurant-level roles */}
+        {/* Restaurant / Tenant Level Navigation */}
         {currentUser?.role !== 'super_admin' && currentUser?.role !== 'supplier' ? (
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xl">{currentRestaurant?.logo || '🌿'}</span>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                  {currentRestaurant?.name}
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                  {currentRestaurant?.planName} Plan
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 font-medium">
-                {currentRestaurant?.cuisine}
-              </span>
-            </div>
-
-            {/* Branch Selector Dropdown for Restaurant Roles */}
-            {authorizedBranches && authorizedBranches.length > 0 && (
-              <div className="relative ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-700" ref={branchRef}>
+          <div className="flex items-center gap-2.5">
+            {/* Only Restaurant Owner with MULTIPLE branches sees the branch switcher dropdown */}
+            {currentUser?.role === 'restaurant_owner' && authorizedBranches && authorizedBranches.length > 1 ? (
+              <div className="relative" ref={branchRef}>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (authorizedBranches.length > 1) {
-                      setShowBranchDropdown(!showBranchDropdown);
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
-                    authorizedBranches.length > 1
-                      ? 'bg-slate-100/80 hover:bg-slate-200/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200 cursor-pointer'
-                      : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 cursor-default'
-                  }`}
-                  title={
-                    authorizedBranches.length > 1
-                      ? 'Switch Active Branch'
-                      : `Assigned Branch: ${formatBranchName(currentBranch?.name) || 'Assigned Outlet'}`
-                  }
+                  onClick={() => setShowBranchDropdown(!showBranchDropdown)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors shadow-2xs"
+                  title="Switch Active Branch"
                 >
                   <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="max-w-[130px] sm:max-w-[190px] truncate">
-                    {formatBranchName(currentBranch?.name) || 'Select Branch'}
+                  <span className="max-w-[140px] sm:max-w-[200px] truncate">
+                    {currentBranchId === 'all'
+                      ? 'All Outlets (Aggregated)'
+                      : formatBranchName(currentBranch?.name) || 'Select Outlet'}
                   </span>
-                  {authorizedBranches.length > 1 ? (
-                    <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
-                  ) : (
-                    <Lock className="w-3 h-3 text-slate-400 shrink-0 ml-0.5" />
-                  )}
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${showBranchDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
-                {showBranchDropdown && authorizedBranches.length > 1 && (
-                  <div className="absolute left-0 mt-2 w-72 sm:w-84 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2 overflow-hidden">
+                {showBranchDropdown && (
+                  <div className="absolute left-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
                     <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
-                      <span className="text-xs font-bold text-slate-900 uppercase tracking-wider text-[10px]">
-                        Switch Active Branch
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Switch Active Outlet
                       </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                        {authorizedBranches.length} Authorized Outlets
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                        {authorizedBranches.length} Outlets
                       </span>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 py-1">
+                    {/* All Branches Aggregated Option */}
+                    <div className="p-1 border-b border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          switchBranch('all');
+                          setShowBranchDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                          currentBranchId === 'all' ? 'bg-emerald-50 dark:bg-emerald-950/50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <div className={`text-xs ${currentBranchId === 'all' ? 'font-bold text-emerald-950 dark:text-emerald-200' : 'font-semibold text-slate-800 dark:text-slate-200'}`}>
+                              All Outlets (Aggregated)
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Combined multi-branch report &amp; stock view
+                            </div>
+                          </div>
+                        </div>
+                        {currentBranchId === 'all' && (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 py-1">
                       {authorizedBranches.map((b) => {
                         const isCurrent = b.id === currentBranchId;
                         return (
@@ -202,13 +203,13 @@ export const TopNavbar = ({ onOpenMobile }) => {
                               switchBranch(b.id);
                               setShowBranchDropdown(false);
                             }}
-                            className={`w-full text-left px-3.5 py-2.5 flex items-start justify-between gap-2 hover:bg-slate-50 transition-colors ${
-                              isCurrent ? 'bg-emerald-50/60' : ''
+                            className={`w-full text-left px-3.5 py-2.5 flex items-start justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${
+                              isCurrent ? 'bg-emerald-50/60 dark:bg-emerald-950/40' : ''
                             }`}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
-                                <span className={`text-xs truncate ${isCurrent ? 'font-bold text-emerald-950' : 'font-semibold text-slate-900'}`}>
+                                <span className={`text-xs truncate ${isCurrent ? 'font-bold text-emerald-950 dark:text-emerald-200' : 'font-semibold text-slate-900 dark:text-slate-200'}`}>
                                   {formatBranchName(b.name)}
                                 </span>
                                 {isCurrent && (
@@ -220,30 +221,12 @@ export const TopNavbar = ({ onOpenMobile }) => {
                               </div>
                               {b.managerName ? (
                                 <div className="text-[10px] text-slate-500 truncate mt-0.5">
-                                  Manager: <span className="font-medium text-slate-700">{b.managerName}</span>
+                                  Manager: <span className="font-medium text-slate-700 dark:text-slate-300">{b.managerName}</span>
                                 </div>
                               ) : null}
                             </div>
 
                             <div className="text-right shrink-0 flex flex-col items-end">
-                              {(b.planName || currentRestaurant?.planName) && (
-                                <span
-                                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                    (b.planName || currentRestaurant?.planName) === 'Enterprise'
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : (b.planName || currentRestaurant?.planName) === 'Professional'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-emerald-100 text-emerald-800'
-                                  }`}
-                                >
-                                  {b.planName || currentRestaurant?.planName}
-                                </span>
-                              )}
-                              {(b.billingCycle || currentRestaurant?.billingCycle) && (
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  {b.billingCycle || currentRestaurant?.billingCycle}
-                                </div>
-                              )}
                               {isCurrent && (
                                 <Check className="w-3.5 h-3.5 text-emerald-600 mt-1" />
                               )}
@@ -253,24 +236,35 @@ export const TopNavbar = ({ onOpenMobile }) => {
                       })}
                     </div>
 
-                    {currentUser?.role === 'restaurant_owner' && (
-                      <div className="p-2 border-t border-slate-100 bg-slate-50/80 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigate('/branches');
-                            setShowBranchDropdown(false);
-                          }}
-                          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1.5 transition-colors"
-                        >
-                          <span>Manage Branches &amp; Outlets</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
+                    <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate('/branches');
+                          setShowBranchDropdown(false);
+                        }}
+                        className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 inline-flex items-center gap-1.5 transition-colors"
+                      >
+                        <span>Manage Branches &amp; Outlets</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
+            ) : (
+              /* Non-owners OR single-branch restaurants: static non-clickable chip */
+              currentBranch ? (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                  title={`Assigned Outlet: ${formatBranchName(currentBranch.name)}`}
+                >
+                  <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="max-w-[150px] sm:max-w-[200px] truncate">
+                    {formatBranchName(currentBranch.name)}
+                  </span>
+                </div>
+              ) : null
             )}
           </div>
         ) : currentUser?.role === 'super_admin' ? (
