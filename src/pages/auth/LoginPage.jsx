@@ -191,7 +191,11 @@ export const LoginPage = () => {
       if (!result.success) {
         setAuthError(result);
       } else {
-        routeToUserDashboard(result.user.role);
+        if (result.user?.mustChangePassword) {
+          navigate('/set-new-password');
+        } else {
+          routeToUserDashboard(result.user.role);
+        }
       }
     }, 300);
   };

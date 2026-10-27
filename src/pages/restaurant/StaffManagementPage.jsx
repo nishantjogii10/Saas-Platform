@@ -138,7 +138,7 @@ export const StaffManagementPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${currentRestaurant?.name} Team Members`}
+        title="Team Members"
         subtitle="Manage employee accounts and designate role permissions between Inventory Managers and Kitchen Line Staff"
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },

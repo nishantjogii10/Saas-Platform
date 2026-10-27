@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   TrendingUp,
@@ -16,6 +16,8 @@ import {
   CreditCard,
   Layers,
   ArrowUpRight,
+  Table,
+  Filter,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -76,17 +78,72 @@ export const RevenueReportsPage = () => {
   const successTxnCount = transactions.filter((t) => t.status === 'Success').length;
   const paymentSuccessRate = ((successTxnCount / totalTxnCount) * 100).toFixed(1);
 
+  // Enriched Monthly Revenue Data with MoM growth calculations
+  const enrichedMonthlyTrends = useMemo(() => {
+    return monthlyRevenueTrends.map((curr, idx, arr) => {
+      let momGrowth = '+0.0%';
+      if (idx > 0) {
+        const prev = arr[idx - 1];
+        const growth = ((curr.revenue - prev.revenue) / prev.revenue) * 100;
+        momGrowth = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`;
+      }
+      return {
+        ...curr,
+        momGrowth,
+      };
+    });
+  }, []);
+
+  const totalStarterSum = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.starter || 0), 0);
+  }, []);
+
+  const totalProSum = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.pro || 0), 0);
+  }, []);
+
+  const totalEnterpriseSum = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.enterprise || 0), 0);
+  }, []);
+
+  const totalGrossSum = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.revenue || 0), 0);
+  }, []);
+
+  const totalSuccessfulPOs = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.successful || 0), 0);
+  }, []);
+
+  const totalPendingPOs = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.pending || 0), 0);
+  }, []);
+
+  const totalFailedPOs = useMemo(() => {
+    return monthlyRevenueTrends.reduce((acc, m) => acc + (m.failed || 0), 0);
+  }, []);
+
   const handleExportCSV = () => {
-    const headers = ['Month', 'Total Revenue (INR)', 'Starter Tier', 'Pro Tier', 'Enterprise Tier', 'Successful POs', 'Pending POs', 'Failed POs'];
-    const rows = monthlyRevenueTrends.map((m) => [
+    const headers = [
+      'Month',
+      'Total Revenue (INR)',
+      'Starter Tier',
+      'Pro Tier',
+      'Enterprise Tier',
+      'Successful Transactions',
+      'Pending Settlements',
+      'Failed Transactions',
+      'MoM Growth Rate',
+    ];
+    const rows = enrichedMonthlyTrends.map((m) => [
       `"${m.month}"`,
-      `"${m.revenue}"`,
-      `"${m.starter}"`,
-      `"${m.pro}"`,
-      `"${m.enterprise}"`,
-      `"${m.successful}"`,
-      `"${m.pending}"`,
-      `"${m.failed}"`,
+      m.revenue,
+      m.starter,
+      m.pro,
+      m.enterprise,
+      m.successful,
+      m.pending,
+      m.failed,
+      `"${m.momGrowth}"`,
     ]);
 
     const csvContent =
@@ -146,13 +203,13 @@ export const RevenueReportsPage = () => {
               icon={Download}
               onClick={handleExportCSV}
             >
-              Export CSV
+              Export Tabular Report (CSV)
             </Button>
           </div>
         }
       />
 
-      {/* 6 Core KPI Summary Cards (Explicit Requirements) */}
+      {/* 6 Core KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
         <StatCard
           title="Total Revenue (₹)"
@@ -203,169 +260,292 @@ export const RevenueReportsPage = () => {
         />
       </div>
 
-      {/* Visual Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Tier-Wise Revenue Stacked Bar Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
-            <div>
-              <h3 className="font-bold text-sm text-slate-900">
-                Monthly Revenue Tier Breakdown (May – Oct 2026)
+      {/* Table 1: Monthly Tier-Wise Revenue Breakdown Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Table className="w-4 h-4 text-emerald-800" />
+              <h3 className="font-bold text-slate-900 text-sm">
+                Monthly SaaS Revenue & Tier Performance Report Table
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Stacked gross revenue contributions: Starter (₹3,999), Pro (₹9,999), Enterprise (₹24,999)
-              </p>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Starter
-              </span>
-              <span className="flex items-center gap-1 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Pro
-              </span>
-              <span className="flex items-center gap-1 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-sm bg-purple-500" /> Enterprise
-              </span>
-            </div>
-          </div>
-
-          <div className="h-72 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={monthlyRevenueTrends}
-                margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                <YAxis
-                  stroke="#94A3B8"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  formatter={(val, name) => [formatINR(val), name.toUpperCase()]}
-                  contentStyle={{
-                    backgroundColor: '#0F172A',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                  }}
-                />
-                <Bar dataKey="starter" stackId="a" fill="#3B82F6" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="pro" stackId="a" fill="#10B981" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="enterprise" stackId="a" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>May Peak: ₹3.84 Lakh</span>
-            <span className="font-bold text-slate-900">Current October Peak: ₹5.82 Lakh (All-Time High)</span>
-          </div>
-        </div>
-
-        {/* Revenue by Billing Frequency Pie */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col justify-between">
-          <div className="pb-4 border-b border-slate-100">
-            <h3 className="font-bold text-sm text-slate-900">
-              Billing Frequency Split
-            </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Monthly subscribers vs. Annual prepaid advance
+              Granular breakdown across Starter (₹3,999), Pro (₹9,999), Enterprise (₹24,999), and gateway status
             </p>
           </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+            Current Oct Peak: ₹5.82 Lakh
+          </span>
+        </div>
 
-          <div className="h-52 flex items-center justify-center my-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={revenueByCycleData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={75}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {revenueByCycleData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val) => [formatINR(val), 'Revenue']}
-                  contentStyle={{
-                    backgroundColor: '#0F172A',
-                    borderRadius: '10px',
-                    color: '#fff',
-                    fontSize: '12px',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-2 pt-3 border-t border-slate-100 text-xs">
-            {revenueByCycleData.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-slate-600">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.name}
-                </span>
-                <div className="text-right">
-                  <span className="font-mono font-bold text-slate-900">{formatINR(item.value)}</span>
-                  <span className="text-[10px] text-slate-400 ml-1.5">({item.percentage})</span>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-3 px-4">Billing Month</th>
+                <th className="py-3 px-4 text-right">Starter Tier</th>
+                <th className="py-3 px-4 text-right">Pro Tier</th>
+                <th className="py-3 px-4 text-right">Enterprise Tier</th>
+                <th className="py-3 px-4 text-right">Gross Total Revenue</th>
+                <th className="py-3 px-4 text-center">Successful Orders</th>
+                <th className="py-3 px-4 text-center">Pending / Failed</th>
+                <th className="py-3 px-4 text-center">MoM Growth Rate</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {enrichedMonthlyTrends.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4 font-bold text-slate-900">
+                    {row.month}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-blue-700">
+                    {formatINR(row.starter)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-emerald-700">
+                    {formatINR(row.pro)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-medium text-purple-700">
+                    {formatINR(row.enterprise)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                    {formatINR(row.revenue)}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3" /> {row.successful}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center text-slate-600 font-mono">
+                    <span className="text-amber-600 font-semibold">{row.pending} pend</span> /{' '}
+                    <span className="text-rose-600 font-semibold">{row.failed} fail</span>
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-emerald-700">
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] bg-emerald-100 text-emerald-800">
+                      <ArrowUpRight className="w-3 h-3" /> {row.momGrowth}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+              <tr>
+                <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                  Total Run Rate Summary ({enrichedMonthlyTrends.length} Months)
+                </td>
+                <td className="py-3 px-4 text-right text-blue-800 font-extrabold font-mono">
+                  {formatINR(totalStarterSum)}
+                </td>
+                <td className="py-3 px-4 text-right text-emerald-800 font-extrabold font-mono">
+                  {formatINR(totalProSum)}
+                </td>
+                <td className="py-3 px-4 text-right text-purple-800 font-extrabold font-mono">
+                  {formatINR(totalEnterpriseSum)}
+                </td>
+                <td className="py-3 px-4 text-right text-slate-900 font-extrabold font-mono">
+                  {formatINR(totalGrossSum)}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-emerald-800">
+                  {totalSuccessfulPOs} Orders
+                </td>
+                <td className="py-3 px-4 text-center font-semibold text-slate-700 font-mono">
+                  {totalPendingPOs} / {totalFailedPOs}
+                </td>
+                <td className="py-3 px-4 text-center text-emerald-800 font-extrabold">
+                  +51.5% H1 Total
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
-      {/* Payment Gateway Distribution & Performance */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+      {/* Table 2: Billing Frequency & Subscription Plan Split Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="font-bold text-sm text-slate-900">
-              Payment Gateway & Method Distribution
-            </h3>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-emerald-800" />
+              <h3 className="font-bold text-slate-900 text-sm">
+                Subscription Frequency & Billing Cycle Breakdown Table
+              </h3>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Settlement rail breakdown: UPI AutoPay, NetBanking, and Corporate Cards
+              Comparison between Monthly flexible plans and Annual upfront prepaid agreements
             </p>
           </div>
-          <span className="text-xs font-semibold text-slate-500">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+            16% Annual Discount Applied
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-3 px-4">Billing Plan Frequency</th>
+                <th className="py-3 px-4 text-right">Normalized Monthly Value</th>
+                <th className="py-3 px-4 text-right">Projected Annual Run-Rate</th>
+                <th className="py-3 px-4 text-center">Revenue Platform Share</th>
+                <th className="py-3 px-4">Contract Advantage & Incentive Terms</th>
+                <th className="py-3 px-4 text-center">Renewal Health</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {revenueByCycleData.map((item, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="font-bold text-slate-900">{item.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                    {formatINR(item.value)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-semibold text-slate-800">
+                    {formatINR(item.value * 12)}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                      {item.percentage}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-slate-700">
+                    {item.name.includes('Annual')
+                      ? 'Prepaid 12 months • 2 months free equivalent • Zero churn lock'
+                      : 'Month-to-month auto-debit • Flexible branch addition at will'}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3" /> {item.name.includes('Annual') ? '99.2% Retention' : '94.8% Retention'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+              <tr>
+                <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                  Combined Platform Monetization
+                </td>
+                <td className="py-3 px-4 text-right font-extrabold text-slate-900 font-mono">
+                  {formatINR(revenueByCycleData.reduce((acc, c) => acc + c.value, 0))}
+                </td>
+                <td className="py-3 px-4 text-right font-extrabold text-purple-800 font-mono">
+                  {formatINR(revenueByCycleData.reduce((acc, c) => acc + c.value * 12, 0))}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-blue-800">
+                  100.0%
+                </td>
+                <td colSpan={2} className="py-3 px-4 text-slate-500 font-normal text-[11px]">
+                  Recurring subscription contracts automatically renew unless explicitly canceled
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Table 3: Payment Rails & Gateway Settlement Performance Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-800" />
+              <h3 className="font-bold text-slate-900 text-sm">
+                Payment Gateways & Settlement Rails Performance Table
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Settlement rail breakdown: UPI AutoPay, NetBanking, Corporate Cards, and Mandates
+            </p>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 self-start sm:self-auto">
             Powered by Razorpay & Stripe India
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {paymentMethodsBreakdown.map((pm, idx) => (
-            <div
-              key={idx}
-              className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800">{pm.method}</span>
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: pm.color }}
-                />
-              </div>
-
-              <div className="text-xl font-bold font-mono text-slate-900">
-                {formatINR(pm.amount)}
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
-                <span>Platform Share:</span>
-                <strong className="text-slate-800">{pm.share}%</strong>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-3 px-4">Payment Rail / Method</th>
+                <th className="py-3 px-4">Primary Gateway Partner</th>
+                <th className="py-3 px-4 text-right">Cleared Volume (₹)</th>
+                <th className="py-3 px-4 text-center">Platform Share</th>
+                <th className="py-3 px-4 text-center">Settlement Window / SLA</th>
+                <th className="py-3 px-4 text-center">Gateway Success Rate</th>
+                <th className="py-3 px-4 text-center">Operational Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {paymentMethodsBreakdown.map((pm, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: pm.color }}
+                      />
+                      <span className="font-bold text-slate-900">{pm.method}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-[11px]">
+                      {pm.method.includes('UPI')
+                        ? 'NPCI / Razorpay AutoPay'
+                        : pm.method.includes('Cards')
+                        ? 'Stripe India & Visa/MC'
+                        : pm.method.includes('NetBanking')
+                        ? 'HDFC & ICICI Corporate Rails'
+                        : 'e-NACH Mandate Engine'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                    {formatINR(pm.amount)}
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-slate-800">
+                    {pm.share}%
+                  </td>
+                  <td className="py-3 px-4 text-center text-slate-600 font-mono text-[11px]">
+                    {pm.method.includes('UPI') ? 'Instant (T+0)' : 'T+1 Business Day'}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      {pm.method.includes('UPI') ? '99.8%' : pm.method.includes('Cards') ? '98.5%' : '99.1%'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3" /> Healthy (Active)
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+              <tr>
+                <td colSpan={2} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                  Total Processed Receipts Across Banking Rails
+                </td>
+                <td className="py-3 px-4 text-right font-extrabold text-slate-900 font-mono">
+                  {formatINR(paymentMethodsBreakdown.reduce((acc, pm) => acc + pm.amount, 0))}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-slate-900">
+                  100%
+                </td>
+                <td colSpan={3} className="py-3 px-4 text-center text-emerald-800 text-[11px] font-bold">
+                  Overall Platform Gateway Health: 99.4%
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
   );
 };
-

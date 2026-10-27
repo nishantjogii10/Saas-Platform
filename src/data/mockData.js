@@ -153,7 +153,7 @@ export const initialRestaurants = [
     branches: 1,
     planId: 'plan-starter',
     planName: 'Starter',
-    status: 'pending', // Pending approval for Super Admin workflow!
+    status: 'active', // Activated via automated onboarding
     joinedDate: '2026-10-21',
     renewalDate: '2026-11-21',
     monthlyUsage: {
@@ -483,13 +483,14 @@ export const initialUsers = [
     id: 'usr-bi-1',
     name: 'Sofia Rossi',
     email: 'sofia@bellaitalia.com',
+    password: 'password123',
     role: 'restaurant_owner',
     restaurantId: 'rest-4',
     restaurantName: 'Bella Italia Bistro',
-    status: 'pending', // Account Pending Approval
+    status: 'active',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
     joinedDate: '2026-10-21',
-    lastActive: 'Pending verification',
+    lastActive: 'Active now',
   },
   // Suspended Restaurant Account (Restriction Demonstration)
   {

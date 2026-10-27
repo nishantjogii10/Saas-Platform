@@ -210,7 +210,7 @@ export const RestaurantManagement = () => {
     <div className="space-y-6">
       <PageHeader
         title="Restaurant Tenant Accounts"
-        subtitle="Approve new registrations, review active hospitality clients, and manage subscription statuses"
+        subtitle="Manage hospitality client organizations, monitor subscriptions, and administer account statuses"
         breadcrumbs={[
           { label: 'Admin', href: '#/admin/dashboard' },
           { label: 'Restaurants' },
@@ -236,7 +236,7 @@ export const RestaurantManagement = () => {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="w-4 h-4 text-slate-400 shrink-0" />
           <div className="flex items-center gap-1 overflow-x-auto">
-            {['all', 'active', 'pending', 'suspended'].map((filterKey) => (
+            {['all', 'active', 'suspended'].map((filterKey) => (
               <button
                 key={filterKey}
                 onClick={() => setStatusFilter(filterKey)}

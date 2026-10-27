@@ -70,7 +70,7 @@ export const RestaurantSettingsPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${currentRestaurant?.name} Settings & Subscription`}
+        title="Settings & Subscription"
         subtitle="Manage business credentials, multi-branch setup, notification webhooks, and subscription tier"
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },

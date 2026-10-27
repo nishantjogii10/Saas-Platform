@@ -10,11 +10,14 @@ import { LandingPage } from './pages/LandingPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { SetNewPasswordPage } from './pages/auth/SetNewPasswordPage';
+import { MyProfilePage } from './pages/profile/MyProfilePage';
 import { SignUpPage } from './pages/auth/SignUpPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 
 // Super Admin Pages
 import { SuperAdminDashboard } from './pages/superAdmin/SuperAdminDashboard';
+import { CommunicationCenterPage } from './pages/superAdmin/CommunicationCenterPage';
 import { RestaurantManagement } from './pages/superAdmin/RestaurantManagement';
 import { UserManagement } from './pages/superAdmin/UserManagement';
 import { SubscriptionPlans } from './pages/superAdmin/SubscriptionPlans';
@@ -31,6 +34,7 @@ import { CustomPlanBuilderPage } from './pages/restaurant/CustomPlanBuilderPage'
 
 // Restaurant Owner & Manager Pages
 import { RestaurantDashboard } from './pages/restaurant/RestaurantDashboard';
+import { OwnerInboxPage } from './pages/restaurant/OwnerInboxPage';
 import { InventoryPage } from './pages/restaurant/InventoryPage';
 import { ExpiryTrackingPage } from './pages/restaurant/ExpiryTrackingPage';
 import { SuppliersPage } from './pages/restaurant/SuppliersPage';
@@ -48,12 +52,11 @@ import { SupplierReturnsPage } from './pages/restaurant/SupplierReturnsPage';
 import { SupplierBillingPage } from './pages/restaurant/SupplierBillingPage';
 
 // Multi-Branch Management, Branch Subscriptions, Staff Transfers & Notifications
-import { BranchOverviewPage } from './pages/restaurant/BranchOverviewPage';
-import { BranchesPage } from './pages/restaurant/BranchesPage';
+import { CombinedBranchesPage } from './pages/restaurant/CombinedBranchesPage';
+import { PlansAndBillingPage } from './pages/restaurant/PlansAndBillingPage';
 import { BranchSubscriptionsPage } from './pages/restaurant/BranchSubscriptionsPage';
 import { BranchPlansPage } from './pages/restaurant/BranchPlansPage';
-import { BranchStaffPage } from './pages/restaurant/BranchStaffPage';
-import { StaffTransfersPage } from './pages/restaurant/StaffTransfersPage';
+import { WorkforcePage } from './pages/restaurant/WorkforcePage';
 import { OwnerNotificationsPage } from './pages/restaurant/OwnerNotificationsPage';
 import { OwnerBillingPage } from './pages/restaurant/OwnerBillingPage';
 
@@ -91,6 +94,11 @@ const RoleGuard = ({ allowedRoles, children }) => {
     return <Navigate to="/login" state={safeFrom ? { from: safeFrom } : undefined} replace />;
   }
 
+  // Intercept users who must set a new password on first login
+  if (currentUser.mustChangePassword && location.pathname !== '/set-new-password') {
+    return <Navigate to="/set-new-password" replace />;
+  }
+
   // Super Admin has master platform access to audit and view all tenant modules
   if (currentUser.role === 'super_admin') {
     return children;
@@ -107,6 +115,10 @@ const RoleGuard = ({ allowedRoles, children }) => {
 const RootRedirect = () => {
   const { currentUser } = useApp();
   if (!currentUser) return <Navigate to="/login" replace />;
+
+  if (currentUser.mustChangePassword) {
+    return <Navigate to="/set-new-password" replace />;
+  }
 
   switch (currentUser.role) {
     case 'super_admin':
@@ -175,6 +187,21 @@ function App() {
           <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/set-new-password" element={<SetNewPasswordPage />} />
+          <Route
+            path="/profile"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['kitchen_staff', 'inventory_manager', 'restaurant_manager', 'restaurant_owner']}>
+                  <MyProfilePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/my-profile"
+            element={<Navigate to="/profile" replace />}
+          />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/supplier-portal" element={<SupplierLoginPage />} />
@@ -189,6 +216,16 @@ function App() {
               <AppLayout>
                 <RoleGuard allowedRoles={['super_admin']}>
                   <SuperAdminDashboard />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/admin/communication"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['super_admin']}>
+                  <CommunicationCenterPage />
                 </RoleGuard>
               </AppLayout>
             }
@@ -352,6 +389,18 @@ function App() {
               </AppLayout>
             }
           />
+
+          {/* Restaurant Owner Inbox & Communication Center */}
+          <Route
+            path="/inbox"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner']}>
+                  <OwnerInboxPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
           <Route
             path="/inventory"
             element={
@@ -508,98 +557,80 @@ function App() {
 
           {/* Restaurant Owner & Manager: Branch Management Module */}
           <Route
-            path="/branches/overview"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <BranchOverviewPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
-          <Route
-            path="/branch-overview"
-            element={<Navigate to="/branches/overview" replace />}
-          />
-          <Route
             path="/branches"
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <BranchesPage />
+                  <CombinedBranchesPage />
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/branches/overview"
+            element={<Navigate to="/branches" replace />}
+          />
+          <Route
+            path="/branch-overview"
+            element={<Navigate to="/branches" replace />}
           />
           <Route
             path="/branch"
             element={<Navigate to="/branches" replace />}
           />
           <Route
-            path="/branch-subscriptions"
+            path="/plans-billing"
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchSubscriptionsPage />
+                  <PlansAndBillingPage />
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/branch-subscriptions"
+            element={<Navigate to="/plans-billing?tab=subscriptions" replace />}
           />
           <Route
             path="/branches/subscriptions"
-            element={<Navigate to="/branch-subscriptions" replace />}
+            element={<Navigate to="/plans-billing?tab=subscriptions" replace />}
           />
           <Route
             path="/branch-plans"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <BranchPlansPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/plans-billing?tab=comparison" replace />}
           />
-
-          {/* Automated Custom Plan Builder */}
-          <Route
-            path="/custom-plan"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager', 'super_admin']}>
-                  <CustomPlanBuilderPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
-          <Route path="/plan-builder" element={<Navigate to="/custom-plan" replace />} />
-          <Route path="/custom-plans" element={<Navigate to="/custom-plan" replace />} />
           <Route
             path="/branches/plans"
-            element={<Navigate to="/branch-plans" replace />}
+            element={<Navigate to="/plans-billing?tab=comparison" replace />}
+          />
+          <Route
+            path="/custom-plan"
+            element={<Navigate to="/plans-billing?tab=custom" replace />}
+          />
+          <Route path="/plan-builder" element={<Navigate to="/plans-billing?tab=custom" replace />} />
+          <Route path="/custom-plans" element={<Navigate to="/plans-billing?tab=custom" replace />} />
+          <Route
+            path="/workforce"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
+                  <WorkforcePage />
+                </RoleGuard>
+              </AppLayout>
+            }
           />
           <Route
             path="/branch-staff"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <BranchStaffPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/workforce" replace />}
           />
           <Route
             path="/staff-transfers"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
-                  <StaffTransfersPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/workforce?tab=transfers" replace />}
           />
           <Route
             path="/transfers"
-            element={<Navigate to="/staff-transfers" replace />}
+            element={<Navigate to="/workforce?tab=transfers" replace />}
           />
           <Route
             path="/notifications"
@@ -611,13 +642,7 @@ function App() {
           />
           <Route
             path="/billing"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <OwnerBillingPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+            element={<Navigate to="/plans-billing?tab=invoices" replace />}
           />
 
           {/* Kitchen Staff Module */}

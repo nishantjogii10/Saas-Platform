@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Bell,
+  Calendar,
+  Clock,
+  ArrowLeftRight,
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
@@ -20,14 +23,17 @@ import { Badge } from '../../components/common/Badge';
 export const AlertsPage = () => {
   const navigate = useNavigate();
   const {
+
+    currentUser,
     restaurantAlerts,
     markAlertRead,
     markAllAlertsRead,
     dismissAlert,
-    currentUser,
+
   } = useApp();
 
-  const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry
+  const isManager = currentUser?.role === 'restaurant_manager';
+  const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry | leaves | transfers
 
   const roleFilteredAlerts = (restaurantAlerts || []).filter((a) => {
     if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
@@ -38,6 +44,11 @@ export const AlertsPage = () => {
 
   const filteredAlerts = roleFilteredAlerts.filter((a) => {
     if (filterMode === 'unread') return !a.read;
+    if (isManager) {
+      if (filterMode === 'leaves') return a.type === 'leave_request';
+      if (filterMode === 'transfers') return a.type === 'transfer_request' || a.type === 'attendance_notice';
+      return true;
+    }
     if (filterMode === 'critical') return a.severity === 'critical' || a.severity === 'high';
     if (filterMode === 'expiry') return a.type === 'expiring_soon' || a.type === 'expired';
     return true;
@@ -48,8 +59,8 @@ export const AlertsPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Kitchen & Stock Notifications"
-        subtitle="Real-time threshold alerts, batch shelf-life warnings, and procurement updates"
+        title={isManager ? "Staff & Operations Notices" : "Kitchen & Stock Notifications"}
+        subtitle={isManager ? "Real-time employee leave requests, transfer approvals, and station attendance alerts" : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates"}
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Alerts' },
@@ -71,12 +82,20 @@ export const AlertsPage = () => {
       {/* Filter Tabs */}
       <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs">
         <div className="flex items-center gap-1.5 overflow-x-auto">
-          {[
-            { id: 'all', label: 'All Alerts', count: roleFilteredAlerts.length },
-            { id: 'unread', label: 'Unread Only', count: unreadCount },
-            { id: 'critical', label: 'Critical & High' },
-            { id: 'expiry', label: 'Expiry Warnings' },
-          ].map((tab) => (
+          {(isManager
+            ? [
+                { id: 'all', label: 'All Staff Notices', count: roleFilteredAlerts.length },
+                { id: 'unread', label: 'Unread Only', count: unreadCount },
+                { id: 'leaves', label: 'Leave Requests' },
+                { id: 'transfers', label: 'Transfers & Shifts' },
+              ]
+            : [
+                { id: 'all', label: 'All Alerts', count: roleFilteredAlerts.length },
+                { id: 'unread', label: 'Unread Only', count: unreadCount },
+                { id: 'critical', label: 'Critical & High' },
+                { id: 'expiry', label: 'Expiry Warnings' },
+              ]
+          ).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilterMode(tab.id)}
@@ -104,9 +123,9 @@ export const AlertsPage = () => {
         {filteredAlerts.length === 0 ? (
           <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-200">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-800">No active alerts</h3>
+            <h3 className="text-base font-bold text-slate-800">{isManager ? "No active staff notices" : "No active alerts"}</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Your kitchen stock thresholds and batch expiry dates are in good standing.
+              {isManager ? "All staff leave requests, transfer applications, and shift rosters are in good standing." : "Your kitchen stock thresholds and batch expiry dates are in good standing."}
             </p>
           </div>
         ) : (
@@ -125,7 +144,19 @@ export const AlertsPage = () => {
             >
               <div className="flex items-start gap-3.5 flex-1">
                 <div className="mt-0.5 shrink-0">
-                  {alt.severity === 'critical' ? (
+                  {alt.type === 'leave_request' ? (
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                  ) : alt.type === 'transfer_request' ? (
+                    <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                      <ArrowLeftRight className="w-5 h-5" />
+                    </div>
+                  ) : alt.type === 'attendance_notice' ? (
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                  ) : alt.severity === 'critical' ? (
                     <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
                       <AlertCircle className="w-5 h-5" />
                     </div>
