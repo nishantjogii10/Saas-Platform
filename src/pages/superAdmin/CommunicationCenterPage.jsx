@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import StockMateEmailShell from '../../components/email/StockMateEmailShell';
 import {
   Megaphone,
   Radio,
@@ -265,14 +266,22 @@ export const CommunicationCenterPage = () => {
   }, [announcements, historySearch, historyCategoryFilter, historyPriorityFilter]);
 
   // Sample Context for Live Preview Interpolation
-  const samplePreviewContext = {
-    restaurantName: 'Spice Garden (Demo Context)',
-    ownerName: 'Priya Sharma',
-    planName: 'Professional Plan',
-    renewalDate: 'November 14, 2026',
-    effectiveDate: composerForm.effectiveDate || 'November 1, 2026',
-    platformLink: '#/dashboard',
-  };
+  const samplePreviewContext = useMemo(() => {
+    const targetRest =
+      composerForm.targetRestaurantIds?.length === 1
+        ? restaurants.find((r) => r.id === composerForm.targetRestaurantIds[0])
+        : restaurants[0];
+
+    return {
+      restaurantName: targetRest?.name || 'Spice Garden',
+      ownerName: targetRest?.ownerName || 'Priya Sharma',
+      ownerEmail: targetRest?.ownerEmail || 'priya@spicegarden.com',
+      planName: `${targetRest?.planName || 'Professional'} Plan`,
+      renewalDate: targetRest?.renewalDate || 'November 14, 2026',
+      effectiveDate: composerForm.effectiveDate || 'November 1, 2026',
+      platformLink: '#/dashboard',
+    };
+  }, [composerForm.targetRestaurantIds, composerForm.effectiveDate, restaurants]);
 
   const previewTitle = interpolateTemplateVariables(
     composerForm.title || 'Announcement Title Preview',
@@ -1122,164 +1131,32 @@ export const CommunicationCenterPage = () => {
                   </div>
                 </div>
 
-                {/* Device Frame Rendering */}
-                {previewDevice === 'desktop' ? (
-                  /* Desktop Preview Container */
-                  <div className="bg-white rounded-3xl border border-slate-300 shadow-xl overflow-hidden transition-all duration-300">
-                    {/* Simulated Browser Bar */}
-                    <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-500">
-                        StockMate Restaurant Owner Inbox
-                      </span>
-                      <span className="w-4"></span>
-                    </div>
-
-                    {/* Announcement Reading Container */}
-                    <div className="p-6 space-y-4 max-h-[620px] overflow-y-auto">
-                      {/* Sender Info & Badges */}
-                      <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
-                            SM
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-slate-900">
-                                StockMate Platform Administration
-                              </span>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            </div>
-                            <span className="text-[11px] text-slate-400 block">
-                              To: {samplePreviewContext.ownerName} &lt;{samplePreviewContext.restaurantName}&gt;
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${activeCategoryObj.badgeClass}`}>
-                            {activeCategoryObj.label}
-                          </span>
-                          {composerForm.priority !== 'normal' && (
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${activePriorityObj.badgeClass}`}>
-                              {activePriorityObj.label}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Title */}
-                      <h3 className="text-base font-bold text-slate-900 leading-snug">
-                        {previewTitle}
-                      </h3>
-
-                      {/* Policy Required Banner */}
-                      {composerForm.requiresAcknowledgment && (
-                        <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 flex items-start gap-2.5">
-                          <FileCheck2 className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold block">
-                              Policy Compliance Acknowledgment Required ({composerForm.policyVersion || 'v2.4'})
-                            </span>
-                            <span className="text-[11px] text-purple-800 opacity-90 mt-0.5 block">
-                              Formal acceptance must be acknowledged by the restaurant owner before {composerForm.effectiveDate}.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Formatted Body */}
-                      <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
-                        {previewBody}
-                      </div>
-
-                      {/* Attachments Chip */}
-                      {composerForm.attachments.length > 0 && (
-                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Attachments ({composerForm.attachments.length})
-                          </span>
-                          {composerForm.attachments.map((att, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700"
-                            >
-                              <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-                              <span className="font-semibold text-emerald-800">{att.name}</span>
-                              <span className="text-[10px] text-slate-400">({att.size})</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Call-to-action button */}
-                      {composerForm.hasCta && (
-                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                          <Button variant="brand" size="sm" iconRight={ExternalLink}>
-                            {composerForm.ctaLabel || 'View in Workspace'}
-                          </Button>
-                          <span className="text-[11px] text-slate-400">
-                            Route: {composerForm.ctaLink}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  /* Mobile Device Frame Preview */
-                  <div className="max-w-[340px] mx-auto bg-slate-900 p-3 rounded-[40px] shadow-2xl border-4 border-slate-800 transition-all duration-300">
-                    {/* Simulated Phone Notch */}
-                    <div className="w-32 h-4 bg-slate-800 rounded-b-xl mx-auto mb-2 flex items-center justify-center">
-                      <span className="w-2.5 h-2.5 rounded-full bg-slate-900 mr-2"></span>
-                      <span className="w-2 h-2 rounded-full bg-slate-700"></span>
-                    </div>
-
-                    {/* Mobile App Screen */}
-                    <div className="bg-white rounded-3xl p-4 max-h-[520px] overflow-y-auto space-y-3 text-slate-900">
-                      {/* Mobile Header */}
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <span className="text-[11px] font-bold text-emerald-800">
-                          StockMate Inbox
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
-                          {activeCategoryObj.label}
-                        </span>
-                      </div>
-
-                      {/* Title */}
-                      <h4 className="text-xs font-bold leading-snug">{previewTitle}</h4>
-
-                      {/* Policy Banner if needed */}
-                      {composerForm.requiresAcknowledgment && (
-                        <div className="p-2 rounded-lg bg-purple-50 text-[10px] text-purple-900 font-semibold border border-purple-200">
-                          Policy Compliance {composerForm.policyVersion} Required
-                        </div>
-                      )}
-
-                      {/* Body */}
-                      <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-wrap">
-                        {previewBody}
-                      </p>
-
-                      {/* CTA */}
-                      {composerForm.hasCta && (
-                        <button
-                          type="button"
-                          className="w-full py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs text-center"
-                        >
-                          {composerForm.ctaLabel || 'Open Workspace'}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Bottom home indicator line */}
-                    <div className="w-24 h-1 bg-slate-700 rounded-full mx-auto mt-2.5"></div>
-                  </div>
-                )}
+                {/* Branded Email Shell Live Preview */}
+                <StockMateEmailShell
+                  subject={previewTitle}
+                  summary={composerForm.summary}
+                  body={previewBody}
+                  category={composerForm.category}
+                  priority={composerForm.priority}
+                  author={currentUser?.name || 'StockMate Platform Administration'}
+                  authorRole="Platform Operations"
+                  publishedAt={new Date().toISOString()}
+                  recipient={{
+                    ownerName: samplePreviewContext.ownerName,
+                    restaurantName: samplePreviewContext.restaurantName,
+                    ownerEmail: samplePreviewContext.ownerEmail,
+                    planName: samplePreviewContext.planName,
+                  }}
+                  ctaLabel={composerForm.hasCta ? (composerForm.ctaLabel || 'View in Workspace') : null}
+                  ctaLink={composerForm.ctaLink || '/dashboard'}
+                  attachments={composerForm.attachments}
+                  requiresAcknowledgment={composerForm.requiresAcknowledgment}
+                  policyVersion={composerForm.policyVersion}
+                  previewDevice={previewDevice}
+                  showDeviceToggle={false}
+                  onDeviceChange={setPreviewDevice}
+                  simulated={true}
+                />
               </div>
             </div>
           </div>
