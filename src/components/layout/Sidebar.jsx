@@ -3,6 +3,8 @@ import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
+  Megaphone,
+  Inbox,
   Building2,
   Users,
   User,
@@ -51,6 +53,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     switchBranch,
     ownerNotifications,
     customPlanRequests,
+    announcements,
+    announcementReads,
   } = useApp();
 
   const getHomeRoute = () => {
@@ -69,6 +73,13 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
   const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
   const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
+  const unreadAnnouncementsCount = (announcements || []).filter(ann => {
+    if (ann.status !== 'published') return false;
+    if (ann.audienceType === 'SPECIFIC_RESTAURANTS' && currentRestaurant && !ann.targetRestaurantIds?.includes(currentRestaurant.id)) return false;
+    if (ann.audienceType === 'SUBSCRIPTION_TIER' && currentRestaurant && !ann.targetPlanIds?.includes(currentRestaurant.planId)) return false;
+    const readKey = `${ann.id}_${currentRestaurant?.id || 'rest-1'}`;
+    return !announcementReads?.[readKey]?.isRead;
+  }).length;
 
   // Define nav links by role
   const getNavLinks = () => {
@@ -79,6 +90,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Platform Administration',
             items: [
               { to: '/admin/dashboard', label: 'Admin Dashboard', icon: LayoutDashboard },
+              { to: '/admin/communication', label: 'Communication Center', icon: Megaphone },
               { to: '/admin/restaurants', label: 'Restaurants', icon: Building2 },
               { to: '/admin/users', label: 'Platform Users', icon: Users },
               { to: '/admin/plans', label: 'Subscription Plans', icon: CreditCard },
@@ -111,6 +123,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Kitchen & Operations',
             items: [
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+              { to: '/inbox', label: 'Inbox & Announcements', icon: Inbox, badge: unreadAnnouncementsCount > 0 ? unreadAnnouncementsCount : null },
               { to: '/inventory', label: 'Inventory Items', icon: Boxes },
               { to: '/expiry-tracking', label: 'Expiry Tracking', icon: ClockAlert },
               { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
@@ -130,13 +143,9 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           {
             section: 'Branch & Plan Management',
             items: [
-              { to: '/branches/overview', label: 'Branch Overview', icon: Store },
-              { to: '/branches', label: 'Branches', icon: Building2 },
-              { to: '/branch-subscriptions', label: 'Branch Subscriptions', icon: CalendarCheck },
-              { to: '/branch-plans', label: 'Plan & Billing', icon: Sparkles },
-              { to: '/custom-plan', label: 'Custom Plan Builder', icon: Sliders },
-              { to: '/branch-staff', label: 'Staff & Managers', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/branches', label: 'Branch Overview & Outlets', icon: Store },
+              { to: '/plans-billing', label: 'Plans & Billing', icon: Sparkles },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               {
                 to: '/notifications',
                 label: 'Notifications',
@@ -146,14 +155,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             ],
           },
           {
-            section: 'Business & Team',
+            section: 'Business & Finance',
             items: [
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
-              { to: '/profile', label: 'My Profile', icon: User },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
+{ to: '/profile', label: 'My Profile', icon: User },
               { to: '/supplier-billing', label: 'Supplier Billing', icon: Receipt, badge: '₹' },
-              { to: '/billing', label: 'Plan & Subscription', icon: CreditCard },
-              { to: '/settings', label: 'Restaurant & Plan', icon: Settings },
+              { to: '/settings', label: 'Restaurant Settings', icon: Settings },
             ],
           },
         ];
@@ -190,7 +197,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Restaurant Operations & Staff',
             items: [
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-              { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
+{ to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
@@ -247,7 +254,22 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   //    (preventing parent routes like "/branches" from activating when on "/branches/overview").
   // 3. For nested sub-pages not explicitly listed in the sidebar (e.g. "/branches/123"),
   //    the closest parent prefix match is highlighted.
-  const isRouteActive = (itemTo, currentPath) => {
+  const isRouteActive = (itemTo, currentPath, currentSearch = '') => {
+    if (!currentPath || !itemTo) return false;
+
+    // Handle tab-specific active states for workforce vs transfers
+    if (itemTo === '/staff-transfers') {
+      return (
+        currentPath === '/staff-transfers' ||
+        (currentPath === '/workforce' && currentSearch.includes('tab=transfers'))
+      );
+    }
+    if (itemTo === '/workforce') {
+      return (
+        (currentPath === '/workforce' && !currentSearch.includes('tab=transfers')) ||
+        currentPath === '/branch-staff'
+      );
+    }
     if (!currentPath || !itemTo) return false;
 
     const cleanCurrent = currentPath.length > 1 && currentPath.endsWith('/')
@@ -410,7 +432,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               <div className="space-y-0.5">
                 {sec.items.map((item, itemIdx) => {
                   const Icon = item.icon;
-                  const isActive = isRouteActive(item.to, location.pathname);
+                  const isActive = isRouteActive(item.to, location.pathname, location.search);
 
                   return (
                     <NavLink

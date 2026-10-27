@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Menu,
   Bell,
+  Megaphone,
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
@@ -39,6 +40,8 @@ export const TopNavbar = ({ onOpenMobile }) => {
     currentBranch,
     switchBranch,
     restaurantAlerts,
+    ownerNotifications,
+    markAnnouncementAsRead,
     markAlertRead,
     markAllAlertsRead,
     logout,
@@ -70,22 +73,84 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadAlerts = restaurantAlerts.filter(a => !a.read);
+  const unreadAlerts = (restaurantAlerts || []).filter(a => !a.read);
+  const unreadAnnouncementsCount = (ownerNotifications || []).filter(n => !n.read && n.actionLink === '/inbox').length;
+  const totalUnreadNotifs = unreadAlerts.length + unreadAnnouncementsCount;
+
+  // Combined notifications for popover
+  const combinedNotifications = useMemo(() => {
+    const alerts = (restaurantAlerts || []).map(a => ({
+      id: a.id,
+      title: a.title,
+      message: a.message,
+      timestamp: a.timestamp,
+      read: a.read,
+      type: a.type || 'alert',
+      severity: a.severity,
+      actionLink: a.actionLink,
+      action: () => {
+        markAlertRead(a.id);
+        if (a.actionLink) {
+          navigate(a.actionLink);
+          setShowNotifications(false);
+        }
+      },
+      link: a.actionLink || '/alerts'
+    }));
+
+    const annNotifs = (ownerNotifications || []).filter(n => n.actionLink === '/inbox').map(n => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      timestamp: n.timestamp,
+      read: n.read,
+      type: 'announcement',
+      severity: n.priority === 'urgent' ? 'critical' : 'normal',
+      action: () => {
+        if (n.announcementId && currentRestaurant) {
+          markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
+        }
+        setShowNotifications(false);
+        navigate(n.announcementId ? `/inbox?id=${n.announcementId}` : '/inbox');
+      },
+      link: n.announcementId ? `/inbox?id=${n.announcementId}` : '/inbox'
+    }));
+
+    return [...annNotifs, ...alerts].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [restaurantAlerts, ownerNotifications, markAlertRead, markAnnouncementAsRead, currentRestaurant, navigate]);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/90 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shrink-0">
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shrink-0 transition-colors duration-200">
       {/* Left: Mobile Menu Toggle & Workspace Info */}
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenMobile}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 lg:hidden transition-colors"
+          className="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden transition-colors"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Branch Selector Dropdown for Restaurant Owner (Restaurant name removed from header) */}
-        {currentUser?.role === 'restaurant_owner' && authorizedBranches && authorizedBranches.length > 0 ? (
-          <div className="relative" ref={branchRef}>
+        {/* Restaurant selector for Restaurant-level roles */}
+        {currentUser?.role !== 'super_admin' && currentUser?.role !== 'supplier' ? (
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xl">{currentRestaurant?.logo || '🌿'}</span>
+            <div className="hidden sm:block">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                  {currentRestaurant?.name}
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                  {currentRestaurant?.planName} Plan
+                </span>
+              </div>
+              <span className="text-xs text-slate-500 font-medium">
+                {currentRestaurant?.cuisine}
+              </span>
+            </div>
+
+            {/* Branch Selector Dropdown for Restaurant Roles */}
+            {authorizedBranches && authorizedBranches.length > 0 && (
+              <div className="relative ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-700" ref={branchRef}>
                 <button
                   type="button"
                   onClick={() => {
@@ -95,8 +160,8 @@ export const TopNavbar = ({ onOpenMobile }) => {
                   }}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
                     authorizedBranches.length > 1
-                      ? 'bg-slate-100/80 hover:bg-slate-200/70 border-slate-200/80 text-slate-800 cursor-pointer'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 cursor-default'
+                      ? 'bg-slate-100/80 hover:bg-slate-200/70 dark:bg-slate-800/80 dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200 cursor-pointer'
+                      : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 cursor-default'
                   }`}
                   title={
                     authorizedBranches.length > 1
@@ -116,8 +181,8 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 </button>
 
                 {showBranchDropdown && authorizedBranches.length > 1 && (
-                  <div className="absolute left-0 mt-2 w-72 sm:w-84 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 py-2 overflow-hidden">
-                    <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                  <div className="absolute left-0 mt-2 w-72 sm:w-84 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2 overflow-hidden">
+                    <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
                       <span className="text-xs font-bold text-slate-900 uppercase tracking-wider text-[10px]">
                         Switch Active Branch
                       </span>
@@ -126,7 +191,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
                       </span>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 py-1">
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 py-1">
                       {authorizedBranches.map((b) => {
                         const isCurrent = b.id === currentBranchId;
                         return (
@@ -205,6 +270,8 @@ export const TopNavbar = ({ onOpenMobile }) => {
                     )}
                   </div>
                 )}
+              </div>
+            )}
           </div>
         ) : currentUser?.role === 'super_admin' ? (
           <div className="flex items-center gap-2">
@@ -247,25 +314,25 @@ export const TopNavbar = ({ onOpenMobile }) => {
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title="Notifications & Alerts"
             >
               <Bell className="w-5 h-5" />
-              {unreadAlerts.length > 0 && (
+              {totalUnreadNotifs > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
               )}
             </button>
 
             {/* Notifications Popover */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200/90 shadow-xl z-50 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">
+<span className="text-sm font-semibold text-slate-900 dark:text-white">
                       {currentUser?.role === 'restaurant_manager' ? 'Staff Notifications' : 'Notifications'}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                      {unreadAlerts.length} new
+                      {totalUnreadNotifs} new
                     </span>
                   </div>
                   {unreadAlerts.length > 0 && (
@@ -278,59 +345,60 @@ export const TopNavbar = ({ onOpenMobile }) => {
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                  {restaurantAlerts.length === 0 ? (
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                  {combinedNotifications.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500">
-                      {currentUser?.role === 'restaurant_manager'
+{currentUser?.role === 'restaurant_manager'
                         ? 'No active staff notices. All shift rosters and leave requests are clear!'
-                        : 'No alerts at this time. All stock levels healthy!'}
+                        : 'No alerts or notifications at this time.'}
                     </div>
                   ) : (
-                    restaurantAlerts.slice(0, 5).map((alt) => (
+                    combinedNotifications.slice(0, 6).map((notif) => (
                       <div
-                        key={alt.id}
-                        onClick={() => {
-                        markAlertRead(alt.id);
-                        if (alt.actionLink) {
-                          navigate(alt.actionLink);
-                          setShowNotifications(false);
-                        }
-                      }}
-                        className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${
-                          !alt.read ? 'bg-emerald-50/20' : ''
+key={notif.id}
+                        onClick={notif.action}
+                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${
+                          !notif.read ? 'bg-emerald-50/25 dark:bg-emerald-950/30' : ''
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
                           <div className="shrink-0 mt-0.5">
-                            {alt.type === 'leave_request' ? (
+{notif.type === 'announcement' ? (
+                              <Megaphone className="w-4 h-4 text-purple-600" />
+                            ) : notif.type === 'leave_request' ? (
                               <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
                                 📋
                               </span>
-                            ) : alt.type === 'transfer_request' ? (
+                            ) : notif.type === 'transfer_request' ? (
                               <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
                                 ⇄
                               </span>
-                            ) : alt.type === 'attendance_notice' ? (
+                            ) : notif.type === 'attendance_notice' ? (
                               <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
                                 ⏱️
                               </span>
-                            ) : alt.severity === 'critical' ? (
+                            ) : notif.severity === 'critical' ? (
                               <AlertCircle className="w-4 h-4 text-rose-600" />
-                            ) : alt.severity === 'high' ? (
+                            ) : notif.severity === 'high' ? (
                               <AlertTriangle className="w-4 h-4 text-amber-600" />
                             ) : (
                               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-900 truncate">
-                              {alt.title}
-                            </p>
-                            <p className="text-xs text-slate-600 line-clamp-2 mt-0.5">
-                              {alt.message}
+                            <div className="flex items-center gap-1.5 justify-between">
+                              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                {notif.title}
+                              </p>
+                              {!notif.read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
+                              {notif.message}
                             </p>
                             <span className="text-[10px] text-slate-400 mt-1 block">
-                              {new Date(alt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </div>
@@ -339,19 +407,29 @@ export const TopNavbar = ({ onOpenMobile }) => {
                   )}
                 </div>
 
-                <div className="border-t border-slate-100 p-2.5 bg-slate-50/50 text-center">
+                <div className="border-t border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between text-xs">
                   <Link
                     to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
                     onClick={() => setShowNotifications(false)}
-                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
+                    className="font-semibold text-slate-600 hover:text-slate-900"
                   >
-                    <span>
+<span>
                       {currentUser?.role === 'restaurant_manager'
                         ? `Manage all ${restaurantAlerts.length} staff notices`
                         : `View all ${restaurantAlerts.length} alerts`}
                     </span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
+                  {currentUser?.role === 'restaurant_owner' && (
+                    <Link
+                      to="/inbox"
+                      onClick={() => setShowNotifications(false)}
+                      className="font-bold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
+                    >
+                      <span>Owner Inbox</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
               </div>
             )}
@@ -362,7 +440,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
         <div className="relative" ref={userRef}>
           <button
             onClick={() => setShowUserDropdown(!showUserDropdown)}
-            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <img
               src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
@@ -373,9 +451,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
           </button>
 
           {showUserDropdown && (
-            <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-white border border-slate-200/90 shadow-xl z-50 py-2">
-              <div className="px-4 py-2.5 border-b border-slate-100">
-                <p className="text-xs font-semibold text-slate-900">{currentUser?.name}</p>
+            <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2">
+              <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-xs font-semibold text-slate-900 dark:text-white">{currentUser?.name}</p>
                 <p className="text-[11px] text-slate-500 truncate">{currentUser?.email}</p>
                 <div className="mt-1.5">
                   <Badge status={currentUser?.role || 'active'} size="xs" />
