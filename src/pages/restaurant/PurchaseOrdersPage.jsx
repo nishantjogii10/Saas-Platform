@@ -639,17 +639,15 @@ export const PurchaseOrdersPage = () => {
       <ColumnExportDialog
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        data={filteredPOs}
+        data={filteredOrders}
         availableColumns={[
           { key: 'poNumber', header: 'PO Number' },
-          { key: 'orderDate', header: 'Order Date' },
+          { key: 'createdAt', header: 'Order Date', format: (val) => val ? new Date(val).toLocaleDateString('en-IN') : '—' },
           { key: 'supplierName', header: 'Supplier Name' },
           { key: 'totalAmount', header: 'Total Value (INR)', format: (val) => formatINR(val) },
           { key: 'status', header: 'Status', format: (val) => (val || '').toUpperCase() },
           { key: 'expectedDelivery', header: 'Expected Delivery' },
-          { key: 'deliveryDate', header: 'Delivery Date' },
           { key: 'itemsCount', header: 'Line Items Count', format: (_, row) => (row.items || []).length },
-          { key: 'verifiedBy', header: 'Dock Verification By' },
           { key: 'notes', header: 'Notes / Instructions' },
         ]}
         reportTitle={`Purchase Orders — ${currentBranch?.name || 'Active Branch'}`}

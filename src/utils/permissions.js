@@ -216,3 +216,4 @@ export const canSwitchBranch = (role) => {
 export const isStaffManagementOnly = (role) => {
   return role === ROLES.RESTAURANT_MANAGER;
 };
+
