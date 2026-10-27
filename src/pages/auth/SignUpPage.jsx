@@ -58,7 +58,7 @@ import {
 } from '../../services/pricingEngine';
 
 export const SignUpPage = () => {
-  const { registerAndActivateRestaurant, submitCustomPlanRequest } = useApp();
+  const { registerAndActivateRestaurant, submitCustomPlanRequest, plans: appPlans } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -150,7 +150,26 @@ export const SignUpPage = () => {
   }, [customConfig, formData.billingCycle]);
 
   // Selected Standard Plan Object
-  const selectedStandardPlan = BASE_PLANS[formData.planId] || BASE_PLANS['plan-pro'];
+  const selectedStandardPlan = useMemo(() => {
+    const fromContext = (appPlans || []).find((p) => p.id === formData.planId);
+    if (fromContext) {
+      const isAnnual = formData.billingCycle === 'annual';
+      const annualPrice = fromContext.annualPrice ?? Math.round(fromContext.monthlyPrice * 12 * 0.8);
+      const annualSavings = fromContext.annualSavings ?? Math.max(0, fromContext.monthlyPrice * 12 - annualPrice);
+      const effectiveMonthlyAnnual = fromContext.effectiveMonthlyAnnual ?? Math.round(annualPrice / 12);
+      return {
+        ...fromContext,
+        annualPrice,
+        annualSavings,
+        effectiveMonthlyAnnual,
+        includedOutlets: fromContext.limits?.branches ?? 1,
+        includedStaff: fromContext.limits?.maxStaff ?? 5,
+        includedTerminals: fromContext.limits?.terminals ?? 1,
+        includedModuleIds: BASE_PLANS[fromContext.id]?.includedModuleIds || ['pos_billing', 'inventory_mgmt'],
+      };
+    }
+    return BASE_PLANS[formData.planId] || BASE_PLANS['plan-pro'];
+  }, [appPlans, formData.planId, formData.billingCycle]);
   const isCustomPlanSelected = formData.planId === 'plan-custom';
 
   // Computed Pricing Summary for Review & Checkout
@@ -670,204 +689,115 @@ export const SignUpPage = () => {
 
               {/* 4 Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
-                {/* 1. Starter Plan */}
-                {(() => {
-                  const plan = BASE_PLANS['plan-starter'];
-                  const isSelected = formData.planId === plan.id;
-                  const price = formData.billingCycle === 'annual' ? plan.effectiveMonthlyAnnual : plan.monthlyPrice;
-                  return (
-                    <div
-                      key={plan.id}
-                      onClick={() => setFormData({ ...formData, planId: plan.id })}
-                      className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 flex flex-col justify-between relative ${
-                        isSelected
-                          ? 'border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/40 shadow-xl'
-                          : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-sm text-white">{plan.name}</span>
-                          <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
-                            {plan.badge}
+                {/* 1, 2, 3: Dynamic Standard Plans */}
+                {((appPlans && appPlans.length > 0 ? appPlans : Object.values(BASE_PLANS))
+                  .filter((p) => p.status !== 'inactive' && p.id !== 'plan-custom'))
+                  .map((plan) => {
+                    const isSelected = formData.planId === plan.id;
+                    const isPopular = plan.popular || plan.id === 'plan-pro';
+                    const annualPrice = plan.annualPrice ?? Math.round(plan.monthlyPrice * 12 * 0.8);
+                    const annualSavings = plan.annualSavings ?? Math.max(0, plan.monthlyPrice * 12 - annualPrice);
+                    const effectiveMonthly = plan.effectiveMonthlyAnnual ?? Math.round(annualPrice / 12);
+                    const price = formData.billingCycle === 'annual' ? effectiveMonthly : plan.monthlyPrice;
+
+                    return (
+                      <div
+                        key={plan.id}
+                        onClick={() => setFormData({ ...formData, planId: plan.id })}
+                        className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 flex flex-col justify-between relative ${
+                          isSelected
+                            ? isPopular
+                              ? 'border-emerald-500 bg-gradient-to-b from-emerald-950/40 to-slate-950 ring-2 ring-emerald-500/50 shadow-2xl'
+                              : 'border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/40 shadow-xl'
+                            : isPopular
+                            ? 'border-emerald-800/70 bg-slate-950/80 hover:border-emerald-600'
+                            : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
+                        }`}
+                      >
+                        {isPopular && (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md animate-pulse-glow">
+                            Most Popular
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1 mt-1">
+                            <span className="font-bold text-sm text-white">{plan.name}</span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-md border ${
+                                isPopular
+                                  ? 'text-emerald-300 bg-emerald-900/60 border-emerald-700'
+                                  : 'text-slate-400 bg-slate-900 border-slate-800'
+                              }`}
+                            >
+                              {plan.badge || (isPopular ? 'Most Popular' : 'Essential')}
+                            </span>
+                          </div>
+
+                          <div className="mt-2">
+                            <span className="text-2xl font-black text-white">{formatINR(price)}</span>
+                            <span className="text-xs text-slate-400 font-normal"> / month</span>
+                          </div>
+
+                          <div className="text-[11px] text-emerald-400 font-medium mt-1">
+                            {formData.billingCycle === 'annual' ? (
+                              <span>
+                                Billed annually at {formatINR(annualPrice)}/yr (Save {formatINR(annualSavings)})
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">Billed monthly, cancel anytime</span>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-slate-300 mt-2 leading-relaxed min-h-[30px]">
+                            {plan.description || plan.target}
+                          </p>
+
+                          <div className="mt-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-[10px] space-y-1 text-slate-300">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Ingredients:</span>
+                              <span className="font-bold text-white">
+                                {(plan.limits?.maxIngredients ?? plan.maxIngredients ?? 500) > 1000 ? 'Unlimited' : `Up to ${plan.limits?.maxIngredients ?? plan.maxIngredients ?? 500}`}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Staff Seats:</span>
+                              <span className="font-bold text-white">
+                                {(plan.limits?.maxStaff ?? plan.includedStaff ?? 5) > 1000 ? 'Unlimited' : `Up to ${plan.limits?.maxStaff ?? plan.includedStaff ?? 5} users`}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Branches:</span>
+                              <span className="font-bold text-white">
+                                {(plan.limits?.branches ?? plan.includedOutlets ?? 1) > 50 ? 'Unlimited' : `${plan.limits?.branches ?? plan.includedOutlets ?? 1} outlet`}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-300">
+                            {plan.features?.slice(0, 6).map((feat, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="leading-snug">{feat}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-slate-800">
+                          <span
+                            className={`block text-center py-2 rounded-xl text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white shadow-md'
+                                : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+                            }`}
+                          >
+                            {isSelected ? '✓ Selected Plan' : `Select ${plan.name}`}
                           </span>
                         </div>
-
-                        <div className="mt-2">
-                          <span className="text-2xl font-black text-white">{formatINR(price)}</span>
-                          <span className="text-xs text-slate-400 font-normal"> / month</span>
-                        </div>
-
-                        <div className="text-[11px] text-emerald-400 font-medium mt-1">
-                          {formData.billingCycle === 'annual' ? (
-                            <span>Billed annually at {formatINR(plan.annualPrice)}/yr (Save {formatINR(plan.annualSavings)})</span>
-                          ) : (
-                            <span className="text-slate-400">Billed monthly, cancel anytime</span>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
-                          {plan.target}
-                        </p>
-
-                        <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-300">
-                          {plan.features.map((feat, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
                       </div>
-
-                      <div className="mt-5 pt-3 border-t border-slate-800">
-                        <span
-                          className={`block text-center py-2 rounded-xl text-xs font-bold transition-all ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
-                          }`}
-                        >
-                          {isSelected ? '✓ Selected Plan' : 'Select Starter'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* 2. Professional Plan (Most Popular) */}
-                {(() => {
-                  const plan = BASE_PLANS['plan-pro'];
-                  const isSelected = formData.planId === plan.id;
-                  const price = formData.billingCycle === 'annual' ? plan.effectiveMonthlyAnnual : plan.monthlyPrice;
-                  return (
-                    <div
-                      key={plan.id}
-                      onClick={() => setFormData({ ...formData, planId: plan.id })}
-                      className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 flex flex-col justify-between relative ${
-                        isSelected
-                          ? 'border-emerald-500 bg-gradient-to-b from-emerald-950/40 to-slate-950 ring-2 ring-emerald-500/50 shadow-2xl'
-                          : 'border-emerald-800/70 bg-slate-950/80 hover:border-emerald-600'
-                      }`}
-                    >
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md animate-pulse-glow">
-                        Most Popular
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1 mt-1">
-                          <span className="font-bold text-sm text-white">{plan.name}</span>
-                          <span className="text-[10px] text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-700">
-                            {plan.badge}
-                          </span>
-                        </div>
-
-                        <div className="mt-2">
-                          <span className="text-2xl font-black text-white">{formatINR(price)}</span>
-                          <span className="text-xs text-slate-400 font-normal"> / month</span>
-                        </div>
-
-                        <div className="text-[11px] text-emerald-400 font-medium mt-1">
-                          {formData.billingCycle === 'annual' ? (
-                            <span>Billed annually at {formatINR(plan.annualPrice)}/yr (Save {formatINR(plan.annualSavings)})</span>
-                          ) : (
-                            <span className="text-slate-400">Billed monthly, cancel anytime</span>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
-                          {plan.target}
-                        </p>
-
-                        <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-300">
-                          {plan.features.slice(0, 6).map((feat, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mt-5 pt-3 border-t border-slate-800">
-                        <span
-                          className={`block text-center py-2 rounded-xl text-xs font-black transition-all ${
-                            isSelected
-                              ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-600/30'
-                              : 'bg-emerald-900/50 text-emerald-200 hover:bg-emerald-800/60'
-                          }`}
-                        >
-                          {isSelected ? '✓ Selected Plan' : 'Select Professional'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* 3. Enterprise Plan */}
-                {(() => {
-                  const plan = BASE_PLANS['plan-enterprise'];
-                  const isSelected = formData.planId === plan.id;
-                  const price = formData.billingCycle === 'annual' ? plan.effectiveMonthlyAnnual : plan.monthlyPrice;
-                  return (
-                    <div
-                      key={plan.id}
-                      onClick={() => setFormData({ ...formData, planId: plan.id })}
-                      className={`cursor-pointer rounded-2xl p-5 border transition-all duration-200 flex flex-col justify-between relative ${
-                        isSelected
-                          ? 'border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/40 shadow-xl'
-                          : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-sm text-white">{plan.name}</span>
-                          <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
-                            {plan.badge}
-                          </span>
-                        </div>
-
-                        <div className="mt-2">
-                          <span className="text-2xl font-black text-white">{formatINR(price)}</span>
-                          <span className="text-xs text-slate-400 font-normal"> / month</span>
-                        </div>
-
-                        <div className="text-[11px] text-emerald-400 font-medium mt-1">
-                          {formData.billingCycle === 'annual' ? (
-                            <span>Billed annually at {formatINR(plan.annualPrice)}/yr (Save {formatINR(plan.annualSavings)})</span>
-                          ) : (
-                            <span className="text-slate-400">Billed monthly, cancel anytime</span>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
-                          {plan.target}
-                        </p>
-
-                        <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-300">
-                          {plan.features.slice(0, 6).map((feat, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mt-5 pt-3 border-t border-slate-800">
-                        <span
-                          className={`block text-center py-2 rounded-xl text-xs font-bold transition-all ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
-                          }`}
-                        >
-                          {isSelected ? '✓ Selected Plan' : 'Select Enterprise'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })}
 
                 {/* 4. Build Your Own Plan (Interactive Custom Option) */}
                 {(() => {

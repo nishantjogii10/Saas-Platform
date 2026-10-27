@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Receipt,
   FileCheck2,
+  FileText,
   AlertTriangle,
   AlertOctagon,
   Sparkles,
@@ -49,6 +50,8 @@ export const StockMateEmailShell = ({
   showDeviceToggle = false,
   onDeviceChange = null,
   simulated = true,
+  deliveryStatus = null,
+  previewMode = false,
 }) => {
   const catObj = ANNOUNCEMENT_CATEGORIES[category] || ANNOUNCEMENT_CATEGORIES.general;
   const prioObj = PRIORITY_CONFIGS[priority] || PRIORITY_CONFIGS.normal;
@@ -72,8 +75,10 @@ export const StockMateEmailShell = ({
         return <FileCheck2 className="w-4 h-4 text-purple-600" />;
       case 'subscription':
         return <CreditCard className="w-4 h-4 text-blue-600" />;
+      case 'receipt':
+        return <Receipt className="w-4 h-4 text-emerald-600" />;
       case 'billing':
-        return <Receipt className="w-4 h-4 text-indigo-600" />;
+        return <FileText className="w-4 h-4 text-indigo-600" />;
       case 'maintenance':
         return <Wrench className="w-4 h-4 text-amber-600" />;
       case 'feature':
@@ -133,9 +138,23 @@ export const StockMateEmailShell = ({
               <strong className="text-white">StockMate Cloud Notifications</strong>{' '}
               <span className="text-slate-400">&lt;notifications@stockmate.io&gt;</span>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+            <div className={`flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded font-bold border ${
+              deliveryStatus === 'delivered'
+                ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800/80'
+                : deliveryStatus === 'draft' || simulated
+                ? 'text-amber-300 bg-amber-950/50 border-amber-800/70'
+                : 'text-blue-300 bg-blue-950/50 border-blue-800/70'
+            }`}>
               <ShieldCheck className="w-3 h-3" />
-              <span>DKIM &amp; SPF Verified</span>
+              <span>
+                {deliveryStatus === 'delivered'
+                  ? 'Delivered · In-App Broadcast'
+                  : deliveryStatus === 'draft'
+                  ? 'Draft Preview'
+                  : simulated
+                  ? 'Simulated Preview'
+                  : 'Queued for Dispatch'}
+              </span>
             </div>
           </div>
           <div>
@@ -164,8 +183,14 @@ export const StockMateEmailShell = ({
         </div>
 
         {/* Formatted Message Body */}
-        <div className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line space-y-3 font-normal">
-          {body}
+        <div className="text-xs sm:text-sm text-slate-700 leading-relaxed space-y-3 font-normal">
+          {typeof body === 'string'
+            ? body.split(/\n\s*\n/).map((para, pIdx) => (
+                <p key={pIdx} className="leading-relaxed whitespace-pre-line">
+                  {para}
+                </p>
+              ))
+            : body}
         </div>
 
         {/* 3. VERIFIED TRANSACTION / RECEIPT CARD (if applicable) */}
@@ -177,7 +202,7 @@ export const StockMateEmailShell = ({
                   <Receipt className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">Official Payment Receipt</h4>
+                  <h4 className="text-xs font-bold text-slate-900">{category === 'billing' ? 'Official Tax Invoice' : 'Official Payment Receipt'}</h4>
                   <span className="text-[10px] text-slate-500">Ref: {verifiedTransaction.receiptNumber || verifiedTransaction.id}</span>
                 </div>
               </div>
@@ -296,7 +321,7 @@ export const StockMateEmailShell = ({
         )}
 
         {/* 6. PRIMARY CALL-TO-ACTION BUTTON */}
-        {ctaLabel && (
+        {Boolean(ctaLabel && String(ctaLabel).trim().length > 0) && (
           <div className="pt-2 text-center sm:text-left">
             {onCtaClick ? (
               <button
@@ -345,7 +370,7 @@ export const StockMateEmailShell = ({
           </div>
           {simulated && (
             <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-              ⚡ Simulated Dispatch &bull; Production requires AWS SES / SendGrid API
+              ⚡ In-App Dispatch Active &bull; External SMTP requires AWS SES / SendGrid API
             </div>
           )}
           <div>&copy; 2026 StockMate Technologies Inc. All rights reserved.</div>

@@ -1,3 +1,4 @@
+import { formatINR } from './inventoryBillingData.js';
 /**
  * StockMate SaaS — Premium Communication Center & Announcement Data Architecture
  * Provides categories, priority configurations, template catalog, pre-seeded announcements,
@@ -40,6 +41,15 @@ export const ANNOUNCEMENT_CATEGORIES = {
     dotClass: 'bg-indigo-500',
     iconName: 'Receipt',
     description: 'Invoices, auto-pay updates, tax ledger changes, and payment verification alerts',
+  },
+  receipt: {
+    id: 'receipt',
+    label: 'Payment Receipt',
+    color: 'emerald',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    dotClass: 'bg-emerald-500',
+    iconName: 'Receipt',
+    description: 'Official tax invoice and payment settlement receipts',
   },
   maintenance: {
     id: 'maintenance',
@@ -108,29 +118,73 @@ export const SUPPORTED_TEMPLATE_VARIABLES = [
   { key: '{{restaurant_name}}', label: 'Restaurant Name', example: 'Spice Garden' },
   { key: '{{owner_name}}', label: 'Owner Name', example: 'Priya Sharma' },
   { key: '{{plan_name}}', label: 'Subscription Plan', example: 'Professional Plan' },
+  { key: '{{amount}}', label: 'Transaction Amount', example: '₹11,799' },
+  { key: '{{invoice_number}}', label: 'Invoice Number', example: 'STM-INV-2026-1048' },
+  { key: '{{receipt_number}}', label: 'Receipt Number', example: 'RCP-TXN-IND-90211' },
+  { key: '{{payment_ref}}', label: 'Payment Gateway Ref', example: 'pay_PLm9812948' },
   { key: '{{renewal_date}}', label: 'Renewal Date', example: 'November 14, 2026' },
   { key: '{{effective_date}}', label: 'Effective Date', example: 'November 1, 2026' },
   { key: '{{platform_link}}', label: 'Platform Portal Link', example: 'https://app.stockmate.io' },
 ];
 
+// Escape untrusted content to prevent HTML injection
+export const escapeHtml = (str) => {
+  if (typeof str !== 'string') return String(str || '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+/**
+ * Extracts all {{variable_name}} tokens from a string.
+ */
+export const extractTemplateVariables = (text = '') => {
+  if (!text || typeof text !== 'string') return [];
+  const matches = text.match(/\{\{[a-zA-Z0-9_]+\}\}/g);
+  return matches ? Array.from(new Set(matches)) : [];
+};
+
+/**
+ * Detects any variables in text that are not part of the supported variables list.
+ */
+export const getUnresolvedVariables = (text = '', supportedKeys = null) => {
+  const allowed = supportedKeys || SUPPORTED_TEMPLATE_VARIABLES.map((v) => v.key);
+  const found = extractTemplateVariables(text);
+  return found.filter((k) => !allowed.includes(k));
+};
+
 /**
  * Safely interpolates predefined variables without executing raw HTML or script tags.
  */
-export const interpolateTemplateVariables = (text = '', context = {}) => {
-  if (!text) return '';
+export const interpolateTemplateVariables = (text = '', context = {}, options = { escape: false }) => {
+  if (!text || typeof text !== 'string') return '';
   let result = text;
+
+  const sanitize = (val) => {
+    if (val === undefined || val === null) return '';
+    return options.escape ? escapeHtml(String(val)) : String(val);
+  };
+
   const replacements = {
-    '{{restaurant_name}}': context.restaurantName || 'your restaurant organization',
-    '{{owner_name}}': context.ownerName || 'Restaurant Partner',
-    '{{plan_name}}': context.planName || 'StockMate Subscription',
-    '{{renewal_date}}': context.renewalDate || 'Upcoming Cycle',
-    '{{effective_date}}': context.effectiveDate || 'Immediately upon publication',
+    '{{restaurant_name}}': context.restaurantName || '[Restaurant Name]',
+    '{{owner_name}}': context.ownerName || '[Owner Name]',
+    '{{plan_name}}': context.planName || '[Subscription Plan]',
+    '{{amount}}': context.amount
+      ? (typeof context.amount === 'number' ? formatINR(context.amount) : context.amount)
+      : '[Amount]',
+    '{{invoice_number}}': context.invoiceNumber || context.invoiceId || '[Invoice Number]',
+    '{{receipt_number}}': context.receiptNumber || '[Receipt Number]',
+    '{{payment_ref}}': context.paymentRef || context.gatewayRef || '[Payment Reference]',
+    '{{renewal_date}}': context.renewalDate || '[Renewal Date]',
+    '{{effective_date}}': context.effectiveDate || '[Effective Date]',
     '{{platform_link}}': context.platformLink || '#/dashboard',
   };
 
   Object.entries(replacements).forEach(([variable, value]) => {
-    // Replace all occurrences safely
-    result = result.split(variable).join(String(value));
+    result = result.split(variable).join(sanitize(value));
   });
 
   return result;
@@ -233,6 +287,30 @@ export const INITIAL_ANNOUNCEMENT_TEMPLATES = [
     ctaLink: '/workforce',
     requiresAcknowledgment: false,
     policyVersion: null,
+  },,
+  {
+    id: 'tpl-receipt-07',
+    category: 'receipt',
+    priority: 'normal',
+    title: 'Payment Receipt: {{amount}} for {{plan_name}} — {{receipt_number}}',
+    summary: 'Your auto-renewal payment of {{amount}} has been successfully verified and settled.',
+    body: `Dear {{owner_name}},\n\nThank you for your payment. Your subscription renewal for {{restaurant_name}} on the {{plan_name}} tier has been successfully verified and settled.\n\nTransaction Summary:\n• Receipt Number: {{receipt_number}}\n• Gateway Reference: {{payment_ref}}\n• Total Amount Paid: {{amount}} (Inclusive of 18% statutory GST)\n• Next Renewal Date: {{renewal_date}}\n\nYour official GST tax invoice is now filed and available for download in your billing center at any time.`,
+    ctaLabel: 'View Billing & Receipts',
+    ctaLink: '/owner-billing',
+    requiresAcknowledgment: false,
+    policyVersion: null,
+  },
+  {
+    id: 'tpl-invoice-08',
+    category: 'billing',
+    priority: 'normal',
+    title: 'Invoice Notification: Tax Invoice #{{invoice_number}} Available for Download',
+    summary: 'Your monthly GST tax invoice and itemized ledger statement are ready for {{restaurant_name}}.',
+    body: `Dear {{owner_name}},\n\nYour monthly GST-compliant tax invoice #{{invoice_number}} for {{restaurant_name}} has been generated and filed in your corporate ledger.\n\nInvoice Overview:\n• Subscription Tier: {{plan_name}}\n• Invoice Number: {{invoice_number}}\n• Payment Status: Paid & Verified\n• Total Settled: {{amount}}\n\nYou can view, download PDF copies, or update your registered GSTIN and corporate billing address directly from the Billing Center.`,
+    ctaLabel: 'Download Tax Invoice',
+    ctaLink: '/owner-billing',
+    requiresAcknowledgment: false,
+    policyVersion: null,
   },
 ];
 
@@ -248,7 +326,7 @@ export const INITIAL_ANNOUNCEMENTS = [
     authorRole: 'Platform Governance Lead',
     publishedAt: '2026-10-25T14:30:00.000Z',
     status: 'published',
-    audienceType: 'ALL_RESTAURANTS', // ALL_RESTAURANTS | SPECIFIC_RESTAURANTS | SUBSCRIPTION_TIER
+    audienceType: 'ALL_RESTAURANTS',
     targetRestaurantIds: [],
     targetPlanIds: [],
     requiresAcknowledgment: true,
@@ -268,7 +346,7 @@ export const INITIAL_ANNOUNCEMENTS = [
       queued: 4,
       delivered: 4,
       failed: 0,
-      provider: 'StockMate Transactional Dispatcher (Verified)',
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
       simulated: true,
     },
   },
@@ -296,7 +374,7 @@ export const INITIAL_ANNOUNCEMENTS = [
       queued: 4,
       delivered: 4,
       failed: 0,
-      provider: 'StockMate Transactional Dispatcher (Verified)',
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
       simulated: true,
     },
   },
@@ -330,7 +408,7 @@ export const INITIAL_ANNOUNCEMENTS = [
       queued: 4,
       delivered: 4,
       failed: 0,
-      provider: 'StockMate Transactional Dispatcher (Verified)',
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
       simulated: true,
     },
   },
@@ -358,7 +436,118 @@ export const INITIAL_ANNOUNCEMENTS = [
       queued: 4,
       delivered: 4,
       failed: 0,
-      provider: 'StockMate Transactional Dispatcher (Verified)',
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
+      simulated: true,
+    },
+  },
+  {
+    id: 'ann-105',
+    title: 'Payment Receipt: ₹11,799 for Professional Plan — RCP-TXN-IND-90211',
+    summary: 'Verified payment receipt for Spice Garden subscription renewal (Ref: pay_PLm9812948).',
+    category: 'receipt',
+    priority: 'normal',
+    author: 'StockMate Billing Engine (Automated)',
+    authorRole: 'Automated Transactional Dispatcher',
+    publishedAt: '2026-10-26T17:30:00.000Z',
+    status: 'published',
+    audienceType: 'SPECIFIC_RESTAURANTS',
+    targetRestaurantIds: ['rest-1'],
+    targetPlanIds: [],
+    requiresAcknowledgment: false,
+    effectiveDate: 'October 14, 2026 11:42 AM',
+    ctaLabel: 'View Invoice & Receipts in Billing',
+    ctaLink: '/owner-billing',
+    verifiedTransaction: {
+      id: 'TXN-IND-90211',
+      receiptNumber: 'RCP-TXN-IND-90211',
+      paymentRef: 'pay_PLm9812948',
+      invoiceId: 'STM-INV-2026-1048',
+      amount: 11799,
+      baseAmount: 9999,
+      taxAmount: 1799.82,
+      planName: 'Professional',
+      billingCycle: 'Monthly',
+      paymentMethod: 'UPI - Google Pay',
+      gateway: 'Razorpay',
+      paymentDate: 'October 14, 2026 11:42 AM',
+      gstin: '27AABCU9603R1ZM (Sample)',
+      simulated: true,
+      status: 'paid',
+    },
+    body: `Dear Priya Sharma,\n\nThank you for your payment. Your subscription renewal for Spice Garden on the Professional tier (Monthly) has been successfully verified and settled.\n\nTransaction Summary:\n• Receipt Number: RCP-TXN-IND-90211\n• Payment Gateway: Razorpay (pay_PLm9812948)\n• Payment Method: UPI - Google Pay\n• Total Amount Paid: ₹11,799 (Inclusive of 18% statutory GST)\n• Next Renewal Date: November 14, 2026\n\nYour official GST tax invoice is now filed and available for download in your billing center at any time.`,
+    attachments: [
+      {
+        name: 'StockMate_Tax_Receipt_STM-INV-2026-1048.pdf',
+        size: '240 KB',
+        type: 'application/pdf',
+      },
+    ],
+    emailDelivery: {
+      queued: 1,
+      delivered: 1,
+      failed: 0,
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
+      simulated: true,
+    },
+  },
+  {
+    id: 'ann-106',
+    title: 'Upcoming Subscription Renewal & Annual Savings Opportunity',
+    summary: 'Advance notice of upcoming cycle renewal and complimentary 2-month discount offer.',
+    category: 'subscription',
+    priority: 'normal',
+    author: 'Platform Revenue Management',
+    authorRole: 'Billing Operations',
+    publishedAt: '2026-10-27T09:00:00.000Z',
+    status: 'published',
+    audienceType: 'ALL_RESTAURANTS',
+    targetRestaurantIds: [],
+    targetPlanIds: [],
+    requiresAcknowledgment: false,
+    effectiveDate: 'November 14, 2026',
+    ctaLabel: 'Manage Subscription & Invoices',
+    ctaLink: '/plans-billing',
+    attachments: [],
+    body: `Dear Restaurant Leadership,\n\nThis is an advance notice that your active StockMate tier will renew on your scheduled monthly renewal date.\n\nActive Entitlements:\n• Multi-branch inventory governance across all registered kitchen outlets.\n• Real-time FEFO wastage monitoring and loading dock delivery verification.\n• Automated purchase order dispatch and supplier credit notes.\n\nSave with Annual Billing:\nSwitch to annual billing anytime before your next cycle to receive 2 complimentary months (equivalent to a 20% discount on your current subscription plan).\n\nVisit your Billing & Subscription Center to update payment preferences or lock in annual savings.`,
+    emailDelivery: {
+      queued: 4,
+      delivered: 4,
+      failed: 0,
+      provider: 'StockMate In-App Dispatcher (Verified Delivery)',
+      simulated: true,
+    },
+  },
+  {
+    id: 'ann-draft-101',
+    title: 'Draft: Q4 Kitchen Equipment Energy Efficiency Guidelines',
+    summary: 'Operational guidelines for commercial induction stations and walk-in chiller temperature logs.',
+    category: 'policy',
+    priority: 'normal',
+    author: 'Alexander Vance (Super Admin)',
+    authorRole: 'Platform Governance',
+    publishedAt: '2026-10-27T10:15:00.000Z',
+    status: 'draft',
+    audienceType: 'ALL_RESTAURANTS',
+    targetRestaurantIds: [],
+    targetPlanIds: [],
+    requiresAcknowledgment: true,
+    policyVersion: 'v2.5-draft',
+    effectiveDate: 'December 1, 2026',
+    ctaLabel: 'Review Draft Compliance Standards',
+    ctaLink: '/inbox',
+    attachments: [
+      {
+        name: 'Q4_Kitchen_Energy_Efficiency_Standards_v2.5.pdf',
+        size: '1.1 MB',
+        type: 'application/pdf',
+      },
+    ],
+    body: `Dear Kitchen Operations Team,\n\nIn preparation for the upcoming peak holiday dining period, StockMate is proposing updated energy efficiency and equipment maintenance standards (v2.5).\n\nKey Focus Areas:\n1. Scheduled calibration of refrigeration compressor digital sensor probes.\n2. Standard operating procedures for overnight standby power on commercial combi-ovens.\n3. Daily automated logging of walk-in chiller temperatures at 08:00 AM and 08:00 PM.\n\nThis is an internal draft bulletin currently undergoing platform review prior to final broadcast publication.`,
+    emailDelivery: {
+      queued: 0,
+      delivered: 0,
+      failed: 0,
+      provider: 'Unpublished Draft',
       simulated: true,
     },
   },

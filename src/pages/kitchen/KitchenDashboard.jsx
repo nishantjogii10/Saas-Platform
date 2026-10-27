@@ -82,7 +82,7 @@ export const KitchenDashboard = () => {
   const approvedLeavesCount = myLeaves.filter((l) => l.status === 'approved').length;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 w-full pb-12">
       {/* Dynamic Modern Page Header */}
       <div className="rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden border border-emerald-500/20">
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />

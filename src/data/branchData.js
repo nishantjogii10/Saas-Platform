@@ -70,6 +70,61 @@ export const BRANCH_PLANS_CONFIG = {
       { name: '24/7 Dedicated Support', included: true },
     ],
   },
+  'plan-custom': {
+    id: 'plan-custom',
+    name: 'Custom',
+    badge: 'Tailored Scale',
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    maxStaff: 20,
+    maxIngredients: 1000,
+    features: [
+      { name: 'Inventory Management', included: true },
+      { name: 'Expiry Tracking', included: true },
+      { name: 'Supplier Management', included: true },
+      { name: 'Purchase Orders', included: true },
+      { name: 'Staff Management (custom)', included: true },
+      { name: 'Reports and Analytics', included: true },
+      { name: 'Multi-Branch Management', included: true },
+      { name: 'Advanced Reports & Audits', included: true },
+      { name: 'Central Commissary Sync', included: true },
+      { name: '24/7 Dedicated Support', included: true },
+    ],
+  },
+};
+
+export const syncBranchPlansConfig = (plansList) => {
+  if (!plansList) return BRANCH_PLANS_CONFIG;
+  const list = Array.isArray(plansList) ? plansList : Object.values(plansList);
+  list.forEach((p) => {
+    if (!p || !p.id) return;
+    if (!BRANCH_PLANS_CONFIG[p.id]) {
+      BRANCH_PLANS_CONFIG[p.id] = {
+        id: p.id,
+        name: p.name || 'Custom',
+        badge: p.badge || 'Tailored Scale',
+        monthlyPrice: Number(p.monthlyPrice) || 0,
+        yearlyPrice: Number(p.annualPrice ?? p.yearlyPrice) || 0,
+        maxStaff: Number(p.limits?.maxStaff) || 20,
+        maxIngredients: Number(p.limits?.maxIngredients) || 1000,
+        features: [],
+      };
+    }
+    const target = BRANCH_PLANS_CONFIG[p.id];
+    if (target) {
+      if (p.name !== undefined) target.name = p.name;
+      if (p.badge !== undefined) target.badge = p.badge;
+      if (p.monthlyPrice !== undefined) target.monthlyPrice = Number(p.monthlyPrice) || 0;
+      if (p.annualPrice !== undefined || p.yearlyPrice !== undefined) {
+        target.yearlyPrice = Number(p.annualPrice ?? p.yearlyPrice) || 0;
+      }
+      if (p.limits) {
+        if (p.limits.maxStaff !== undefined) target.maxStaff = Number(p.limits.maxStaff) || target.maxStaff;
+        if (p.limits.maxIngredients !== undefined) target.maxIngredients = Number(p.limits.maxIngredients) || target.maxIngredients;
+      }
+    }
+  });
+  return BRANCH_PLANS_CONFIG;
 };
 
 // 5 Specific Branches for Priya Sharma's "Spice Garden"

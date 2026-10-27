@@ -28,7 +28,8 @@ import { formatINR } from '../data/inventoryBillingData';
 import { BASE_PLANS } from '../services/pricingEngine';
 
 export const LandingPage = () => {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout, plans: dynamicPlans } = useApp();
+  const [showFeatureComparison, setShowFeatureComparison] = useState(false);
   const navigate = useNavigate();
 
   // Mobile menu state
@@ -807,164 +808,338 @@ export const LandingPage = () => {
             </div>
           </div>
 
-          {/* 3 Core Plans */}
+          {/* 3 Core Dynamic Plans */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-10">
-            {/* Starter Plan */}
-            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 hover:shadow-xl transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    {BASE_PLANS['plan-starter'].name} Plan
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
-                    {BASE_PLANS['plan-starter'].badge}
-                  </span>
-                </div>
-                
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual'
-                      ? formatINR(BASE_PLANS['plan-starter'].effectiveMonthlyAnnual)
-                      : formatINR(BASE_PLANS['plan-starter'].monthlyPrice)}
-                  </span>
-                  <span className="text-xs text-slate-400">/ month</span>
-                </div>
+            {((dynamicPlans && dynamicPlans.length > 0 ? dynamicPlans : Object.values(BASE_PLANS))
+              .filter((p) => p.status !== 'inactive' && p.id !== 'plan-custom'))
+              .map((plan) => {
+                const isPopular = plan.popular || plan.id === 'plan-pro';
+                const annualPrice = plan.annualPrice ?? Math.round(plan.monthlyPrice * 12 * 0.8);
+                const annualSavings = plan.annualSavings ?? Math.max(0, (plan.monthlyPrice * 12) - annualPrice);
+                const savingsPercent = plan.savingsPercent ?? (plan.monthlyPrice > 0 ? Math.round((annualSavings / (plan.monthlyPrice * 12)) * 100) : 0);
+                const effectiveMonthly = plan.effectiveMonthlyAnnual ?? Math.round(annualPrice / 12);
+                const maxIngredients = plan.limits?.maxIngredients ?? plan.maxIngredients ?? 500;
+                const maxStaff = plan.limits?.maxStaff ?? plan.includedStaff ?? 5;
+                const maxBranches = plan.limits?.branches ?? plan.includedOutlets ?? 1;
 
-                <div className="text-[11px] text-emerald-400 font-medium mb-3">
-                  {billingCycle === 'annual' ? (
-                    <span>Billed annually at {formatINR(BASE_PLANS['plan-starter'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-starter'].annualSavings)}/yr)</span>
-                  ) : (
-                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
-                  )}
-                </div>
+                return (
+                  <div
+                    key={plan.id}
+                    className={`rounded-3xl p-8 flex flex-col justify-between transition-all duration-300 relative ${
+                      isPopular
+                        ? 'bg-gradient-to-b from-emerald-950/80 via-slate-950 to-slate-950 border-2 border-emerald-500 shadow-2xl'
+                        : 'bg-slate-950 border border-slate-800 hover:border-slate-700 hover:shadow-xl'
+                    }`}
+                  >
+                    {isPopular && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md animate-pulse-glow">
+                        Most Popular
+                      </div>
+                    )}
 
-                <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  {BASE_PLANS['plan-starter'].target}
-                </p>
+                    <div>
+                      {/* Header Badge */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span
+                          className={`text-xs font-bold uppercase tracking-wider ${
+                            isPopular ? 'text-emerald-400' : 'text-slate-400'
+                          }`}
+                        >
+                          {plan.name} Plan
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
+                            isPopular
+                              ? 'text-emerald-300 bg-emerald-900/60 border-emerald-700'
+                              : 'text-slate-400 bg-slate-900 border-slate-800'
+                          }`}
+                        >
+                          {plan.badge || (isPopular ? 'Most Popular' : 'Essential')}
+                        </span>
+                      </div>
 
-                <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                  {BASE_PLANS['plan-starter'].features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{feature}</span>
+                      {/* Price Display */}
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-4xl font-black text-white">
+                          {billingCycle === 'annual'
+                            ? formatINR(effectiveMonthly)
+                            : formatINR(plan.monthlyPrice)}
+                        </span>
+                        <span className="text-xs text-slate-400">/ month</span>
+                      </div>
+
+                      {/* Annual Savings Notice */}
+                      <div className="text-[11px] text-emerald-400 font-medium mb-3">
+                        {billingCycle === 'annual' ? (
+                          <span>
+                            Billed annually at {formatINR(annualPrice)}/yr (Save {formatINR(annualSavings)}/yr &bull; {savingsPercent}% off)
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed mb-5 min-h-[34px]">
+                        {plan.description || plan.target}
+                      </p>
+
+                      {/* Resource Limits Pill Box */}
+                      <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 mb-6 text-xs space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">Tracked Ingredients:</span>
+                          <span className="font-bold text-white">
+                            {maxIngredients > 1000 ? 'Unlimited' : `Up to ${maxIngredients}`}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">Staff Accounts:</span>
+                          <span className="font-bold text-white">
+                            {maxStaff > 1000 ? 'Unlimited' : `Up to ${maxStaff} users`}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">Outlets / Branches:</span>
+                          <span className="font-bold text-white">
+                            {maxBranches > 50 ? 'Unlimited' : `${maxBranches} location${maxBranches > 1 ? 's' : ''}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Included Features List */}
+                      <div className={`space-y-3 text-xs text-slate-300 pt-4 border-t ${
+                        isPopular ? 'border-emerald-900/60' : 'border-slate-800'
+                      }`}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                          Included Features:
+                        </span>
+                        {plan.features?.map((feature, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+
+                    <Link
+                      to={`/signup?plan=${plan.id}`}
+                      className={`mt-8 w-full py-3.5 rounded-xl font-bold text-xs text-center transition-all block shadow-sm ${
+                        isPopular
+                          ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm shadow-lg shadow-emerald-600/30'
+                          : 'bg-slate-800 hover:bg-slate-700 text-white'
+                      }`}
+                    >
+                      {plan.id === 'plan-enterprise' ? 'Get Started with Enterprise' : 'Start 14-Day Free Trial'}
+                    </Link>
+                  </div>
+                );
+              })}
+          </div>
+
+          {/* View All Features & Plan Comparison Expandable Section */}
+          <div className="mb-10 rounded-3xl bg-slate-950 border border-slate-800 overflow-hidden shadow-xl">
+            <button
+              type="button"
+              onClick={() => setShowFeatureComparison((prev) => !prev)}
+              className="w-full p-5 sm:p-6 flex items-center justify-between text-left hover:bg-slate-900/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-950 border border-emerald-800 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    Compare All Features, Modules &amp; Resource Limits
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Detailed side-by-side breakdown of operational capabilities for every kitchen scale
+                  </p>
                 </div>
               </div>
 
-              <Link
-                to="/signup?plan=plan-starter"
-                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block shadow-sm"
-              >
-                Start 14-Day Free Trial
-              </Link>
-            </div>
-
-            {/* Professional Plan (Highlighted - Most Popular) */}
-            <div className="rounded-3xl bg-gradient-to-b from-emerald-950/80 via-slate-950 to-slate-950 border-2 border-emerald-500 p-8 flex flex-col justify-between shadow-2xl relative">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md animate-pulse-glow">
-                Most Popular
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 shrink-0 bg-emerald-950/80 px-3.5 py-2 rounded-xl border border-emerald-800/80">
+                <span>{showFeatureComparison ? 'Hide Comparison' : 'View Full Comparison'}</span>
+                {showFeatureComparison ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
+            </button>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                    {BASE_PLANS['plan-pro'].name} Plan
-                  </span>
-                  <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-700">
-                    {BASE_PLANS['plan-pro'].badge}
-                  </span>
-                </div>
+            {showFeatureComparison && (
+              <div className="p-6 border-t border-slate-800/80 overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-bold">
+                      <th className="py-3.5 px-4 text-white text-sm">Capability / Feature</th>
+                      <th className="py-3.5 px-4 text-center">
+                        <div className="text-white font-extrabold text-sm">Starter</div>
+                        <div className="text-emerald-400 font-bold text-xs">
+                          {billingCycle === 'annual' ? '₹799/mo' : '₹999/mo'}
+                        </div>
+                      </th>
+                      <th className="py-3.5 px-4 text-center bg-emerald-950/20 rounded-t-xl">
+                        <div className="text-emerald-400 font-extrabold text-sm">Professional</div>
+                        <div className="text-emerald-300 font-bold text-xs">
+                          {billingCycle === 'annual' ? '₹1,999/mo' : '₹2,499/mo'}
+                        </div>
+                      </th>
+                      <th className="py-3.5 px-4 text-center">
+                        <div className="text-white font-extrabold text-sm">Enterprise</div>
+                        <div className="text-emerald-400 font-bold text-xs">
+                          {billingCycle === 'annual' ? '₹4,499/mo' : '₹5,499/mo'}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {/* Category: Resource Allocations */}
+                    <tr className="bg-slate-900/60 font-bold text-white">
+                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                        Resource Allocations &amp; Tenant Limits
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Tracked Pantry Ingredients</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">Up to 100 SKUs</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 500 SKUs</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">Unlimited SKUs</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Included Staff User Seats</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">Up to 5 seats</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 15 seats</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">Unlimited seats</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Included Restaurant Outlets</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">1 Location</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 3 Locations</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">Unlimited Outlets</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">POS Terminals Included</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">1 Terminal</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">2 Terminals</td>
+                      <td className="py-3 px-4 text-center font-bold text-white">5+ Terminals</td>
+                    </tr>
 
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual'
-                      ? formatINR(BASE_PLANS['plan-pro'].effectiveMonthlyAnnual)
-                      : formatINR(BASE_PLANS['plan-pro'].monthlyPrice)}
-                  </span>
-                  <span className="text-xs text-slate-400">/ month</span>
-                </div>
+                    {/* Category: Core Kitchen & POS */}
+                    <tr className="bg-slate-900/60 font-bold text-white">
+                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                        Core POS &amp; Dining Room Management
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Fast Cloud Point-of-Sale (POS)</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Kitchen Order Ticket (KOT) Split Billing</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Table &amp; Captain Mobile Ordering</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
 
-                <div className="text-[11px] text-emerald-400 font-medium mb-3">
-                  {billingCycle === 'annual' ? (
-                    <span>Billed annually at {formatINR(BASE_PLANS['plan-pro'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-pro'].annualSavings)}/yr)</span>
-                  ) : (
-                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
-                  )}
-                </div>
+                    {/* Category: Inventory & Traceability */}
+                    <tr className="bg-slate-900/60 font-bold text-white">
+                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                        Inventory, FEFO Expiry &amp; Food Costing
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Real-Time Low Stock Alerts</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">FEFO Expiry Tracking (Color Badges)</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Standard</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Batch-Level</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Real-time AI</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Pure SVG QR Lot Traceability Matrix</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Standardized Recipe Costing &amp; BOMs</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Dockside GRN Inspection &amp; Claims</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Basic PO only</td>
+                      <td className="py-3 px-4 text-center text-emerald-300 font-bold bg-emerald-950/20">✔ Verified GRN</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Verified GRN</td>
+                    </tr>
 
-                <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  {BASE_PLANS['plan-pro'].target}
-                </p>
-
-                <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-emerald-900/60">
-                  {BASE_PLANS['plan-pro'].features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
+                    {/* Category: Multi-Unit & Support */}
+                    <tr className="bg-slate-900/60 font-bold text-white">
+                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                        Multi-Store, Integrations &amp; Support SLA
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Central Commissary &amp; Multi-Store Transfers</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Full Multi-Store</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Swiggy &amp; Zomato Aggregator Live Sync</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Unavailable</td>
+                      <td className="py-3 px-4 text-center text-slate-500 font-semibold">— Optional Add-on</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-medium text-slate-200">Support Level Guarantee</td>
+                      <td className="py-3 px-4 text-center font-medium text-slate-300">Standard Email (24h)</td>
+                      <td className="py-3 px-4 text-center font-medium text-emerald-300 bg-emerald-950/20">Priority Chat (2h)</td>
+                      <td className="py-3 px-4 text-center font-medium text-white">Dedicated CSM (1h)</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-slate-800">
+                      <td className="py-4 px-4 font-bold text-white">Get Started Today:</td>
+                      <td className="py-4 px-4 text-center">
+                        <Link
+                          to="/signup?plan=plan-starter"
+                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-block"
+                        >
+                          Select Starter
+                        </Link>
+                      </td>
+                      <td className="py-4 px-4 text-center bg-emerald-950/20">
+                        <Link
+                          to="/signup?plan=plan-pro"
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-block shadow-md shadow-emerald-600/30"
+                        >
+                          Select Pro
+                        </Link>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <Link
+                          to="/signup?plan=plan-enterprise"
+                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-block"
+                        >
+                          Select Enterprise
+                        </Link>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-
-              <Link
-                to="/signup?plan=plan-pro"
-                className="mt-8 w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm text-center shadow-lg shadow-emerald-600/30 transition-all block"
-              >
-                Start 14-Day Free Trial
-              </Link>
-            </div>
-
-            {/* Enterprise Plan */}
-            <div className="rounded-3xl bg-slate-950 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-700 hover:shadow-xl transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    {BASE_PLANS['plan-enterprise'].name} Plan
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">
-                    {BASE_PLANS['plan-enterprise'].badge}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-4xl font-black text-white">
-                    {billingCycle === 'annual'
-                      ? formatINR(BASE_PLANS['plan-enterprise'].effectiveMonthlyAnnual)
-                      : formatINR(BASE_PLANS['plan-enterprise'].monthlyPrice)}
-                  </span>
-                  <span className="text-xs text-slate-400">/ month</span>
-                </div>
-
-                <div className="text-[11px] text-emerald-400 font-medium mb-3">
-                  {billingCycle === 'annual' ? (
-                    <span>Billed annually at {formatINR(BASE_PLANS['plan-enterprise'].annualPrice)}/yr (Save {formatINR(BASE_PLANS['plan-enterprise'].annualSavings)}/yr)</span>
-                  ) : (
-                    <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
-                  )}
-                </div>
-
-                <p className="text-xs text-slate-300 leading-relaxed mb-6">
-                  {BASE_PLANS['plan-enterprise'].target}
-                </p>
-
-                <div className="space-y-3 text-xs text-slate-300 pt-4 border-t border-slate-800">
-                  {BASE_PLANS['plan-enterprise'].features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Link
-                to="/signup?plan=plan-enterprise"
-                className="mt-8 w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs text-center transition-all block shadow-sm"
-              >
-                Get Started with Enterprise
-              </Link>
-            </div>
+            )}
           </div>
 
           {/* 4th Option: Build Your Own Plan (Interactive Banner) */}

@@ -30,6 +30,7 @@ import {
   initialOwnerNotifications,
   initialBranchInvoices,
   BRANCH_PLANS_CONFIG,
+  syncBranchPlansConfig,
 } from '../data/branchData';
 import {
   initialSupplierAgreements,
@@ -45,6 +46,7 @@ import { initialCustomPlanRequests } from '../data/customPlanData';
 import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_ANNOUNCEMENT_TEMPLATES,
+  interpolateTemplateVariables,
 } from '../data/announcementData';
 import {
   calculateCustomPlanPricing,
@@ -53,6 +55,8 @@ import {
   BASE_PLANS,
   FEATURE_ADDONS,
   AUTOMATION_LIMITS,
+  calculatePlanSavings,
+  syncPricingEnginePlans,
 } from '../services/pricingEngine';
 
 import {
@@ -177,7 +181,21 @@ export const AppProvider = ({ children }) => {
   };
 
   const [restaurants, setRestaurants] = useState(() => loadStored('restaurants', initialRestaurants));
-  const [plans, setPlans] = useState(() => loadStored('plans', initialPlans));
+  const [plans, setPlans] = useState(() => {
+    let loaded = loadStored('plans', initialPlans);
+    if (Array.isArray(loaded)) {
+      const hasCustom = loaded.some((p) => p.id === 'plan-custom');
+      if (!hasCustom) {
+        const customDef = initialPlans.find((p) => p.id === 'plan-custom');
+        if (customDef) {
+          loaded = [...loaded, customDef];
+        }
+      }
+    }
+    syncPricingEnginePlans(loaded);
+    syncBranchPlansConfig(loaded);
+    return loaded;
+  });
   const [users, setUsers] = useState(() => loadStored('users', initialUsers));
   const [suppliers, setSuppliers] = useState(() => loadStored('suppliers', initialSuppliers));
   const [ingredients, setIngredients] = useState(() => loadStored('ingredients', initialIngredients));
@@ -229,7 +247,18 @@ export const AppProvider = ({ children }) => {
   }, [dismissedStaffAlertIds]);
 
   // Communication Center & Announcement States
-  const [announcements, setAnnouncements] = useState(() => loadStored('announcements', INITIAL_ANNOUNCEMENTS));
+  const [announcements, setAnnouncements] = useState(() => {
+    const loaded = loadStored('announcements', INITIAL_ANNOUNCEMENTS);
+    if (Array.isArray(loaded)) {
+      const existingIds = new Set(loaded.map((a) => a.id));
+      const missingInitial = INITIAL_ANNOUNCEMENTS.filter((a) => !existingIds.has(a.id));
+      if (missingInitial.length > 0) {
+        return [...loaded, ...missingInitial];
+      }
+      return loaded;
+    }
+    return INITIAL_ANNOUNCEMENTS;
+  });
   const [announcementTemplates, setAnnouncementTemplates] = useState(() => loadStored('announcementTemplates', INITIAL_ANNOUNCEMENT_TEMPLATES));
   const [announcementReads, setAnnouncementReads] = useState(() => loadStored('announcementReads', {
     'ann-101_rest-1': { isRead: true, readAt: '2026-10-25T16:00:00.000Z', readBy: 'Priya Sharma' },
@@ -275,6 +304,8 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_plans`, JSON.stringify(plans));
+    syncPricingEnginePlans(plans);
+    syncBranchPlansConfig(plans);
   }, [plans]);
 
   useEffect(() => {
@@ -2028,22 +2059,133 @@ export const AppProvider = ({ children }) => {
   // WORKFLOW D: SUPER ADMIN SUBSCRIPTION MANAGEMENT
   // ==========================================
   const updatePlan = (planId, updatedFields) => {
-    setPlans(prev => prev.map(p => {
-      if (p.id === planId) {
-        return { ...p, ...updatedFields };
+    // Role check: Only Super Admin can modify subscription plans
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can modify subscription plans.', 'error');
+      return false;
+    }
+
+    const name = (updatedFields.name || '').trim();
+    if (!name) {
+      addToast('Plan name cannot be empty.', 'error');
+      return false;
+    }
+
+    const monthlyPrice = Math.max(0, Number(updatedFields.monthlyPrice) || 0);
+    const annualPrice = Math.max(
+      0,
+      Number(updatedFields.annualPrice !== undefined ? updatedFields.annualPrice : (monthlyPrice * 12 * 0.8))
+    );
+    const { annualSavings, savingsPercent, effectiveMonthlyAnnual } = calculatePlanSavings(monthlyPrice, annualPrice);
+
+    const limits = {
+      maxIngredients: Math.max(1, Number(updatedFields.limits?.maxIngredients ?? updatedFields.maxIngredients ?? 100)),
+      maxStaff: Math.max(1, Number(updatedFields.limits?.maxStaff ?? updatedFields.maxStaff ?? 5)),
+      branches: Math.max(1, Number(updatedFields.limits?.branches ?? updatedFields.branches ?? 1)),
+      support: updatedFields.limits?.support ?? updatedFields.support ?? 'Standard Email (24h SLA)',
+    };
+
+    const features = Array.isArray(updatedFields.features) && updatedFields.features.length > 0
+      ? updatedFields.features.filter(f => typeof f === 'string' && f.trim().length > 0)
+      : undefined;
+
+    let updatedTargetPlan = null;
+
+    setPlans(prev => {
+      const next = prev.map(p => {
+        if (p.id === planId) {
+          updatedTargetPlan = {
+            ...p,
+            ...updatedFields,
+            name,
+            monthlyPrice,
+            annualPrice,
+            annualSavings,
+            savingsPercent,
+            effectiveMonthlyAnnual,
+            limits,
+            features: features || p.features,
+            status: updatedFields.status || p.status || 'active',
+            description: updatedFields.description !== undefined ? updatedFields.description : p.description,
+            badge: updatedFields.badge !== undefined ? updatedFields.badge : p.badge,
+          };
+          return updatedTargetPlan;
+        }
+        return p;
+      });
+      return next;
+    });
+
+    // Dynamically update active tenant resource limits and name for this plan
+    setRestaurants(prev => prev.map(r => {
+      if (r.planId === planId) {
+        return {
+          ...r,
+          planName: name,
+          monthlyUsage: {
+            ...r.monthlyUsage,
+            ingredientsLimit: limits.maxIngredients,
+            staffLimit: limits.maxStaff,
+          }
+        };
       }
-      return p;
+      return r;
     }));
 
     addPlatformLog(
-      currentUser.name,
+      currentUser?.name || 'Super Admin',
       'Subscription Plan Updated',
-      `${updatedFields.name || planId} (Pricing / Limits modified)`,
+      `${name} (${formatINR(monthlyPrice)}/mo, ${formatINR(annualPrice)}/yr, ${limits.branches} max branches, ${limits.maxIngredients} max ingredients)`,
       'Billing',
       'success'
     );
 
-    addToast(`Subscription plan updated successfully.`, 'success');
+    addToast(`Subscription plan "${name}" updated successfully across the platform.`, 'success');
+    return true;
+  };
+
+  const resetPlansToDefaults = () => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can reset plans.', 'error');
+      return false;
+    }
+
+    setPlans(initialPlans);
+    localStorage.setItem(`${STORAGE_KEY}_plans`, JSON.stringify(initialPlans));
+    syncPricingEnginePlans(initialPlans);
+    syncBranchPlansConfig(initialPlans);
+
+    initialPlans.forEach(plan => {
+      setRestaurants(prev => prev.map(r => {
+        if (r.planId === plan.id) {
+          return {
+            ...r,
+            planName: plan.name,
+            monthlyUsage: {
+              ...r.monthlyUsage,
+              ingredientsLimit: plan.limits.maxIngredients,
+              staffLimit: plan.limits.maxStaff,
+            }
+          };
+        }
+        return r;
+      }));
+    });
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'Subscription Plans Reset to Defaults',
+      'Reverted Starter, Professional, and Enterprise plans to platform defaults.',
+      'Billing',
+      'warning'
+    );
+
+    addToast('All subscription plans have been reset to platform defaults.', 'info');
+    return true;
+  };
+
+  const getPlanById = (planId) => {
+    return plans.find(p => p.id === planId) || initialPlans.find(p => p.id === planId) || plans[0];
   };
 
   const assignPlanToRestaurant = (restaurantId, planId) => {
@@ -2337,6 +2479,60 @@ export const AppProvider = ({ children }) => {
           return r;
         })
       );
+
+      // Automatically generate a branded payment receipt email in the Owner's Inbox
+      const receiptAnnouncement = {
+        id: `ann-rcp-${verifiedTxn.id}-${Date.now()}`,
+        title: `Payment Receipt: ${formatINR(verifiedTxn.amount)} for ${verifiedTxn.planName} Plan — RCP-${verifiedTxn.id}`,
+        summary: `Verified payment receipt #${verifiedTxn.invoiceId || verifiedTxn.id} verified via ${verifiedTxn.gateway} (${verifiedTxn.paymentMethod}).`,
+        category: 'receipt',
+        priority: 'normal',
+        author: 'StockMate Billing Engine (Automated)',
+        authorRole: 'Automated Transactional Dispatcher',
+        publishedAt: new Date().toISOString(),
+        status: 'published',
+        audienceType: 'SPECIFIC_RESTAURANTS',
+        targetRestaurantIds: [verifiedTxn.restaurantId],
+        targetPlanIds: [],
+        requiresAcknowledgment: false,
+        effectiveDate: verifiedTxn.paymentDate,
+        ctaLabel: 'View Invoice & Receipts in Billing',
+        ctaLink: '/owner-billing',
+        verifiedTransaction: {
+          id: verifiedTxn.id,
+          receiptNumber: `RCP-${verifiedTxn.id}`,
+          paymentRef: verifiedTxn.gatewayRef || verifiedTxn.id,
+          invoiceId: verifiedTxn.invoiceId,
+          amount: verifiedTxn.amount,
+          baseAmount: verifiedTxn.baseAmount || Math.round(verifiedTxn.amount / 1.18),
+          taxAmount: verifiedTxn.taxAmount || Math.round(verifiedTxn.amount - (verifiedTxn.amount / 1.18)),
+          planName: verifiedTxn.planName,
+          billingCycle: verifiedTxn.billingCycle,
+          paymentMethod: verifiedTxn.paymentMethod,
+          gateway: verifiedTxn.gateway,
+          paymentDate: verifiedTxn.paymentDate,
+          gstin: verifiedTxn.gstin || '27AABCU9603R1ZM (Sample)',
+          simulated: true,
+        },
+        body: `Dear ${verifiedTxn.restaurantOwner},\n\nThank you for your payment. Your subscription renewal for ${verifiedTxn.restaurantName} on the ${verifiedTxn.planName} tier (${verifiedTxn.billingCycle}) has been successfully verified and settled.\n\nTransaction Summary:\n• Receipt Number: RCP-${verifiedTxn.id}\n• Payment Gateway: ${verifiedTxn.gateway} (${verifiedTxn.gatewayRef || verifiedTxn.id})\n• Payment Method: ${verifiedTxn.paymentMethod}\n• Total Amount Paid: ${formatINR(verifiedTxn.amount)} (Inclusive of 18% statutory GST)\n• Next Renewal Date: ${verifiedTxn.renewalDate}\n\nYour official GST tax invoice is now filed and available for download in your billing center at any time.`,
+        attachments: [
+          {
+            name: `StockMate_Tax_Receipt_${verifiedTxn.invoiceId || verifiedTxn.id}.pdf`,
+            size: '240 KB',
+            type: 'application/pdf',
+          },
+        ],
+        emailDelivery: {
+          queued: 1,
+          delivered: 1,
+          failed: 0,
+          provider: 'StockMate Transactional Dispatcher (Verified)',
+          simulated: true,
+        },
+      };
+
+      setAnnouncements((prev) => [receiptAnnouncement, ...prev]);
+
 
       addPlatformLog(
         currentUser?.name || 'Alexander Vance',
@@ -4231,36 +4427,53 @@ export const AppProvider = ({ children }) => {
       targetRestaurants = restaurants;
     }
 
-    // In-App Notifications Integration: create notification for each targeted restaurant
-    const newNotifs = targetRestaurants.map((rest) => ({
-      id: `notif-ann-${Date.now()}-${rest.id}`,
-      type: data.category === 'policy' ? 'policy_update' : 'announcement',
-      restaurantId: rest.id,
-      title: `Announcement: ${data.title}`,
-      message: data.summary || data.body.slice(0, 110) + '...',
-      timestamp: new Date().toISOString(),
-      read: false,
-      actionLink: '/inbox',
-      announcementId: newId,
-      priority: data.priority || 'normal',
-    }));
+    // In-App Notifications Integration: create notification for each targeted restaurant with recipient-specific context
+    const newNotifs = targetRestaurants.map((rest) => {
+      const restCtx = {
+        restaurantName: rest.name,
+        ownerName: rest.ownerName || rest.contactPerson || 'Restaurant Partner',
+        planName: rest.planName ? `${rest.planName} Plan` : 'StockMate Subscription',
+      };
+      const resolvedTitle = interpolateTemplateVariables(data.title, restCtx);
+      const resolvedMessage = interpolateTemplateVariables(data.summary || data.body.slice(0, 110) + '...', restCtx);
+
+      return {
+        id: `notif-ann-${Date.now()}-${rest.id}`,
+        type: data.category === 'policy' ? 'policy_update' : 'announcement',
+        restaurantId: rest.id,
+        title: `Announcement: ${resolvedTitle}`,
+        message: resolvedMessage,
+        timestamp: new Date().toISOString(),
+        read: false,
+        actionLink: '/inbox',
+        announcementId: newId,
+        priority: data.priority || 'normal',
+      };
+    });
 
     setOwnerNotifications((prev) => [...newNotifs, ...prev]);
 
-    // Email delivery log simulation
-    const newLogs = targetRestaurants.map((rest) => ({
-      id: `email-log-${Date.now()}-${rest.id}`,
-      announcementId: newId,
-      announcementTitle: data.title,
-      recipientEmail: rest.ownerEmail,
-      recipientName: rest.ownerName,
-      restaurantName: rest.name,
-      restaurantId: rest.id,
-      status: 'Delivered (Simulated via StockMate Cloud Dispatcher)',
-      timestamp: new Date().toISOString(),
-      provider: 'StockMate Cloud Dispatcher (Transactional SMTP Simulator)',
-      simulated: true,
-    }));
+    // Dispatch logging: Distinguish clearly between real In-App delivery and unconfigured external SMTP
+    const newLogs = targetRestaurants.map((rest) => {
+      const resolvedTitle = interpolateTemplateVariables(data.title, {
+        restaurantName: rest.name,
+        ownerName: rest.ownerName || rest.contactPerson || 'Restaurant Partner',
+      });
+      return {
+        id: `email-log-${Date.now()}-${rest.id}`,
+        announcementId: newId,
+        announcementTitle: resolvedTitle,
+        recipientEmail: rest.ownerEmail,
+        recipientName: rest.ownerName,
+        restaurantName: rest.name,
+        restaurantId: rest.id,
+        status: 'Delivered (In-App Owner Inbox)',
+        deliveryStatus: 'delivered',
+        timestamp: new Date().toISOString(),
+        provider: 'StockMate In-App Dispatcher (External SMTP API Unconfigured)',
+        simulated: true,
+      };
+    });
 
     setEmailDeliveryLogs((prev) => [...newLogs, ...prev]);
 
@@ -4560,6 +4773,8 @@ export const AppProvider = ({ children }) => {
 
         // Workflow D
         updatePlan,
+        resetPlansToDefaults,
+        getPlanById,
         assignPlanToRestaurant,
 
         // Staff & Users
