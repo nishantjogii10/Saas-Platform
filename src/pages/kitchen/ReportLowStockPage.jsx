@@ -39,7 +39,7 @@ export const ReportLowStockPage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 w-full">
       <PageHeader
         title="Report Low Stock to Inventory Manager"
         subtitle="Quickly signal stock shortages observed at your cooking station or prep table"
@@ -49,7 +49,8 @@ export const ReportLowStockPage = () => {
         ]}
       />
 
-      <Card>
+      <div className="max-w-3xl">
+        <Card>
         {!submitted ? (
           <form onSubmit={handleSubmit} className="space-y-5">
             <FormInput
@@ -121,7 +122,8 @@ export const ReportLowStockPage = () => {
             </div>
           </div>
         )}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

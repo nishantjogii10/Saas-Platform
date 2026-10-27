@@ -74,7 +74,7 @@ export const InventoryAttendancePage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 w-full pb-12">
       {/* Page Header Banner */}
       <div className="rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-slate-900 via-slate-900 to-teal-950 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden border border-teal-500/20">
         <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />

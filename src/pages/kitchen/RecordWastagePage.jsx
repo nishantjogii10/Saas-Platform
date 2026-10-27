@@ -42,7 +42,7 @@ export const RecordWastagePage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 w-full">
       <PageHeader
         title="Record Food Wastage"
         subtitle="Log spoiled batches, accidental kitchen damage, and trimming discards"
@@ -52,7 +52,8 @@ export const RecordWastagePage = () => {
         ]}
       />
 
-      <Card>
+      <div className="max-w-3xl">
+        <Card>
         {!submitted ? (
           <form onSubmit={handleSubmit} className="space-y-5">
             <FormInput
@@ -156,7 +157,8 @@ export const RecordWastagePage = () => {
             </div>
           </div>
         )}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

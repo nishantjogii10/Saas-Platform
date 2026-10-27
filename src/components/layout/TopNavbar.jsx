@@ -125,7 +125,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
   }, [restaurantAlerts, ownerNotifications, markAlertRead, markAnnouncementAsRead, currentRestaurant, navigate]);
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between shrink-0 transition-colors duration-200">
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 transition-colors duration-200">
       {/* Left: Mobile Menu Toggle & Workspace Info */}
       <div className="flex items-center gap-3">
         <button
