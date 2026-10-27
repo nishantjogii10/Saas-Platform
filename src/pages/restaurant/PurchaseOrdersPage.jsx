@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   ShoppingBag,
+  Store,
   Plus,
   Search,
   Filter,
@@ -42,7 +43,9 @@ export const PurchaseOrdersPage = () => {
     restaurantSuppliers,
     restaurantIngredients,
     createPurchaseOrder,
+    approvePurchaseOrder,
     verifyAndReceiveStock,
+    receivePOAndStock,
     currentUser,
     currentBranch,
   } = useApp();
@@ -246,6 +249,19 @@ export const PurchaseOrdersPage = () => {
             Details
           </Button>
 
+          {/* Owner / Admin Direct Requisition Fallback (if any legacy PO pending approval) */}
+          {row.status === 'pending_approval' &&
+            (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
+              <Button
+                variant="brand"
+                size="xs"
+                icon={CheckCircle2}
+                onClick={() => approvePurchaseOrder(row.id)}
+              >
+                Approve PO
+              </Button>
+            )}
+
           {/* Full Line-Item GRN Receiving Dock Verification */}
           {(row.status === 'delivered' || row.status === 'dispatched') && !row.verifiedAt && currentUser.role !== 'kitchen_staff' && (
             <Button
@@ -277,7 +293,7 @@ export const PurchaseOrdersPage = () => {
     <div className="space-y-6">
       <PageHeader
         title="Purchase Orders & Procurement"
-        subtitle="Manage supplier requisitions, delivery tracking, and receiving verification (Workflow C)"
+        subtitle="Manage supplier requisitions, 4-stage PO lifecycle, and dock receiving"
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Purchase Orders' },
@@ -556,6 +572,19 @@ export const PurchaseOrdersPage = () => {
                 Supplier: <strong>{selectedPO.supplierName}</strong>
               </span>
               <div className="flex items-center gap-2">
+                {selectedPO.status === 'pending_approval' && (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
+                  <Button
+                    variant="brand"
+                    size="sm"
+                    icon={CheckCircle2}
+                    onClick={() => {
+                      approvePurchaseOrder(selectedPO.id);
+                      setDetailsModalOpen(false);
+                    }}
+                  >
+                    Approve PO &amp; Send
+                  </Button>
+                )}
                 {selectedPO.status === 'delivered' && !selectedPO.verifiedAt && currentUser.role !== 'kitchen_staff' && (
                   <Button
                     variant="success"
@@ -577,6 +606,47 @@ export const PurchaseOrdersPage = () => {
           }
         >
           <div className="space-y-4">
+            {/* 4-Stage B2B PO Workflow Stepper */}
+            <div className="p-3.5 rounded-2xl bg-slate-900 text-white border border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-2">
+                Structured 4-Stage Procurement Workflow
+              </span>
+              <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+                <div className="p-2 rounded-xl bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-bold">
+                  <span className="block text-xs mb-0.5">01</span>
+                  <span>1. PO Requested</span>
+                </div>
+                <div className={`p-2 rounded-xl border ${
+                  selectedPO.status !== 'pending_approval'
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold'
+                    : 'bg-amber-950/80 border-amber-500 text-amber-300 font-bold animate-pulse'
+                }`}>
+                  <span className="block text-xs mb-0.5">02</span>
+                  <span>2. Manager Approval</span>
+                </div>
+                <div className={`p-2 rounded-xl border ${
+                  selectedPO.status === 'dispatched' || selectedPO.status === 'delivered' || selectedPO.status === 'received'
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold'
+                    : selectedPO.status === 'accepted' || selectedPO.status === 'pending'
+                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-300 font-bold'
+                    : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}>
+                  <span className="block text-xs mb-0.5">03</span>
+                  <span>3. Fulfillment</span>
+                </div>
+                <div className={`p-2 rounded-xl border ${
+                  selectedPO.status === 'received'
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold'
+                    : selectedPO.status === 'delivered'
+                    ? 'bg-teal-950/80 border-teal-500 text-teal-300 font-bold animate-pulse'
+                    : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}>
+                  <span className="block text-xs mb-0.5">04</span>
+                  <span>4. Dock &amp; Restock</span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
                 <span className="text-xs text-slate-500 font-medium">Order Status:</span>

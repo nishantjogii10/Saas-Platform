@@ -78,6 +78,10 @@ import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage';
 import { SupplierInvoicesPage } from './pages/supplier/SupplierInvoicesPage';
 import { SupplierReturnsPage as SupplierPortalReturnsPage } from './pages/supplier/SupplierReturnsPage';
 import { getRoleLandingRoute } from './utils/permissions';
+import { SupplierLoginPage } from './pages/supplier/SupplierLoginPage';
+import { SupplierProductsPage } from './pages/supplier/SupplierProductsPage';
+import { SupplierMarketplaceViewPage } from './pages/supplier/SupplierMarketplaceViewPage';
+import { B2BMarketplacePage } from './pages/restaurant/B2BMarketplacePage';
 
 // Role Guard Component
 const RoleGuard = ({ allowedRoles, children }) => {
@@ -85,7 +89,13 @@ const RoleGuard = ({ allowedRoles, children }) => {
   const location = useLocation();
 
   if (!currentUser) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    const safeFrom =
+      location.pathname === '/notifications' ||
+      location.pathname === '/login' ||
+      location.pathname === '/app'
+        ? undefined
+        : location.pathname;
+    return <Navigate to="/login" state={safeFrom ? { from: safeFrom } : undefined} replace />;
   }
 
   // Intercept users who must set a new password on first login
@@ -138,6 +148,26 @@ const DashboardDispatcher = () => {
   }
 };
 
+// Notifications Route Dispatcher: Dispatches each role to their proper notifications experience
+const NotificationsDispatcher = () => {
+  const { currentUser } = useApp();
+  if (!currentUser) return <Navigate to="/login" replace />;
+
+  switch (currentUser.role) {
+    case 'kitchen_staff':
+      return <Navigate to="/kitchen" replace />;
+    case 'inventory_manager':
+      return <Navigate to="/alerts" replace />;
+    case 'supplier':
+      return <Navigate to="/supplier" replace />;
+    case 'super_admin':
+    case 'restaurant_owner':
+    case 'restaurant_manager':
+    default:
+      return <OwnerNotificationsPage />;
+  }
+};
+
 function App() {
   return (
     <ErrorBoundary>
@@ -163,6 +193,10 @@ function App() {
           />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/supplier-portal" element={<SupplierLoginPage />} />
+          <Route path="/supplier/login" element={<Navigate to="/supplier-portal" replace />} />
+          <Route path="/supplier-landing" element={<Navigate to="/supplier-portal" replace />} />
+          <Route path="/suppliers-join" element={<Navigate to="/supplier-portal" replace />} />
 
           {/* Super Admin Module */}
           <Route
@@ -381,6 +415,7 @@ function App() {
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SuppliersPage />
                 </RoleGuard>
               </AppLayout>
@@ -391,11 +426,23 @@ function App() {
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <PurchaseOrdersPage />
                 </RoleGuard>
               </AppLayout>
             }
           />
+          <Route
+            path="/marketplace"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin', 'supplier']}>
+                  <B2BMarketplacePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/b2b-marketplace" element={<Navigate to="/marketplace" replace />} />
           <Route
             path="/goods-receiving"
             element={
@@ -429,6 +476,7 @@ function App() {
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierReturnsPage />
                 </RoleGuard>
               </AppLayout>
@@ -439,6 +487,7 @@ function App() {
             element={
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierBillingPage />
                 </RoleGuard>
               </AppLayout>
@@ -482,7 +531,7 @@ function App() {
             path="/staff-legacy"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
                   <StaffManagementPage />
                 </RoleGuard>
               </AppLayout>
@@ -499,12 +548,12 @@ function App() {
             }
           />
 
-          {/* Restaurant Owner: Branch & Plan Management Module */}
+          {/* Restaurant Owner & Manager: Branch Management Module */}
           <Route
             path="/branches"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
                   <CombinedBranchesPage />
                 </RoleGuard>
               </AppLayout>
@@ -580,9 +629,7 @@ function App() {
             path="/notifications"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner']}>
-                  <OwnerNotificationsPage />
-                </RoleGuard>
+                <NotificationsDispatcher />
               </AppLayout>
             }
           />
@@ -663,6 +710,27 @@ function App() {
               <AppLayout>
                 <RoleGuard allowedRoles={['supplier']}>
                   <SupplierDashboard />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/supplier/products"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['supplier', 'super_admin']}>
+                  <SupplierProductsPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/supplier/catalog" element={<Navigate to="/supplier/products" replace />} />
+          <Route
+            path="/supplier/marketplace"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['supplier', 'super_admin']}>
+                  <SupplierMarketplaceViewPage />
                 </RoleGuard>
               </AppLayout>
             }

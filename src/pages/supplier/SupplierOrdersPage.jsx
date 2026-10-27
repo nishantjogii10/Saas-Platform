@@ -85,7 +85,9 @@ export const SupplierOrdersPage = () => {
 
   // Filter only orders assigned to this supplier!
   const myOrders = purchaseOrders.filter(
-    (po) => po.supplierId === (currentUser.supplierId || 'sup-1')
+    (po) =>
+      ((currentUser?.supplierId && po.supplierId === currentUser.supplierId) ||
+       (currentUser?.supplierName && po.supplierName === currentUser.supplierName))
   );
 
   const filteredOrders = myOrders.filter((po) => {

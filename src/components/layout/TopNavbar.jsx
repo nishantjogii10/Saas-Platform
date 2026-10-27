@@ -41,16 +41,22 @@ export const TopNavbar = ({ onOpenMobile }) => {
     currentBranch,
     switchBranch,
     restaurantAlerts,
-    ownerNotifications,
-    markAnnouncementAsRead,
+        markAnnouncementAsRead,
     markAlertRead,
     markAllAlertsRead,
+    ownerNotifications,
+    markOwnerNotificationRead,
+    markAllOwnerNotificationsRead,
+    staffNotifications,
+    markStaffNotificationRead,
+    markAllStaffNotificationsRead,
     logout,
     openProfileModal,
   } = useApp();
 
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifTab, setNotifTab] = useState('all'); // 'all' | 'alerts' | 'notifications'
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
   const notifRef = useRef(null);
@@ -74,9 +80,14 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadAlerts = (restaurantAlerts || []).filter(a => !a.read);
-  const unreadAnnouncementsCount = (ownerNotifications || []).filter(n => !n.read && n.actionLink === '/inbox').length;
-  const totalUnreadNotifs = unreadAlerts.length + unreadAnnouncementsCount;
+const roleFilteredAlerts = React.useMemo(() => {
+    return (restaurantAlerts || []).filter(a => {
+      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [restaurantAlerts, currentUser]);
 
   // Combined notifications for popover
   const combinedNotifications = useMemo(() => {
@@ -116,13 +127,23 @@ export const TopNavbar = ({ onOpenMobile }) => {
           markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
         }
         setShowNotifications(false);
-        navigate(n.announcementId ? `/inbox?id=${n.announcementId}` : '/inbox');
-      },
-      link: n.announcementId ? `/inbox?id=${n.announcementId}` : '/inbox'
-    }));
-
-    return [...annNotifs, ...alerts].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [restaurantAlerts, ownerNotifications, markAlertRead, markAnnouncementAsRead, currentRestaurant, navigate]);
+      }
+    } else {
+      if (isKitchenStaff) {
+        markStaffNotificationRead(item.id);
+      } else {
+        markOwnerNotificationRead(item.id);
+      }
+      if (item.actionLink) {
+        if (isKitchenStaff && !item.actionLink.startsWith('/kitchen')) {
+          navigate('/kitchen');
+        } else {
+          navigate(item.actionLink);
+        }
+        setShowNotifications(false);
+      }
+    }
+  };
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 transition-colors duration-200">
@@ -316,8 +337,10 @@ export const TopNavbar = ({ onOpenMobile }) => {
               title="Notifications & Alerts"
             >
               <Bell className="w-5 h-5" />
-              {totalUnreadNotifs > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
+{totalUnreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white shadow-xs">
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </span>
               )}
             </button>
 
@@ -326,77 +349,116 @@ export const TopNavbar = ({ onOpenMobile }) => {
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70">
                   <div className="flex items-center gap-2">
-<span className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {currentUser?.role === 'restaurant_manager' ? 'Staff Notifications' : 'Notifications'}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                      {totalUnreadNotifs} new
-                    </span>
+<span className="text-sm font-semibold text-slate-900">Notifications &amp; Alerts</span>
+                    {totalUnreadCount > 0 ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold">
+                        {totalUnreadCount} new
+                      </span>
+                    ) : (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                        All caught up
+                      </span>
+                    )}
                   </div>
-                  {unreadAlerts.length > 0 && (
+                  {totalUnreadCount > 0 && (
                     <button
-                      onClick={markAllAlertsRead}
-                      className="text-xs text-emerald-700 hover:text-emerald-900 font-semibold"
+                      onClick={() => {
+                        markAllAlertsRead();
+                        if (isKitchenStaff) {
+                          markAllStaffNotificationsRead(currentUser?.id);
+                        } else {
+                          markAllOwnerNotificationsRead();
+                        }
+                      }}
+                      className="text-xs text-emerald-700 hover:text-emerald-900 font-semibold cursor-pointer"
                     >
                       Mark all read
                     </button>
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                  {combinedNotifications.length === 0 ? (
+{/* Sub-filter tabs */}
+                <div className="flex items-center gap-1 px-3 py-1.5 bg-slate-50/60 border-b border-slate-100 text-[11px]">
+                  <button
+                    onClick={() => setNotifTab('all')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      notifTab === 'all'
+                        ? 'bg-white shadow-xs text-slate-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All ({totalUnreadCount})
+                  </button>
+                  <button
+                    onClick={() => setNotifTab('alerts')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      notifTab === 'alerts'
+                        ? 'bg-white shadow-xs text-slate-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Alerts ({unreadAlerts.length})
+                  </button>
+                  <button
+                    onClick={() => setNotifTab('notifications')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      notifTab === 'notifications'
+                        ? 'bg-white shadow-xs text-slate-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Notices ({relevantUnreadNotifs.length})
+                  </button>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                  {combinedItems.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500">
-{currentUser?.role === 'restaurant_manager'
-                        ? 'No active staff notices. All shift rosters and leave requests are clear!'
-                        : 'No alerts or notifications at this time.'}
+                      No notifications or alerts in this view.
                     </div>
                   ) : (
-                    combinedNotifications.slice(0, 6).map((notif) => (
+                    combinedItems.map((item) => (
                       <div
-key={notif.id}
-                        onClick={notif.action}
-                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${
-                          !notif.read ? 'bg-emerald-50/25 dark:bg-emerald-950/30' : ''
+                        key={`${item.sourceType}-${item.id}`}
+                        onClick={() => handleItemClick(item)}
+                        className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer ${
+                          !item.read ? 'bg-emerald-50/25' : 'opacity-85'
                         }`}
+                        title={!item.read ? 'Click to mark as read' : undefined}
                       >
                         <div className="flex items-start gap-2.5">
                           <div className="shrink-0 mt-0.5">
-{notif.type === 'announcement' ? (
-                              <Megaphone className="w-4 h-4 text-purple-600" />
-                            ) : notif.type === 'leave_request' ? (
-                              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
-                                📋
-                              </span>
-                            ) : notif.type === 'transfer_request' ? (
-                              <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
-                                ⇄
-                              </span>
-                            ) : notif.type === 'attendance_notice' ? (
-                              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                                ⏱️
-                              </span>
-                            ) : notif.severity === 'critical' ? (
-                              <AlertCircle className="w-4 h-4 text-rose-600" />
-                            ) : notif.severity === 'high' ? (
-                              <AlertTriangle className="w-4 h-4 text-amber-600" />
+{item.sourceType === 'alert' ? (
+                              item.severity === 'critical' ? (
+                                <AlertCircle className="w-4 h-4 text-rose-600" />
+                              ) : item.severity === 'high' ? (
+                                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                              ) : (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              )
                             ) : (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <Bell className="w-4 h-4 text-indigo-600" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 justify-between">
-                              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-                                {notif.title}
-                              </p>
-                              {!notif.read && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+<div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-semibold text-slate-900 truncate">
+                                {item.title}
+                              </span>
+                              {!item.read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                               )}
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 ml-auto">
+                                {item.sourceType === 'alert' ? 'Stock Alert' : item.badge || 'Notice'}
+                              </span>
                             </div>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
-                              {notif.message}
+                            <p className="text-xs text-slate-600 line-clamp-2 mt-0.5">
+                              {item.message}
                             </p>
                             <span className="text-[10px] text-slate-400 mt-1 block">
-                              {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {typeof item.timestamp === 'string' && item.timestamp.includes('T')
+                                ? new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : item.timestamp}
                             </span>
                           </div>
                         </div>
@@ -405,17 +467,21 @@ key={notif.id}
                   )}
                 </div>
 
-                <div className="border-t border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between text-xs">
+<div className="border-t border-slate-100 p-2.5 bg-slate-50/50 flex items-center justify-between text-xs font-semibold px-4">
                   <Link
                     to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
                     onClick={() => setShowNotifications(false)}
-                    className="font-semibold text-slate-600 hover:text-slate-900"
+className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1 transition-colors"
                   >
-<span>
-                      {currentUser?.role === 'restaurant_manager'
-                        ? `Manage all ${restaurantAlerts.length} staff notices`
-                        : `View all ${restaurantAlerts.length} alerts`}
-                    </span>
+                    <span>All Alerts ({restaurantAlerts.length})</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                  <Link
+                    to={isKitchenStaff ? '/kitchen' : '/notifications'}
+                    onClick={() => setShowNotifications(false)}
+                    className="text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 transition-colors"
+                  >
+                    <span>All Notices ({relevantNotifs.length})</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                   {currentUser?.role === 'restaurant_owner' && (

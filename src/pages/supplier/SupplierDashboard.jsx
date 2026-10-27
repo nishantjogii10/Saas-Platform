@@ -16,6 +16,9 @@ import {
   RotateCcw,
   Sparkles,
   CreditCard,
+  Boxes,
+  Store,
+  ShieldCheck,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -23,14 +26,39 @@ import { Card, CardHeader } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { formatINR } from '../../data/inventoryBillingData';
+import { SUPPLIER_SUBSCRIPTION_PLANS } from '../../data/supplierMarketplaceData';
 
 export const SupplierDashboard = () => {
   const navigate = useNavigate();
-  const { purchaseOrders, currentUser, updatePOStatus, supplierInvoices, supplierReturns } = useApp();
+  const {
+    purchaseOrders,
+    currentUser,
+    updatePOStatus,
+    supplierInvoices,
+    supplierReturns,
+    supplierProducts,
+    suppliers,
+  } = useApp();
+
+  const currentSupplierId = currentUser?.supplierId;
+  const mySupplier = suppliers.find((s) => s.id === currentSupplierId || s.name === currentUser?.supplierName) || {
+    id: currentSupplierId,
+    name: currentUser?.supplierName || currentUser?.name || 'Partner',
+    planName: 'Pro Vendor',
+    rating: 4.8,
+  };
+
+  const myPlan =
+    SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.name === mySupplier.planName) ||
+    SUPPLIER_SUBSCRIPTION_PLANS[1];
+
+  const myProducts = (supplierProducts || []).filter(
+    (p) => (currentSupplierId && p.supplierId === currentSupplierId) || (mySupplier.name && p.supplierName === mySupplier.name)
+  );
 
   // Filter only orders assigned to this supplier!
   const myOrders = purchaseOrders.filter(
-    (po) => po.supplierId === (currentUser.supplierId || 'sup-1')
+    (po) => (currentSupplierId && po.supplierId === currentSupplierId) || (mySupplier.name && po.supplierName === mySupplier.name)
   );
 
   const pendingOrders = myOrders.filter((po) => po.status === 'pending');
@@ -43,11 +71,10 @@ export const SupplierDashboard = () => {
     .reduce((sum, po) => sum + po.totalAmount, 0);
 
   // Supplier Invoices & Receivables
-  const currentSupplierId = currentUser?.supplierId || 'sup-1';
   const myInvoices = (supplierInvoices || []).filter(
     (inv) => inv.supplierId === currentSupplierId || inv.supplierName === currentUser?.supplierName
   );
-  const displayInvoices = myInvoices.length > 0 ? myInvoices : supplierInvoices || [];
+  const displayInvoices = myInvoices;
   const totalReceivables = displayInvoices.reduce((sum, inv) => sum + (inv.outstandingBalance || 0), 0);
   const totalInvoiced = displayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
 
@@ -55,7 +82,7 @@ export const SupplierDashboard = () => {
   const myReturns = (supplierReturns || []).filter(
     (ret) => ret.supplierId === currentSupplierId || ret.supplierName === currentUser?.supplierName
   );
-  const displayReturns = myReturns.length > 0 ? myReturns : supplierReturns || [];
+  const displayReturns = myReturns;
   const pendingReturnClaims = displayReturns.filter((r) => r.status === 'Pending').length;
 
   return (
@@ -65,16 +92,65 @@ export const SupplierDashboard = () => {
         subtitle={`Logged in as ${currentUser.name} • Dedicated supplier view with isolated assigned orders`}
         badge={<Badge status="supplier" label="Authorized Supplier Partner" />}
         actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Boxes}
+              onClick={() => navigate('/supplier/products')}
+            >
+              Manage Catalog ({myProducts.length} SKUs)
+            </Button>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={ShoppingBag}
+              onClick={() => navigate('/supplier/orders')}
+            >
+              Review Orders ({pendingOrders.length} Pending)
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Subscription Tier & B2B Marketplace Status Banner */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-bold border border-emerald-500/30">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-white">{myPlan.name} Subscription Active</span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                Verified Vendor
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Commission: <strong className="text-emerald-400">{myPlan.commissionRate}%</strong> • Settlement: <strong className="text-white">{myPlan.payoutDays}</strong> • Catalog Limit: <strong className="text-white">{myProducts.length} / {myPlan.maxProducts} SKUs</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Store}
+            onClick={() => navigate('/supplier/marketplace')}
+          >
+            Marketplace View
+          </Button>
           <Button
             variant="brand"
             size="sm"
-            icon={ShoppingBag}
-            onClick={() => navigate('/supplier/orders')}
+            icon={Boxes}
+            onClick={() => navigate('/supplier/products')}
           >
-            Review Orders ({pendingOrders.length} Pending)
+            + Add Products
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       {/* Pending Requisitions Banner (Workflow C Highlight) */}
       {pendingOrders.length > 0 && (

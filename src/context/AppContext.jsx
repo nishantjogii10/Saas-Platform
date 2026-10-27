@@ -68,6 +68,12 @@ import {
   STAFF_SALARY_PROFILES,
 } from '../data/staffAttendanceData';
 
+import {
+  SUPPLIER_SUBSCRIPTION_PLANS,
+  SUPPLIER_CATEGORIES,
+  INITIAL_SUPPLIER_PRODUCTS,
+} from '../data/supplierMarketplaceData';
+
 const AppContext = createContext(null);
 
 const STORAGE_KEY = 'stockmate_saas_v2';
@@ -220,6 +226,9 @@ export const AppProvider = ({ children }) => {
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
+
+  // Third-Party Supplier B2B Marketplace Products State
+  const [supplierProducts, setSupplierProducts] = useState(() => loadStored('supplierProducts', INITIAL_SUPPLIER_PRODUCTS));
 
   // Staff alerts read & dismissed tracking for Restaurant Manager
   const [readStaffAlertIds, setReadStaffAlertIds] = useState(() => loadStored('read_staff_alert_ids', []));
@@ -413,6 +422,10 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
   }, [customPlanRequests]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_supplierProducts`, JSON.stringify(supplierProducts));
+  }, [supplierProducts]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_announcements`, JSON.stringify(announcements));
@@ -1311,7 +1324,44 @@ export const AppProvider = ({ children }) => {
 
     setPurchaseOrders(prev => [newPO, ...prev]);
 
-    // Also add PO update alert
+    // Automatically create linked sales invoice / pending receivable for the supplier
+    const initialInvoiceNumber = `SINV-${newPO.poNumber.replace(/^PO-/, '') || Date.now().toString().slice(-4)}`;
+    const newInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber: initialInvoiceNumber,
+      poId: newPO.id,
+      poNumber: newPO.poNumber,
+      grnId: null,
+      grnNumber: 'Awaiting Delivery',
+      supplierId: newPO.supplierId,
+      supplierName: newPO.supplierName,
+      supplierGstin: supplier?.gstin || '27AABCU1234F1Z0',
+      restaurantId: newPO.restaurantId,
+      restaurantName: newPO.restaurantName,
+      branchId: newPO.branchId,
+      branchName: newPO.branchName,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: newPO.expectedDelivery || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: newPO.subtotal,
+      taxAmount: newPO.tax,
+      shippingFee: newPO.shippingFee || 0,
+      totalAmount: newPO.totalAmount,
+      acceptedAmount: newPO.totalAmount,
+      damageDeduction: 0,
+      creditNoteApplied: 0,
+      netPayable: newPO.totalAmount,
+      paidAmount: 0,
+      outstandingBalance: newPO.totalAmount,
+      paymentStatus: 'Pending',
+      paymentMethod: 'Pending Settlement',
+      paymentDate: null,
+      transactionRef: null,
+      verificationStatus: 'Order Placed (Pending Dispatch)',
+      items: newPO.items,
+    };
+    setSupplierInvoices(prev => [newInvoice, ...prev]);
+
+    // Also add PO update alert (marked read for creator, visible only to owner & inventory manager)
     const newAlert = {
       id: `alt-${Date.now()}`,
       restaurantId: currentRestaurantId,
@@ -1320,12 +1370,19 @@ export const AppProvider = ({ children }) => {
       title: `Order Created: ${newPO.poNumber}`,
       message: `Sent to ${newPO.supplierName} for ${newPO.items.length} items (₹${Number(newPO.totalAmount).toLocaleString('en-IN')}).`,
       poId: newPO.id,
-      read: false,
+      read: true,
       timestamp: new Date().toISOString(),
       actionLink: '/purchase-orders',
       actionLabel: 'View Order',
+      targetRoles: ['restaurant_owner', 'inventory_manager'],
     };
-    setAlerts(prev => [newAlert, ...prev]);
+
+    // Mark any low stock alerts for ordered ingredients as read
+    const orderedIds = new Set((poData.items || []).map(it => it.ingredientId));
+    setAlerts(prev => [
+      newAlert,
+      ...prev.map(a => (orderedIds.has(a.ingredientId) && (a.type === 'low_stock' || a.type === 'out_of_stock')) ? { ...a, read: true } : a)
+    ]);
 
     addToast(`Purchase Order ${newPO.poNumber} created with status "Pending".`, 'success');
     return newPO;
@@ -1354,7 +1411,424 @@ export const AppProvider = ({ children }) => {
     }));
 
     const targetPO = purchaseOrders.find(p => p.id === poId);
+
+    // Keep linked supplier invoice in sync with PO status changes
+    setSupplierInvoices(prev => prev.map(inv => {
+      if (inv.poId === poId || (targetPO && inv.poNumber === targetPO.poNumber)) {
+        return {
+          ...inv,
+          invoiceNumber: extraMeta.invoiceNumber || inv.invoiceNumber,
+          verificationStatus: newStatus === 'dispatched' ? 'Dispatched' : newStatus === 'delivered' ? 'Delivered' : inv.verificationStatus,
+          deliveryChallan: extraMeta.deliveryChallan || inv.deliveryChallan,
+          dispatchDate: extraMeta.dispatchDate || inv.dispatchDate,
+        };
+      }
+      return inv;
+    }));
+
     addToast(`Purchase Order ${targetPO?.poNumber || poId} marked as "${newStatus.toUpperCase()}".`, 'info');
+  };
+
+  // ==============================================================
+  // THIRD-PARTY SUPPLIER B2B MARKETPLACE & PROCUREMENT WORKFLOW
+  // ==============================================================
+
+  // 1. Supplier Product Inventory Management (Add, Edit, Delete, Toggle Stock)
+  const addSupplierProduct = (productData) => {
+    const activeSupplier = suppliers.find(s => s.id === (productData.supplierId || currentUser?.supplierId));
+    const newProduct = {
+      id: `sprod-${Date.now()}`,
+      supplierId: productData.supplierId || currentUser?.supplierId || 'sup-1',
+      supplierName: productData.supplierName || activeSupplier?.name || currentUser?.supplierName || 'Metro Food Distributors',
+      supplierPlan: activeSupplier?.planName || 'Pro Vendor',
+      supplierRating: activeSupplier?.rating || 4.9,
+      name: productData.name,
+      category: productData.category || 'Fresh Vegetables & Greens',
+      unit: productData.unit || 'kg',
+      price: Number(productData.price) || 100,
+      mrp: Number(productData.mrp) || Math.round((Number(productData.price) || 100) * 1.25),
+      stock: Number(productData.stock) || 50,
+      minOrderQty: Number(productData.minOrderQty) || 1,
+      leadTimeDays: Number(productData.leadTimeDays) || 1,
+      shelfLifeDays: Number(productData.shelfLifeDays) || 7,
+      fssai: productData.fssai || '11522034000188',
+      organic: Boolean(productData.organic),
+      inStock: true,
+      description: productData.description || '',
+      image: productData.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+    };
+
+    setSupplierProducts((prev) => [newProduct, ...prev]);
+    addToast(`"${newProduct.name}" listed successfully in the B2B Marketplace.`, 'success');
+    return newProduct;
+  };
+
+  const updateSupplierProduct = (productId, updatedData) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, ...updatedData } : p))
+    );
+    addToast('Product details updated successfully.', 'success');
+  };
+
+  const deleteSupplierProduct = (productId) => {
+    setSupplierProducts((prev) => prev.filter((p) => p.id !== productId));
+    addToast('Product removed from catalog.', 'info');
+  };
+
+  const toggleSupplierProductStock = (productId) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, inStock: !p.inStock } : p))
+    );
+  };
+
+  // 2. Seamless Supplier Onboarding with Subscription Plan & Automatic System Notifications
+  const registerSupplierAccount = (formData) => {
+    const selectedPlan =
+      SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === formData.planId) ||
+      SUPPLIER_SUBSCRIPTION_PLANS[1]; // default to Pro Vendor
+
+    const supplierId = `sup-${Date.now()}`;
+    const userId = `usr-sup-${Date.now()}`;
+
+    const newSupplier = {
+      id: supplierId,
+      name: formData.name,
+      contactPerson: formData.contactPerson,
+      email: formData.email,
+      phone: formData.phone || '+91 98000 00000',
+      address: formData.address || 'Central Logistics Park, Sector 4, Pune',
+      categories:
+        formData.categories && formData.categories.length > 0
+          ? formData.categories
+          : ['Dairy & Cheese', 'Fresh Vegetables & Greens'],
+      rating: 5.0,
+      leadTimeDays: Number(formData.leadTimeDays) || 1,
+      paymentTerms:
+        selectedPlan.payoutDays === 'Same Day'
+          ? 'Immediate Settlement'
+          : selectedPlan.payoutDays === '48 Hours'
+          ? 'Net 2 (48h Payout)'
+          : 'Net 14 (Standard)',
+      activeOrdersCount: 0,
+      status: 'active',
+      verificationStatus: 'verified',
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      planPrice: formData.billingCycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.price,
+      billingCycle: formData.billingCycle || 'monthly',
+      commissionRate: selectedPlan.commissionRate,
+      gstin: formData.gstin || '27AABCU9603R1ZM',
+      city: formData.city || 'Pune',
+      joinedDate: new Date().toISOString(),
+      restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+    };
+
+    const newSupplierUser = {
+      id: userId,
+      name: formData.contactPerson,
+      email: formData.email,
+      password: formData.password || 'password123',
+      role: 'supplier',
+      supplierId: supplierId,
+      supplierName: newSupplier.name,
+      restaurantId: null,
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
+      joinedDate: new Date().toISOString().split('T')[0],
+      lastActive: 'Just now',
+    };
+
+    // Update Suppliers state
+    setSuppliers((prev) => [newSupplier, ...prev]);
+
+    // Update Users state
+    setUsers((prev) => [newSupplierUser, ...prev]);
+
+    // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
+    const adminLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      action: 'SUPPLIER_ONBOARDED',
+      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Products & catalog pending review.`,
+      user: newSupplier.contactPerson,
+      role: 'supplier',
+    };
+    setPlatformLogs((prev) => [adminLog, ...prev]);
+
+    // SYSTEM NOTIFICATION B: To Admin, Restaurant Owner & Inventory Manager ONLY (Restaurant Manager is strictly excluded)
+    const ownerNotif = {
+      id: `notif-${Date.now()}-sup`,
+      type: 'supplier_onboarding',
+      title: `🎉 New B2B Supplier Partner: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has registered on StockMate Marketplace offering ${newSupplier.categories.join(', ')}. Fresh wholesale catalog is ready for procurement.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/marketplace',
+      actionLabel: 'Browse Products',
+      badge: 'New Supplier',
+      supplierId: newSupplier.id,
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setOwnerNotifications((prev) => [ownerNotif, ...prev]);
+
+    const supplierAlert = {
+      id: `alt-${Date.now()}-sup`,
+      restaurantId: currentRestaurantId,
+      type: 'supplier_new',
+      severity: 'low',
+      title: `New Supplier: ${newSupplier.name}`,
+      message: `Verified partner for ${newSupplier.categories.slice(0, 2).join(' & ')} with ${newSupplier.leadTimeDays}-day delivery lead time.`,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/marketplace',
+      actionLabel: 'Procure Stock',
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [supplierAlert, ...prev]);
+
+    // Auto-login the new supplier
+    setCurrentUser(newSupplierUser);
+
+    addToast(
+      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier.`,
+      'success'
+    );
+
+    return { success: true, supplier: newSupplier, user: newSupplierUser };
+  };
+
+  // 3. Structured 4-Stage Purchase Order (PO) Workflow:
+  // Stage 1: Request PO (Cart Requisition)
+  // Direct PO: Goes directly from Inventory Manager to Third-Party Supplier, completely bypassing manager approval!
+  const createMarketplacePO = (orderData) => {
+    const { supplierId, items, notes, expectedDelivery } = orderData;
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    const rest = currentRestaurant;
+
+    const subtotal = items.reduce(
+      (sum, item) => sum + Number(item.quantity) * Number(item.price || item.unitCost),
+      0
+    );
+    const tax = Number((subtotal * 0.05).toFixed(2)); // 5% GST
+    const shippingFee = subtotal > 1500 ? 0 : 150.0;
+    const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
+    const poNum = `PO-B2B-${Math.floor(1000 + purchaseOrders.length + Math.random() * 900)}`;
+
+    // Order goes directly to supplier with status 'pending' (manager has no involvement)
+    const initialStatus = 'pending';
+
+    const newPO = {
+      id: `po-${Date.now()}`,
+      poNumber: poNum,
+      restaurantId: currentRestaurantId,
+      restaurantName: rest?.name || 'Mango Tree Kitchen & Bar',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Main Branch',
+      supplierId: supplierId,
+      supplierName: supplier ? supplier.name : 'Marketplace Supplier',
+      supplierContact: supplier ? `${supplier.contactPerson} (${supplier.email})` : '',
+      status: initialStatus,
+      createdAt: new Date().toISOString(),
+      expectedDelivery:
+        expectedDelivery ||
+        new Date(Date.now() + (supplier?.leadTimeDays || 2) * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+      notes: notes || 'Procured via StockMate B2B Marketplace.',
+      items: items.map((it) => ({
+        ingredientId: it.id || it.ingredientId,
+        name: it.name,
+        quantity: Number(it.quantity),
+        unit: it.unit,
+        unitCost: Number(it.price || it.unitCost),
+        totalCost: Number((Number(it.quantity) * Number(it.price || it.unitCost)).toFixed(2)),
+      })),
+      subtotal,
+      tax,
+      shippingFee,
+      totalAmount,
+      source: 'b2b_marketplace',
+      timeline: [
+        {
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+          note: `PO created by ${currentUser?.name || 'Inventory Manager'} (${currentUser?.role?.replace('_', ' ') || 'inventory manager'}). Dispatched directly to ${supplier?.name || 'Supplier'} queue.`,
+        },
+      ],
+    };
+
+    setPurchaseOrders((prev) => [newPO, ...prev]);
+
+    // Automatically create linked sales invoice / pending receivable for the supplier
+    const initialInvoiceNumber = `SINV-${newPO.poNumber.replace(/^PO-(B2B-)?/, '') || Date.now().toString().slice(-4)}`;
+    const newInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber: initialInvoiceNumber,
+      poId: newPO.id,
+      poNumber: newPO.poNumber,
+      grnId: null,
+      grnNumber: 'Awaiting Delivery',
+      supplierId: newPO.supplierId,
+      supplierName: newPO.supplierName,
+      supplierGstin: supplier?.gstin || '27AABCU1234F1Z0',
+      restaurantId: newPO.restaurantId,
+      restaurantName: newPO.restaurantName,
+      branchId: newPO.branchId,
+      branchName: newPO.branchName,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: newPO.expectedDelivery || new Date(Date.now() + (supplier?.leadTimeDays || 14) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: newPO.subtotal,
+      taxAmount: newPO.tax,
+      shippingFee: newPO.shippingFee || 0,
+      totalAmount: newPO.totalAmount,
+      acceptedAmount: newPO.totalAmount,
+      damageDeduction: 0,
+      creditNoteApplied: 0,
+      netPayable: newPO.totalAmount,
+      paidAmount: 0,
+      outstandingBalance: newPO.totalAmount,
+      paymentStatus: 'Pending',
+      paymentMethod: 'Pending Settlement',
+      paymentDate: null,
+      transactionRef: null,
+      verificationStatus: 'Order Placed (Pending Dispatch)',
+      items: newPO.items,
+    };
+    setSupplierInvoices((prev) => [newInvoice, ...prev]);
+
+    // Send confirmation alert to Inventory Manager & Owner (Manager has no involvement)
+    const orderAlert = {
+      id: `alt-${Date.now()}-po`,
+      restaurantId: currentRestaurantId,
+      type: 'po_created',
+      severity: 'low',
+      title: `Order Dispatched: ${newPO.poNumber}`,
+      message: `Direct requisition for ${newPO.items.length} items dispatched to ${newPO.supplierName} (₹${newPO.totalAmount.toLocaleString('en-IN')}).`,
+      poId: newPO.id,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/purchase-orders',
+      actionLabel: 'Track Order',
+      targetRoles: ['restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [orderAlert, ...prev]);
+    addToast(`Purchase Order ${newPO.poNumber} dispatched directly to ${newPO.supplierName}.`, 'success');
+
+    return newPO;
+  };
+
+  // Stage 2: Admin/Manager Approval
+  const approvePurchaseOrder = (poId) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const approvalEntry = {
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            note: `Approved by ${currentUser.name} (${currentUser.role.replace('_', ' ')}). Sent to supplier.`,
+          };
+          return {
+            ...po,
+            status: 'pending',
+            timeline: [...po.timeline, approvalEntry],
+          };
+        }
+        return po;
+      })
+    );
+    addToast('Purchase Order approved and dispatched to supplier queue.', 'success');
+  };
+
+  // Stage 4: Receiving Goods & Live Inventory Update
+  const receivePOAndStock = (poId, receiptNotes = 'Goods verified and received in optimal condition.') => {
+    const targetPO = purchaseOrders.find((p) => p.id === poId);
+    if (!targetPO) return;
+
+    // 1. Update Inventory Quantities
+    setIngredients((prev) =>
+      prev.map((ing) => {
+        const matchingItem = targetPO.items.find(
+          (it) => it.ingredientId === ing.id || it.name.toLowerCase() === ing.name.toLowerCase()
+        );
+        if (matchingItem) {
+          const addedQty = Number(matchingItem.quantity) || 0;
+          return {
+            ...ing,
+            currentStock: Number((ing.currentStock + addedQty).toFixed(2)),
+            lastRestocked: new Date().toISOString().split('T')[0],
+          };
+        }
+        return ing;
+      })
+    );
+
+    // 2. Add Stock Movement records
+    const newMovements = targetPO.items.map((it) => ({
+      id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      type: 'purchase',
+      quantity: Number(it.quantity),
+      unit: it.unit,
+      timestamp: new Date().toISOString(),
+      performedBy: currentUser?.name || 'Manager',
+      referenceNumber: targetPO.poNumber,
+      notes: `Restocked via B2B Purchase Order ${targetPO.poNumber} from ${targetPO.supplierName}`,
+    }));
+    setStockMovements((prev) => [...newMovements, ...prev]);
+
+    // 3. Mark PO as 'received' and 'delivered'
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const receivedEntry = {
+            status: 'received',
+            timestamp: new Date().toISOString(),
+            note: `Stock received & inventory updated by ${currentUser?.name || 'Manager'} (${currentUser?.role || 'user'}). ${receiptNotes}`,
+          };
+          return {
+            ...po,
+            status: 'received',
+            receivedAt: new Date().toISOString(),
+            timeline: [...po.timeline, receivedEntry],
+          };
+        }
+        return po;
+      })
+    );
+
+    // 4. Create batch records for QR tracking
+    const newBatches = targetPO.items.map((it) => ({
+      id: `BATCH-${new Date().getFullYear()}-${it.name.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      supplierId: targetPO.supplierId,
+      supplierName: targetPO.supplierName,
+      poNumber: targetPO.poNumber,
+      receivedDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      initialQuantity: Number(it.quantity),
+      remainingQuantity: Number(it.quantity),
+      unit: it.unit,
+      status: 'active',
+      storageLocation: 'Kitchen Storage A',
+    }));
+    setProductBatches((prev) => [...newBatches, ...prev]);
+
+    // Update linked supplier invoice status
+    setSupplierInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.poId === poId || inv.poNumber === targetPO.poNumber) {
+          return {
+            ...inv,
+            verificationStatus: 'Stock Received & Inventory Updated',
+          };
+        }
+        return inv;
+      })
+    );
+
+    addToast(`PO ${targetPO.poNumber} received. Restaurant inventory stock updated!`, 'success');
   };
 
   // ==========================================
@@ -1614,7 +2088,31 @@ export const AppProvider = ({ children }) => {
       transactionRef: null,
       verificationStatus: 'Verified by Manager',
     };
-    setSupplierInvoices((prev) => [newInvoice, ...prev]);
+    setSupplierInvoices((prev) => {
+      const existing = prev.find((inv) => inv.poId === (targetPO?.id || poId) || (targetPO && inv.poNumber === targetPO.poNumber));
+      if (existing) {
+        return prev.map((inv) => {
+          if (inv.id === existing.id) {
+            const net = Math.round(totalAccepted + taxAmount);
+            const remaining = Math.max(0, Number((net - (inv.creditNoteApplied || 0) - (inv.paidAmount || 0)).toFixed(2)));
+            return {
+              ...inv,
+              grnId: newGRN.id,
+              grnNumber: newGRN.grnNumber,
+              invoiceNumber: invoiceNumber || inv.invoiceNumber,
+              acceptedAmount: totalAccepted,
+              damageDeduction: totalDamageLoss,
+              netPayable: net,
+              outstandingBalance: remaining,
+              paymentStatus: remaining <= 0 ? 'Paid' : (inv.paidAmount > 0 ? 'Partially Paid' : 'Pending'),
+              verificationStatus: 'Verified by Manager',
+            };
+          }
+          return inv;
+        });
+      }
+      return [newInvoice, ...prev];
+    });
 
     // 4. Update PO Status
     if (targetPO) {
@@ -1836,31 +2334,38 @@ export const AppProvider = ({ children }) => {
 
     setSupplierReturns((prev) => [newReturn, ...prev]);
 
-    // If returning from an active batch (e.g. unsold fresh pav), deduct from batch remaining
+    // If returning from an active batch, deduct from batch remaining
     if (batchId) {
       setProductBatches((prev) =>
         prev.map((b) => {
           if (b.batchId === batchId) {
-            const newRemaining = Math.max(0, Number((b.remainingQty - qty).toFixed(2)));
+            const newRemaining = Math.max(0, Number(((b.remainingQty || 0) - qty).toFixed(2)));
             return {
               ...b,
               remainingQty: newRemaining,
-              returnedQty: Number((b.returnedQty + qty).toFixed(2)),
+              returnedQty: Number(((b.returnedQty || 0) + qty).toFixed(2)),
               batchStatus: newRemaining === 0 ? 'Returned' : b.batchStatus,
             };
           }
           return b;
         })
       );
+    }
 
-      // Deduct from available ingredient stock
+    // Always deduct from available ingredient stock if ingredient matches
+    if (ingredientId || productName) {
       setIngredients((prev) =>
         prev.map((ing) => {
-          if (ing.id === ingredientId) {
-            const newQty = Math.max(0, Number((ing.quantity - qty).toFixed(2)));
+          if (
+            (ingredientId && ing.id === ingredientId) ||
+            (productName && ing.name?.toLowerCase() === productName.toLowerCase())
+          ) {
+            const currentStockVal = ing.quantity !== undefined ? ing.quantity : (ing.currentStock || 0);
+            const newQty = Math.max(0, Number((currentStockVal - qty).toFixed(2)));
             return {
               ...ing,
               quantity: newQty,
+              currentStock: newQty,
               status: getIngredientStatus(newQty, ing.minThreshold),
             };
           }
@@ -1868,6 +2373,39 @@ export const AppProvider = ({ children }) => {
         })
       );
     }
+
+    // Record stock movement audit trail
+    const returnMovement = {
+      id: `mov-${Date.now()}`,
+      restaurantId: currentRestaurant?.id || currentRestaurantId || 'rest-1',
+      ingredientId: ingredientId || 'misc',
+      ingredientName: productName,
+      type: 'waste',
+      quantity: qty,
+      unit: unit || 'units',
+      performedBy: currentUser?.name || 'Inventory Manager',
+      role: currentUser?.role?.replace('_', ' ').toUpperCase() || 'INVENTORY MANAGER',
+      reason: `Supplier return (${returnType}): ${reason || 'Damaged / Unsold return to supplier'}`,
+      referenceNumber: returnNumber,
+      timestamp: new Date().toISOString(),
+    };
+    setStockMovements((prev) => [returnMovement, ...prev]);
+
+    // Send targeted return alert to Owner & Inventory Manager
+    const returnAlert = {
+      id: `alt-${Date.now()}-ret`,
+      restaurantId: currentRestaurant?.id || currentRestaurantId || 'rest-1',
+      type: 'supplier_return',
+      severity: 'medium',
+      title: `Return Logged: ${returnNumber}`,
+      message: `${qty} ${unit || 'units'} of ${productName} flagged for return to ${supplierName}. Claim: ${formatINR(totalLossAmount)}.`,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/supplier-returns',
+      actionLabel: 'Review Claims',
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [returnAlert, ...prev]);
 
     addToast(`Return request ${returnNumber} submitted to ${supplierName}. Status: Pending.`, 'success');
     return newReturn;
@@ -1969,8 +2507,8 @@ export const AppProvider = ({ children }) => {
   };
 
   // Record verified Restaurant-to-Supplier payment transaction
-  const recordSupplierPayment = ({ invoiceId, amount, paymentMethod, transactionRef }) => {
-    const inv = supplierInvoices.find((i) => i.id === invoiceId);
+  const recordSupplierPayment = ({ invoiceId, poId, amount, paymentMethod, transactionRef }) => {
+    const inv = supplierInvoices.find((i) => i.id === invoiceId || (poId && (i.poId === poId || i.poNumber === poId)));
     if (!inv) {
       addToast('Invoice not found', 'error');
       return false;
@@ -1993,13 +2531,17 @@ export const AppProvider = ({ children }) => {
       paymentNumber,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
+      poId: inv.poId,
+      poNumber: inv.poNumber,
       supplierId: inv.supplierId,
       supplierName: inv.supplierName,
+      restaurantId: inv.restaurantId,
+      restaurantName: inv.restaurantName,
       amountPaid: payAmount,
       paymentMethod: paymentMethod || 'NEFT Bank Transfer',
       paymentDate: new Date().toISOString().split('T')[0],
       transactionRef: transactionRef.trim(),
-      verifiedBy: `${currentUser?.name || 'Priya Sharma'} (${currentUser?.role?.replace('_', ' ') || 'Owner'})`,
+      verifiedBy: `${currentUser?.name || 'Finance User'} (${currentUser?.role?.replace('_', ' ') || 'Authorized'})`,
       receiptNumber: `RCPT-${Math.floor(1000 + Math.random() * 9000)}`,
       status: 'Settled',
     };
@@ -2009,9 +2551,9 @@ export const AppProvider = ({ children }) => {
     // Update invoice
     setSupplierInvoices((prev) =>
       prev.map((i) => {
-        if (i.id === invoiceId) {
-          const newPaid = Number((i.paidAmount + payAmount).toFixed(2));
-          const newBalance = Math.max(0, Number((i.netPayable - i.creditNoteApplied - newPaid).toFixed(2)));
+        if (i.id === inv.id) {
+          const newPaid = Number(((i.paidAmount || 0) + payAmount).toFixed(2));
+          const newBalance = Math.max(0, Number((i.netPayable - (i.creditNoteApplied || 0) - newPaid).toFixed(2)));
           return {
             ...i,
             paidAmount: newPaid,
@@ -2026,7 +2568,7 @@ export const AppProvider = ({ children }) => {
       })
     );
 
-    addToast(`Payment of ${formatINR(payAmount)} to ${inv.supplierName} verified and recorded!`, 'success');
+    addToast(`Payment of ${formatINR(payAmount)} for ${inv.invoiceNumber} recorded successfully!`, 'success');
     return newPayment;
   };
 
@@ -2875,7 +3417,7 @@ export const AppProvider = ({ children }) => {
 
     setBranches((prev) => [newBranch, ...prev]);
 
-    // Create notification
+    // Create notification (marked read for creator)
     const newNotif = {
       id: `notif-${Date.now()}`,
       type: 'branch_created',
@@ -2883,7 +3425,7 @@ export const AppProvider = ({ children }) => {
       message: `Successfully provisioned ${newBranch.name} with ${newBranch.planName} plan.`,
       branchId: newBranch.id,
       branchName: newBranch.name,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branches',
       actionLabel: 'View Branch',
@@ -2925,7 +3467,7 @@ export const AppProvider = ({ children }) => {
         message: `${targetBranch.name} status updated to ${nextStatus}.`,
         branchId: targetBranch.id,
         branchName: targetBranch.name,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branches',
         actionLabel: 'View Branches',
@@ -2975,7 +3517,7 @@ export const AppProvider = ({ children }) => {
         branchName: targetBranch.name,
         planName: planConfig.name,
         amount: totalRenewalPrice,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branch-subscriptions',
         actionLabel: 'View Subscription',
@@ -3074,7 +3616,7 @@ export const AppProvider = ({ children }) => {
       message: `${newStaff.name} invited to ${newStaff.branchName} (${newStaff.roleLabel}). Temporary credentials dispatched.`,
       branchId: newStaff.branchId,
       branchName: newStaff.branchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -3132,7 +3674,7 @@ export const AppProvider = ({ children }) => {
       message: `${mgr.name} appointed as Branch Manager for ${targetBranch?.name}.`,
       branchId,
       branchName: targetBranch?.name || 'Branch',
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Managers',
@@ -3191,7 +3733,7 @@ export const AppProvider = ({ children }) => {
       branchId: toB.id,
       branchName: toB.name,
       transferId: newTransfer.id,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'Review Request',
@@ -3267,7 +3809,12 @@ export const AppProvider = ({ children }) => {
       })
     );
 
-    // Create notification
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
+    // Create decision notification (marked read for decider)
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3275,7 +3822,7 @@ export const AppProvider = ({ children }) => {
       message: `${transfer.employeeName} successfully transferred to ${transfer.toBranchName}.`,
       branchId: transfer.toBranchId,
       branchName: transfer.toBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -3315,6 +3862,11 @@ export const AppProvider = ({ children }) => {
       })
     );
 
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3322,7 +3874,7 @@ export const AppProvider = ({ children }) => {
       message: `Transfer of ${transfer.employeeName} to ${transfer.toBranchName} was declined. Reason: ${reason}.`,
       branchId: transfer.fromBranchId,
       branchName: transfer.fromBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'View Transfers',
@@ -3710,7 +4262,7 @@ export const AppProvider = ({ children }) => {
     };
     setOwnerNotifications(prev => [managerNotif, ...prev]);
 
-    // Staff in-app notification
+    // Staff in-app notification (marked read for applicant)
     const staffNotif = {
       id: `snotif-${Date.now()}`,
       targetStaffId: targetId,
@@ -3719,7 +4271,7 @@ export const AppProvider = ({ children }) => {
       message: `Your leave request for ${startDate} – ${endDate} (${durationDays} days) has been dispatched to the Manager for approval.`,
       status: 'pending',
       timestamp: 'Just now',
-      read: false,
+      read: true,
     };
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
@@ -4048,6 +4600,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem(`${STORAGE_KEY}_salaryPayments`);
     localStorage.removeItem(`${STORAGE_KEY}_staffNotifications`);
     localStorage.removeItem(`${STORAGE_KEY}_custom_plan_requests`);
+    localStorage.removeItem(`${STORAGE_KEY}_supplierProducts`);
 
     setRestaurants(initialRestaurants);
     setPlans(initialPlans);
@@ -4082,6 +4635,7 @@ export const AppProvider = ({ children }) => {
     setSalaryPayments(initialSalaryPayments);
     setStaffNotifications(initialStaffNotifications);
     setCustomPlanRequests(initialCustomPlanRequests);
+    setSupplierProducts(INITIAL_SUPPLIER_PRODUCTS);
     setCurrentUser(initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0]);
     setCurrentRestaurantId('rest-1');
 
@@ -4321,7 +4875,7 @@ export const AppProvider = ({ children }) => {
       if (currentBranchId && currentBranchId !== 'all' && a.branchId) return a.branchId === currentBranchId;
       return true;
     });
-  }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId]);
+  }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchGRNs = useMemo(() => {
     return goodsReceivedNotes.filter((g) => {
@@ -4340,20 +4894,55 @@ export const AppProvider = ({ children }) => {
   }, [productBatches, currentRestaurantId, currentBranchId]);
 
   const branchReturns = useMemo(() => {
-    return supplierReturns.filter((r) => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierReturns || []).filter((r) => {
+        return (activeSupId && r.supplierId === activeSupId) || (activeSupName && r.supplierName === activeSupName);
+      });
+    }
+    return (supplierReturns || []).filter((r) => {
       if (r.restaurantId !== currentRestaurantId) return false;
       if (currentBranchId && currentBranchId !== 'all' && r.branchId) return r.branchId === currentBranchId;
       return true;
     });
-  }, [supplierReturns, currentRestaurantId, currentBranchId]);
+  }, [supplierReturns, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchSupplierInvoices = useMemo(() => {
-    return supplierInvoices.filter((inv) => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierInvoices || []).filter((inv) => {
+        return (activeSupId && inv.supplierId === activeSupId) || (activeSupName && inv.supplierName === activeSupName);
+      });
+    }
+    return (supplierInvoices || []).filter((inv) => {
       if (inv.restaurantId !== currentRestaurantId) return false;
       if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
-  }, [supplierInvoices, currentRestaurantId, currentBranchId]);
+  }, [supplierPayments, currentRestaurantId, currentUser]);
+
+  const branchOwnerNotifications = useMemo(() => {
+    return (ownerNotifications || []).filter((n) => {
+      if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerNotifications, currentUser]);
+
+  // Scoped supplier products: if a supplier is logged in, they ONLY see their own products!
+  const visibleSupplierProducts = useMemo(() => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierProducts || []).filter(
+        (p) => (activeSupId && p.supplierId === activeSupId) || (activeSupName && p.supplierName === activeSupName)
+      );
+    }
+    return supplierProducts || [];
+  }, [supplierProducts, currentUser]);
 
   const branchStaffList = useMemo(() => {
     return branchStaff.filter((s) => {
@@ -4960,7 +5549,7 @@ export const AppProvider = ({ children }) => {
         branchStaff: branchStaffList,
         organizationStaff: branchStaff.filter(s => s.restaurantId === currentRestaurantId),
         staffTransfers,
-        ownerNotifications,
+        ownerNotifications: branchOwnerNotifications,
         branchInvoices,
         toasts,
 
@@ -4974,7 +5563,7 @@ export const AppProvider = ({ children }) => {
         supplierReturns: branchReturns,
         branchReturns,
         creditNotes,
-        supplierPayments,
+        supplierPayments: branchSupplierPayments,
         supplierAgreements,
         createGoodsReceivedNote,
         consumeFromBatch,
@@ -5128,6 +5717,19 @@ export const AppProvider = ({ children }) => {
         BASE_PLANS,
         FEATURE_ADDONS,
         AUTOMATION_LIMITS,
+
+        // Third-Party Supplier B2B Marketplace & Procurement Workflow
+        supplierProducts: visibleSupplierProducts,
+        SUPPLIER_SUBSCRIPTION_PLANS,
+        SUPPLIER_CATEGORIES,
+        addSupplierProduct,
+        updateSupplierProduct,
+        deleteSupplierProduct,
+        toggleSupplierProductStock,
+        registerSupplierAccount,
+        createMarketplacePO,
+        approvePurchaseOrder,
+        receivePOAndStock,
 
         // Communication Center & Announcement System
         announcements,

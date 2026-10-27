@@ -38,6 +38,9 @@ export const SupplierReturnsPage = () => {
     supplierReturns,
     supplierAgreements,
     productBatches,
+    restaurantIngredients,
+    suppliers,
+    purchaseOrders,
     createSupplierReturn,
     addToast,
     currentUser,
@@ -53,7 +56,11 @@ export const SupplierReturnsPage = () => {
 
   // Form state for creating a return request
   const [returnType, setReturnType] = useState('Damaged on Delivery'); // Damaged on Delivery | Unsold Fresh Goods Agreement | Expired / Quality Failure
+  const [sourceMode, setSourceMode] = useState('batch'); // 'batch' | 'ingredient' | 'order'
   const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [selectedIngredientId, setSelectedIngredientId] = useState('');
+  const [selectedPOId, setSelectedPOId] = useState('');
+  const [selectedPOItemIndex, setSelectedPOItemIndex] = useState(0);
   const [returnQty, setReturnQty] = useState(1);
   const [returnReason, setReturnReason] = useState('Dock rejection: damaged transit packaging');
   const [preferredSettlement, setPreferredSettlement] = useState('Credit Note');
@@ -63,10 +70,79 @@ export const SupplierReturnsPage = () => {
     return productBatches.find((b) => b.batchId === selectedBatchId) || null;
   }, [productBatches, selectedBatchId]);
 
+  // Selected return target based on sourceMode
+  const selectedItem = useMemo(() => {
+    if (sourceMode === 'batch') {
+      const b = (productBatches || []).find((item) => item.batchId === selectedBatchId);
+      if (!b) return null;
+      return {
+        sourceType: 'batch',
+        batchId: b.batchId,
+        poId: b.poId || 'po-batch',
+        poNumber: b.poNumber || 'PO-BATCH',
+        grnId: b.grnNumber || 'GRN-BATCH',
+        grnNumber: b.grnNumber || 'GRN-BATCH',
+        ingredientId: b.ingredientId,
+        productName: b.productName,
+        supplierId: b.supplierId,
+        supplierName: b.supplierName,
+        unit: b.unit,
+        unitCost: Number(b.unitCost || 0),
+        maxQty: Number(b.remainingQty || 0),
+      };
+    }
+
+    if (sourceMode === 'ingredient') {
+      const ing = (restaurantIngredients || []).find((i) => i.id === selectedIngredientId);
+      if (!ing) return null;
+      const sup = (suppliers || []).find((s) => s.id === ing.supplierId) || { id: ing.supplierId || 'sup-1', name: ing.supplierName || 'Primary Supplier' };
+      const currentStock = ing.quantity !== undefined ? ing.quantity : (ing.currentStock || 0);
+      return {
+        sourceType: 'ingredient',
+        batchId: ing.batchNumber || null,
+        poId: 'po-stock',
+        poNumber: 'PO-STOCK',
+        grnId: 'GRN-INV',
+        grnNumber: 'GRN-INV',
+        ingredientId: ing.id,
+        productName: ing.name,
+        supplierId: sup.id,
+        supplierName: sup.name,
+        unit: ing.unit || 'units',
+        unitCost: Number(ing.costPerUnit || ing.unitCost || 0),
+        maxQty: Number(currentStock),
+      };
+    }
+
+    if (sourceMode === 'order') {
+      const po = (purchaseOrders || []).find((p) => p.id === selectedPOId);
+      if (!po || !po.items || !po.items[selectedPOItemIndex]) return null;
+      const item = po.items[selectedPOItemIndex];
+      return {
+        sourceType: 'order',
+        batchId: null,
+        poId: po.id,
+        poNumber: po.poNumber,
+        grnId: po.grnNumber || 'GRN-PO',
+        grnNumber: po.grnNumber || 'GRN-PO',
+        ingredientId: item.ingredientId,
+        productName: item.name,
+        supplierId: po.supplierId,
+        supplierName: po.supplierName,
+        unit: item.unit || 'units',
+        unitCost: Number(item.unitCost || item.price || 0),
+        maxQty: Number(item.quantity || 0),
+      };
+    }
+
+    return null;
+  }, [sourceMode, selectedBatchId, productBatches, selectedIngredientId, restaurantIngredients, suppliers, selectedPOId, selectedPOItemIndex, purchaseOrders]);
+
   // Associated agreement for active batch supplier
   const batchSupplierAgreement = useMemo(() => {
-    if (!activeBatch) return null;
-    return (supplierAgreements || []).find((a) => a.supplierId === activeBatch.supplierId) || null;
+    const targetSupId = selectedItem?.supplierId || activeBatch?.supplierId;
+    if (!targetSupId) return null;
+    return (supplierAgreements || []).find((a) => a.supplierId === targetSupId) || null;
   }, [activeBatch, supplierAgreements]);
 
   // Summary Metrics
@@ -98,6 +174,16 @@ export const SupplierReturnsPage = () => {
   }, [supplierReturns, searchTerm, statusFilter, typeFilter]);
 
   const handleOpenCreateModal = (prefillAgreement = null) => {
+    if ((productBatches || []).length > 0) {
+      setSourceMode('batch');
+    } else if ((restaurantIngredients || []).length > 0) {
+      setSourceMode('ingredient');
+      setSelectedIngredientId(restaurantIngredients[0].id);
+    } else if ((purchaseOrders || []).length > 0) {
+      setSourceMode('order');
+      setSelectedPOId(purchaseOrders[0].id);
+      setSelectedPOItemIndex(0);
+    }
     if (prefillAgreement) {
       setReturnType('Unsold Fresh Goods Agreement');
       // Find matching batch for this supplier
@@ -139,8 +225,8 @@ export const SupplierReturnsPage = () => {
   const handleSubmitReturn = (e) => {
     e.preventDefault();
 
-    if (!activeBatch) {
-      addToast('Please select a valid product batch.', 'error');
+    if (!selectedItem) {
+      addToast('Please select a valid item to return from available batches, inventory, or orders.', 'error');
       return;
     }
 
@@ -150,9 +236,9 @@ export const SupplierReturnsPage = () => {
       return;
     }
 
-    if (qty > (activeBatch.remainingQty || 0)) {
+    if (selectedItem.maxQty && qty > selectedItem.maxQty) {
       addToast(
-        `Return quantity (${qty}) exceeds remaining batch stock (${activeBatch.remainingQty} ${activeBatch.unit}).`,
+        `Return quantity (${qty}) exceeds available stock (${selectedItem.maxQty} ${selectedItem.unit}).`,
         'error'
       );
       return;
@@ -161,36 +247,36 @@ export const SupplierReturnsPage = () => {
     // If Unsold Fresh Goods, validate against agreement max %
     if (returnType === 'Unsold Fresh Goods Agreement' && batchSupplierAgreement) {
       const maxAllowed = Math.ceil(
-        (activeBatch.acceptedQty * (batchSupplierAgreement.maxReturnPercent || 20)) / 100
+        ((activeBatch?.acceptedQty || selectedItem?.maxQty || 100) * (batchSupplierAgreement.maxReturnPercent || 20)) / 100
       );
       if (qty > maxAllowed) {
         const proceed = window.confirm(
-          `Notice: Return qty (${qty}) exceeds agreed return threshold of ${batchSupplierAgreement.maxReturnPercent}% (${maxAllowed} ${activeBatch.unit}). Submit as special supplier concession?`
+          `Notice: Return qty (${qty}) exceeds agreed return threshold of ${batchSupplierAgreement.maxReturnPercent}% (${maxAllowed} ${selectedItem.unit}). Submit as special supplier concession?`
         );
         if (!proceed) return;
       }
     }
 
-    const totalLoss = qty * (activeBatch.unitCost || 0);
+    const totalLoss = Number((qty * (selectedItem.unitCost || 0)).toFixed(2));
 
     const newReturnData = {
-      poId: activeBatch.poId || 'po-manual',
-      poNumber: activeBatch.poNumber || 'PO-MANUAL',
-      grnId: activeBatch.grnNumber || 'GRN-MANUAL',
-      grnNumber: activeBatch.grnNumber || 'GRN-MANUAL',
-      batchId: activeBatch.batchId,
-      ingredientId: activeBatch.ingredientId,
-      productName: activeBatch.productName,
-      supplierId: activeBatch.supplierId,
-      supplierName: activeBatch.supplierName,
+      poId: selectedItem.poId || 'po-manual',
+      poNumber: selectedItem.poNumber || 'PO-MANUAL',
+      grnId: selectedItem.grnNumber || 'GRN-MANUAL',
+      grnNumber: selectedItem.grnNumber || 'GRN-MANUAL',
+      batchId: selectedItem.batchId,
+      ingredientId: selectedItem.ingredientId,
+      productName: selectedItem.productName,
+      supplierId: selectedItem.supplierId,
+      supplierName: selectedItem.supplierName,
       returnType: returnType,
       returnQty: qty,
-      unit: activeBatch.unit,
-      unitCost: activeBatch.unitCost,
+      unit: selectedItem.unit,
+      unitCost: selectedItem.unitCost,
       totalLossAmount: totalLoss,
       reason: returnReason,
       settlementType: preferredSettlement,
-      requestedBy: currentUser?.name || 'Rahul Verma (Inventory Manager)',
+      requestedBy: `${currentUser?.name || 'Inventory Manager'} (${currentUser?.role?.replace('_', ' ') || 'inventory manager'})`,
     };
 
     createSupplierReturn(newReturnData);
@@ -585,51 +671,176 @@ export const SupplierReturnsPage = () => {
             </div>
           </div>
 
-          {/* Select Batch */}
+          {/* Select Return Source Mode */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Select Product Batch with Available Stock *
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+              Select Item Source
             </label>
-            <select
-              value={selectedBatchId}
-              onChange={(e) => handleFormBatchChange(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
-              required
-            >
-              <option value="">-- Choose Received Batch --</option>
-              {productBatches.map((b) => (
-                <option key={b.batchId} value={b.batchId}>
-                  {b.productName} ({b.batchId}) — {b.remainingQty} {b.unit} left | {b.supplierName} (Expiry: {b.expiryDate})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setSourceMode('batch')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  sourceMode === 'batch'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Product Batches ({productBatches.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSourceMode('ingredient');
+                  if (!selectedIngredientId && (restaurantIngredients || []).length > 0) {
+                    setSelectedIngredientId(restaurantIngredients[0].id);
+                  }
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  sourceMode === 'ingredient'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Inventory Stock ({(restaurantIngredients || []).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSourceMode('order');
+                  if (!selectedPOId && (purchaseOrders || []).length > 0) {
+                    setSelectedPOId(purchaseOrders[0].id);
+                    setSelectedPOItemIndex(0);
+                  }
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  sourceMode === 'order'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Purchase Orders ({(purchaseOrders || []).length})
+              </button>
+            </div>
           </div>
 
-          {/* Selected Batch Details Card */}
-          {activeBatch && (
+          {/* Conditional Dropdown based on Source Mode */}
+          {sourceMode === 'batch' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Select Product Batch with Available Stock *
+              </label>
+              {productBatches.length === 0 ? (
+                <div className="p-3 bg-amber-50 text-amber-800 text-xs rounded-xl border border-amber-200">
+                  No active product batches found for current branch. Click <strong>"Inventory Stock"</strong> or <strong>"Purchase Orders"</strong> above to return items.
+                </div>
+              ) : (
+                <select
+                  value={selectedBatchId}
+                  onChange={(e) => handleFormBatchChange(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                >
+                  <option value="">-- Choose Received Batch --</option>
+                  {productBatches.map((b) => (
+                    <option key={b.batchId} value={b.batchId}>
+                      {b.productName} ({b.batchId}) — {b.remainingQty} {b.unit} left | {b.supplierName} (Expiry: {b.expiryDate})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {sourceMode === 'ingredient' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Select Inventory Stock Item to Return *
+              </label>
+              <select
+                value={selectedIngredientId}
+                onChange={(e) => setSelectedIngredientId(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                required
+              >
+                <option value="">-- Choose Inventory Item --</option>
+                {(restaurantIngredients || []).map((ing) => (
+                  <option key={ing.id} value={ing.id}>
+                    {ing.name} — {ing.quantity !== undefined ? ing.quantity : ing.currentStock} {ing.unit} in stock | {ing.supplierName || 'Vendor'} ({formatINR(ing.costPerUnit || ing.unitCost || 0)}/{ing.unit})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {sourceMode === 'order' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Select Purchase Order *
+                </label>
+                <select
+                  value={selectedPOId}
+                  onChange={(e) => {
+                    setSelectedPOId(e.target.value);
+                    setSelectedPOItemIndex(0);
+                  }}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                >
+                  <option value="">-- Choose PO --</option>
+                  {(purchaseOrders || []).map((po) => (
+                    <option key={po.id} value={po.id}>
+                      {po.poNumber} — {po.supplierName} ({po.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Select Line Item *
+                </label>
+                <select
+                  value={selectedPOItemIndex}
+                  onChange={(e) => setSelectedPOItemIndex(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                >
+                  {((purchaseOrders || []).find((p) => p.id === selectedPOId)?.items || []).map((item, idx) => (
+                    <option key={idx} value={idx}>
+                      {item.name} ({item.quantity} {item.unit}) — {formatINR(item.unitCost || item.price || 0)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          {/* Selected Item Details Card */}
+          {selectedItem && (
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-800">{activeBatch.productName}</span>
+                <span className="font-bold text-slate-800">{selectedItem.productName}</span>
                 <span className="font-mono text-[11px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
-                  {activeBatch.batchId}
+                  {selectedItem.batchId || selectedItem.poNumber}
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-200">
                 <div>
                   <span className="text-slate-400 block">Supplier:</span>
-                  <span className="font-semibold text-slate-800 truncate block">{activeBatch.supplierName}</span>
+                  <span className="font-semibold text-slate-800 truncate block">{selectedItem.supplierName}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block">PO / GRN:</span>
-                  <span className="font-semibold text-slate-800">{activeBatch.poNumber}</span>
+                  <span className="font-semibold text-slate-800">{selectedItem.poNumber}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Unit Cost:</span>
-                  <span className="font-semibold text-slate-800">{formatINR(activeBatch.unitCost)} / {activeBatch.unit}</span>
+                  <span className="font-semibold text-slate-800">{formatINR(selectedItem.unitCost)} / {selectedItem.unit}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Remaining Stock:</span>
-                  <span className="font-bold text-emerald-700">{activeBatch.remainingQty} {activeBatch.unit}</span>
+                  <span className="font-bold text-emerald-700">{selectedItem.maxQty} {selectedItem.unit}</span>
                 </div>
               </div>
 
@@ -652,17 +863,17 @@ export const SupplierReturnsPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FormInput
-                label={`Return Quantity (${activeBatch?.unit || 'units'}) *`}
+                label={`Return Quantity (${selectedItem?.unit || 'units'}) *`}
                 type="number"
                 min="1"
-                max={activeBatch?.remainingQty || 9999}
+                max={selectedItem?.maxQty || 9999}
                 value={returnQty}
                 onChange={(e) => setReturnQty(e.target.value)}
                 required
               />
-              {activeBatch && (
+              {selectedItem && (
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Total loss value: <strong className="text-rose-600">{formatINR(Number(returnQty) * (activeBatch.unitCost || 0))}</strong>
+                  Total loss value: <strong className="text-rose-600">{formatINR(Number(returnQty) * (selectedItem.unitCost || 0))}</strong>
                 </p>
               )}
             </div>
