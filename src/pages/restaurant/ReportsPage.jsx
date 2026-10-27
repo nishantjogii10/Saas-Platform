@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   BarChart3,
   TrendingDown,
+  TrendingUp,
   IndianRupee,
   PieChart as PieIcon,
   Download,
@@ -19,6 +20,12 @@ import {
   FileText,
   Printer,
   Users,
+  Search,
+  Table,
+  Filter,
+  Check,
+  ShieldCheck,
+  Boxes,
 } from 'lucide-react';
 import { StaffReports } from './StaffReports';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -68,6 +75,11 @@ export const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState('procurement_audit'); // 'procurement_audit' | 'inventory_analytics' | 'staff_reports'
   const [timeframe, setTimeframe] = useState('month');
 
+  // Filter/Search states for tables
+  const [batchSearchTerm, setBatchSearchTerm] = useState('');
+  const [ingredientSearchTerm, setIngredientSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
+
   // Enforce tab permissions: only Owner can access 'staff_reports'
   const currentTab = !isOwner && activeTab === 'staff_reports' ? 'procurement_audit' : activeTab;
 
@@ -86,17 +98,357 @@ export const ReportsPage = () => {
     .reduce((acc, r) => acc + (r.totalLossAmount || 0), 0);
   const totalOutstandingDues = (supplierInvoices || []).reduce((acc, inv) => acc + (inv.outstandingBalance || 0), 0);
 
-  const CATEGORY_COLORS = ['#0E5C38', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B'];
+  const CATEGORY_COLORS = ['#0E5C38', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899'];
 
+  // Tab 1: Structured Dock Damage Audit Data
+  const damageReturns = useMemo(() => {
+    const list = (supplierReturns || []).filter(
+      r => r.returnType === 'Damaged on Delivery' || r.returnType?.toLowerCase().includes('damage')
+    );
+    if (list.length > 0) return list;
+    return [
+      {
+        id: 'dmg-1',
+        returnNumber: 'RET-2026-001',
+        productName: 'Farm-Fresh Chicken Breast',
+        supplierName: 'Metro Food Distributors',
+        poNumber: 'PO-1040',
+        grnNumber: 'GRN-2026-1040',
+        returnQty: 2,
+        unit: 'kg',
+        unitCost: 280,
+        totalLossAmount: 560,
+        reason: 'Vacuum packaging breached & cold-chain break (>8°C)',
+        status: 'Approved',
+        settlementType: 'Credit Note Claimed',
+      },
+      {
+        id: 'dmg-2',
+        returnNumber: 'RET-2026-002',
+        productName: 'Fresh Pav / Buns',
+        supplierName: 'Golden Crust Artisan Bakery',
+        poNumber: 'PO-1041',
+        grnNumber: 'GRN-2026-1041',
+        returnQty: 5,
+        unit: 'packs (6 pcs)',
+        unitCost: 25,
+        totalLossAmount: 125,
+        reason: 'Crushed during offloading from van at loading dock',
+        status: 'Approved',
+        settlementType: 'Credit Note Claimed',
+      },
+      {
+        id: 'dmg-3',
+        returnNumber: 'RET-2026-003',
+        productName: 'Roma Vine Tomatoes',
+        supplierName: 'FreshFarm Organics',
+        poNumber: 'PO-1038',
+        grnNumber: 'GRN-2026-1038',
+        returnQty: 2,
+        unit: 'kg',
+        unitCost: 45,
+        totalLossAmount: 90,
+        reason: 'Crushed in bottom crate during transit, juice leakage',
+        status: 'Approved',
+        settlementType: 'Invoice Adjusted',
+      },
+      {
+        id: 'dmg-4',
+        returnNumber: 'RET-2026-004',
+        productName: 'Full Cream Dairy Milk',
+        supplierName: 'Amrit Dairy Farms & Products',
+        poNumber: 'PO-1039',
+        grnNumber: 'GRN-2026-1039',
+        returnQty: 4,
+        unit: 'L',
+        unitCost: 60,
+        totalLossAmount: 240,
+        reason: 'Container seal ruptured on loading ramp during offload',
+        status: 'Approved',
+        settlementType: 'Vendor Credit Issued',
+      },
+    ];
+  }, [supplierReturns]);
+
+  // Tab 1: Fresh Bread & Perishables SLA Returns Data
+  const freshSlaReturns = useMemo(() => {
+    const list = (supplierReturns || []).filter(
+      r => r.returnType === 'Unsold Fresh Goods Agreement' || r.returnType?.toLowerCase().includes('unsold')
+    );
+    if (list.length > 0) return list;
+    return [
+      {
+        id: 'sla-1',
+        returnNumber: 'RET-2026-SLA-01',
+        creditNoteId: 'CRN-2026-002',
+        productName: 'Artisanal Daily Pav / Buns',
+        supplierName: 'Golden Crust Artisan Bakery',
+        slaAgreement: '24h Pav Freshness SLA (20% Max Allowance)',
+        requestDate: '2026-10-23',
+        returnQty: 15,
+        unit: 'packs',
+        totalLossAmount: 375,
+        status: 'Approved',
+        reason: '15 unsold daily pav packs returned before 9:00 PM cutoff window',
+        complianceStatus: '100% SLA Compliant',
+      },
+      {
+        id: 'sla-2',
+        returnNumber: 'RET-2026-SLA-02',
+        creditNoteId: 'CRN-2026-003',
+        productName: 'Handcrafted Sourdough Loaves',
+        supplierName: 'Golden Crust Artisan Bakery',
+        slaAgreement: '24h Daily Sourdough SLA (15% Allowance)',
+        requestDate: '2026-10-24',
+        returnQty: 3,
+        unit: 'loaves',
+        totalLossAmount: 180,
+        status: 'Approved',
+        reason: 'Returned 8:30 PM prior to evening bake transition cutoff',
+        complianceStatus: '100% SLA Compliant',
+      },
+      {
+        id: 'sla-3',
+        returnNumber: 'RET-2026-SLA-03',
+        creditNoteId: 'N/A (Utilized)',
+        productName: 'Artisanal Malai Paneer Blocks',
+        supplierName: 'Amrit Dairy Farms & Products',
+        slaAgreement: '36h Fresh Paneer Utilization SLA',
+        requestDate: '2026-10-24',
+        returnQty: 0,
+        unit: 'kg',
+        totalLossAmount: 0,
+        status: 'Completed',
+        reason: 'Zero returns. 100% of batch consumed prior to 36h threshold',
+        complianceStatus: 'Optimal (100% Utilized)',
+      },
+    ];
+  }, [supplierReturns]);
+
+  // Tab 1: Batch movements filter
+  const allBatchMovements = useMemo(() => {
+    return (productBatches || []).flatMap((b) =>
+      (b.movements || []).map((m) => ({
+        ...m,
+        batchId: b.batchId,
+        productName: b.productName,
+        unit: b.unit,
+      }))
+    );
+  }, [productBatches]);
+
+  const filteredBatchMovements = useMemo(() => {
+    if (!batchSearchTerm.trim()) return allBatchMovements;
+    const query = batchSearchTerm.toLowerCase();
+    return allBatchMovements.filter(
+      (m) =>
+        m.productName.toLowerCase().includes(query) ||
+        m.batchId.toLowerCase().includes(query) ||
+        m.reason?.toLowerCase().includes(query) ||
+        m.by?.toLowerCase().includes(query)
+    );
+  }, [allBatchMovements, batchSearchTerm]);
+
+  // Tab 2: Category Valuation enriched with totals and shares
+  const categoryValuationSummary = useMemo(() => {
+    const totalVal = restaurantCategoryValuation.reduce((acc, c) => acc + (c.value || 0), 0);
+    const totalItems = restaurantCategoryValuation.reduce((acc, c) => acc + (c.items || 0), 0);
+
+    const categoriesWithStats = restaurantCategoryValuation.map((c, idx) => {
+      const share = totalVal > 0 ? ((c.value / totalVal) * 100).toFixed(1) : '0.0';
+      const catName = c.category || c.name || 'Uncategorized';
+      let velocity = 'Medium';
+      let bufferHealth = 'Healthy (3-5 Days)';
+      if (catName.includes('Meat') || catName.includes('Dairy')) {
+        velocity = 'Fast (Daily / FEFO)';
+        bufferHealth = 'Critical (1-2 Days Buffer)';
+      } else if (catName.includes('Spices') || catName.includes('Grains')) {
+        velocity = 'Slow / Bulk';
+        bufferHealth = 'High Reserve (14+ Days)';
+      }
+
+      return {
+        ...c,
+        name: catName,
+        share,
+        velocity,
+        bufferHealth,
+        color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
+      };
+    });
+
+    return { items: categoriesWithStats, totalVal, totalItems };
+  }, [restaurantCategoryValuation, CATEGORY_COLORS]);
+
+  // Tab 2: Daily Kitchen Consumption Trends Data with computed totals
+  const dailyConsumptionTableData = useMemo(() => {
+    const list = restaurantConsumptionTrends.map((row) => {
+      const consumptionVal = row.consumption || row.consumed || 0;
+      const wastageVal = row.wastage || 0;
+      const purchaseVal = row.purchases || 0;
+      const netDelta = purchaseVal - consumptionVal;
+      const totalOutflow = consumptionVal + wastageVal;
+      const efficiency = totalOutflow > 0 ? ((consumptionVal / totalOutflow) * 100).toFixed(1) : '100.0';
+
+      return {
+        ...row,
+        consumptionVal,
+        wastageVal,
+        purchaseVal,
+        netDelta,
+        efficiency,
+      };
+    });
+
+    const totalConsumption = list.reduce((acc, r) => acc + r.consumptionVal, 0);
+    const totalWastage = list.reduce((acc, r) => acc + r.wastageVal, 0);
+    const totalPurchases = list.reduce((acc, r) => acc + r.purchaseVal, 0);
+    const avgEfficiency = (
+      list.reduce((acc, r) => acc + parseFloat(r.efficiency), 0) / (list.length || 1)
+    ).toFixed(1);
+
+    return { list, totalConsumption, totalWastage, totalPurchases, avgEfficiency };
+  }, [restaurantConsumptionTrends]);
+
+  // Tab 2: High-Value & Spoilage-Sensitive Stock Table
+  const filteredIngredients = useMemo(() => {
+    return (restaurantIngredients || []).filter((item) => {
+      const matchesSearch =
+        !ingredientSearchTerm.trim() ||
+        item.name.toLowerCase().includes(ingredientSearchTerm.toLowerCase()) ||
+        item.category?.toLowerCase().includes(ingredientSearchTerm.toLowerCase());
+
+      const matchesCategory =
+        selectedCategoryFilter === 'all' || item.category === selectedCategoryFilter;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [restaurantIngredients, ingredientSearchTerm, selectedCategoryFilter]);
+
+  const uniqueCategories = useMemo(() => {
+    const set = new Set((restaurantIngredients || []).map((i) => i.category).filter(Boolean));
+    return Array.from(set);
+  }, [restaurantIngredients]);
+
+  // Comprehensive Multi-Section CSV Export
   const handleExportReport = () => {
-    addToast('Comprehensive restaurant cost & inventory report exported (PDF/CSV).', 'success');
+    try {
+      const rows = [];
+      const timestamp = new Date().toISOString().split('T')[0];
+
+      if (currentTab === 'procurement_audit') {
+        rows.push(['STOCKMATE SAAS - SUPPLIER PROCUREMENT & DOCK AUDIT REPORT']);
+        rows.push(['Generated Date:', timestamp]);
+        rows.push(['Reporting Timeframe:', timeframe.toUpperCase()]);
+        rows.push([]);
+
+        // Section 1
+        rows.push(['--- GOODS PURCHASED VS ACCEPTED AUDIT ---']);
+        rows.push(['PO Ref', 'GRN Ref', 'Supplier Partner', 'Invoice No', 'Billed Amount', 'Accepted Stock', 'Dock Damage Loss', 'Net Payable', 'Status']);
+        (supplierInvoices || []).forEach((inv) => {
+          rows.push([
+            `"${inv.poNumber}"`,
+            `"${inv.grnNumber}"`,
+            `"${inv.supplierName}"`,
+            `"${inv.invoiceNumber}"`,
+            inv.totalAmount,
+            inv.acceptedAmount || inv.totalAmount,
+            inv.damageDeduction || 0,
+            inv.netPayable,
+            `"${inv.verificationStatus || 'Verified'}"`,
+          ]);
+        });
+        rows.push([]);
+
+        // Section 2
+        rows.push(['--- DOCK DAMAGE LOSS WRITE-OFFS ---']);
+        rows.push(['Return Ref', 'Item Name', 'Supplier Partner', 'PO Ref', 'Damaged Qty', 'Unit Cost', 'Loss Amount', 'Damage Cause', 'Settlement Status']);
+        damageReturns.forEach((dmg) => {
+          rows.push([
+            `"${dmg.returnNumber}"`,
+            `"${dmg.productName}"`,
+            `"${dmg.supplierName}"`,
+            `"${dmg.poNumber}"`,
+            `"${dmg.returnQty} ${dmg.unit}"`,
+            dmg.unitCost,
+            dmg.totalLossAmount,
+            `"${dmg.reason}"`,
+            `"${dmg.settlementType || dmg.status}"`,
+          ]);
+        });
+        rows.push([]);
+
+        // Section 3
+        rows.push(['--- FRESH GOODS & PERISHABLES SLA RETURNS ---']);
+        rows.push(['Return Ref', 'Credit Note', 'Item Name', 'Supplier Partner', 'SLA Contract', 'Return Qty', 'Credit Value', 'Compliance Status']);
+        freshSlaReturns.forEach((sla) => {
+          rows.push([
+            `"${sla.returnNumber}"`,
+            `"${sla.creditNoteId}"`,
+            `"${sla.productName}"`,
+            `"${sla.supplierName}"`,
+            `"${sla.slaAgreement}"`,
+            `"${sla.returnQty} ${sla.unit}"`,
+            sla.totalLossAmount,
+            `"${sla.complianceStatus}"`,
+          ]);
+        });
+      } else {
+        rows.push(['STOCKMATE SAAS - KITCHEN INVENTORY VALUATION & SPOILAGE AUDIT']);
+        rows.push(['Generated Date:', timestamp]);
+        rows.push(['Total Stock Valuation:', totalValuation]);
+        rows.push([]);
+
+        rows.push(['--- INVENTORY VALUATION BY FOOD CATEGORY ---']);
+        rows.push(['Category', 'Monitored SKUs', 'Capital Valuation (INR)', 'Share (%)', 'Turnover Velocity', 'Buffer Health']);
+        categoryValuationSummary.items.forEach((c) => {
+          rows.push([`"${c.name}"`, c.items, c.value, `${c.share}%`, `"${c.velocity}"`, `"${c.bufferHealth}"`]);
+        });
+        rows.push([]);
+
+        rows.push(['--- DAILY KITCHEN CONSUMPTION & SPOILAGE TRENDS ---']);
+        rows.push(['Day', 'Consumption (INR)', 'Wastage (INR)', 'Fresh Purchases (INR)', 'Net Delta (INR)', 'Efficiency (%)']);
+        dailyConsumptionTableData.list.forEach((r) => {
+          rows.push([r.day, r.consumptionVal, r.wastageVal, r.purchaseVal, r.netDelta, `${r.efficiency}%`]);
+        });
+        rows.push([]);
+
+        rows.push(['--- ACTIVE INGREDIENT INVENTORY LEDGER ---']);
+        rows.push(['Ingredient Name', 'Category', 'Current Stock', 'Unit Cost', 'Asset Value (INR)', 'Min Reorder Threshold']);
+        filteredIngredients.forEach((ing) => {
+          rows.push([
+            `"${ing.name}"`,
+            `"${ing.category}"`,
+            `"${ing.quantity} ${ing.unit}"`,
+            ing.costPerUnit,
+            ing.quantity * ing.costPerUnit,
+            ing.minThreshold || 5,
+          ]);
+        });
+      }
+
+      const csvContent =
+        'data:text/csv;charset=utf-8,' +
+        rows.map((e) => (Array.isArray(e) ? e.join(',') : e)).join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `StockMate_Restaurant_Audit_Report_${currentTab}_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      addToast('Complete tabular audit report exported to CSV successfully.', 'success');
+    } catch (err) {
+      console.error('Export Error:', err);
+      addToast('Failed to export CSV report.', 'error');
+    }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Analytics & Audits"
-        subtitle="Procurement verification, dock damage loss audits, fresh bread returns & inventory valuation"
+        subtitle="Procurement verification, dock damage loss audits, fresh bread returns & inventory valuation in clear tabular views"
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Reports & Audits' },
@@ -125,7 +477,7 @@ export const ReportsPage = () => {
               icon={Download}
               onClick={handleExportReport}
             >
-              Export Report
+              Export Tabular Report (CSV)
             </Button>
           </div>
         }
@@ -216,16 +568,19 @@ export const ReportsPage = () => {
             />
           </div>
 
-          {/* Section 1: Goods Purchased vs Goods Accepted Breakdown Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+          {/* Table 1: Goods Purchased vs Goods Accepted Breakdown Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">Goods Purchased vs. Accepted Audit</h3>
-                <p className="text-xs text-slate-500">
-                  Verification status, dock damage write-offs, and net authorized amounts
+                <div className="flex items-center gap-2">
+                  <Table className="w-4 h-4 text-emerald-800" />
+                  <h3 className="font-bold text-slate-900 text-sm">Goods Purchased vs. Accepted Audit Table</h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  PO invoiced amounts, dock verified physical stock, damage write-offs, and final net payable balances
                 </p>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
                 100% Stock Accuracy Policy
               </span>
             </div>
@@ -233,19 +588,19 @@ export const ReportsPage = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <th className="py-3 px-4">PO & GRN Ref</th>
                     <th className="py-3 px-4">Supplier Partner</th>
                     <th className="py-3 px-4 text-right">Billed Amount</th>
                     <th className="py-3 px-4 text-right">Accepted Stock</th>
                     <th className="py-3 px-4 text-right">Dock Damage Loss</th>
                     <th className="py-3 px-4 text-right">Net Payable</th>
-                    <th className="py-3 px-4">Verification Audit</th>
+                    <th className="py-3 px-4 text-center">Verification Audit</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(supplierInvoices || []).map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{inv.poNumber}</div>
                         <div className="text-[11px] font-mono text-emerald-800">{inv.grnNumber}</div>
@@ -262,196 +617,322 @@ export const ReportsPage = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         {inv.damageDeduction > 0 ? (
-                          <span className="font-bold text-rose-600">-{formatINR(inv.damageDeduction)}</span>
+                          <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            -{formatINR(inv.damageDeduction)}
+                          </span>
                         ) : (
-                          <span className="text-slate-400 text-[11px]">₹0</span>
+                          <span className="text-slate-400 font-mono">₹0</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-slate-900">
                         {formatINR(inv.netPayable)}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3" /> {inv.verificationStatus || 'Verified by Manager'}
                         </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                {/* Summary Table Footer */}
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td colSpan={2} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Procurement Total ({supplierInvoices.length} Invoices)
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-900 font-bold">
+                      {formatINR(totalPurchased)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-700 font-extrabold">
+                      {formatINR(totalAcceptedAmount)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-rose-600 font-bold">
+                      -{formatINR(totalDamageLosses)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-900 font-extrabold">
+                      {formatINR(totalPurchased - totalDamageLosses)}
+                    </td>
+                    <td className="py-3 px-4 text-center text-emerald-800 text-[11px]">
+                      100% Invoices Cleared
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
 
-          {/* Section 2: Damage Losses & Fresh Bread Returns Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Damage Losses by Supplier & Cause */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+          {/* Table 2: Dock Damage Loss Audit Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Dock Damage Loss Audit</h4>
-                  <p className="text-xs text-slate-400">Damaged items rejected at dock before stock entry</p>
-                </div>
-              </div>
-
-              <div className="space-y-3 mt-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-900">Farm-Fresh Chicken Breast (2 kg)</span>
-                    <div className="text-slate-500 text-[11px]">Metro Food Distributors • PO-1040</div>
-                    <div className="text-rose-600 text-[11px] font-medium">Cause: Vacuum packaging breached & cold-chain break</div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-rose-600 text-sm">{formatINR(560)}</span>
-                    <div className="text-[10px] text-emerald-700 font-bold">Credit Note Claimed</div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-900">Fresh Pav / Buns (5 packs)</span>
-                    <div className="text-slate-500 text-[11px]">Golden Crust Artisan Bakery • PO-1041</div>
-                    <div className="text-rose-600 text-[11px] font-medium">Cause: Crushed during offloading from van</div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-rose-600 text-sm">{formatINR(125)}</span>
-                    <div className="text-[10px] text-emerald-700 font-bold">Credit Note Claimed</div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
-                  <div>
-                    <span className="font-bold text-slate-900">Roma Vine Tomatoes (2 kg)</span>
-                    <div className="text-slate-500 text-[11px]">FreshFarm Organics • PO-1038</div>
-                    <div className="text-rose-600 text-[11px] font-medium">Cause: Crushed in bottom crate during transit</div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-rose-600 text-sm">{formatINR(90)}</span>
-                    <div className="text-[10px] text-emerald-700 font-bold">Invoice Adjusted</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fresh Bread & Perishables Returned under SLA Agreements */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <RotateCcw className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Unsold Fresh Bread & Dairy SLA Returns</h4>
-                  <p className="text-xs text-slate-400">Returns executed under 24h & 36h contractual clauses</p>
-                </div>
-              </div>
-
-              <div className="space-y-3 mt-3">
-                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-emerald-950">Golden Crust Artisan Bakery (24h Pav SLA)</span>
-                    <span className="font-mono font-bold text-emerald-800 text-[11px]">CRN-2026-002</span>
-                  </div>
-                  <p className="text-slate-600 text-[11px]">
-                    15 unsold daily pav packs returned before 9:00 PM cutoff (within 20% SLA allowance).
-                  </p>
-                  <div className="flex justify-between items-center pt-1 border-t border-emerald-200/60 text-[11px]">
-                    <span className="text-slate-500">Return Date: 2026-10-23</span>
-                    <span className="font-bold text-emerald-700">Credit Value: {formatINR(375)}</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-900">Amrit Dairy Farms & Products (36h Paneer SLA)</span>
-                    <span className="font-bold text-indigo-700 text-[11px]">Replacement Delivery</span>
-                  </div>
-                  <p className="text-slate-600 text-[11px]">
-                    Zero returns this cycle. 100% of delivered artisanal paneer utilized prior to 36h freshness threshold.
-                  </p>
-                  <div className="flex justify-between items-center pt-1 border-t border-slate-200 text-[11px]">
-                    <span className="text-slate-500">Next Review: 2026-10-27</span>
-                    <span className="font-bold text-slate-700">Utilization: 100%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: QR Batch Movement Audit Log with Timestamps and User Attribution */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
-                  <History className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Batch Movements & Traceability Audit Log</h4>
-                  <p className="text-xs text-slate-400">
-                    Immutable event log with timestamps, user attribution, and physical action reasons
+                  <h3 className="font-bold text-slate-900 text-sm">Dock Damage Loss Audit Table</h3>
+                  <p className="text-xs text-slate-500">
+                    Damaged and compromised items rejected at loading bay before stock acceptance
                   </p>
                 </div>
               </div>
-              <span className="text-xs text-slate-500">
-                Tracking {(productBatches || []).length} Active Product Batches
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-200 self-start sm:self-auto">
+                Loss Protection Claimed
               </span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                    <th className="py-2.5 px-3">Timestamp</th>
-                    <th className="py-2.5 px-3">Batch ID & Product</th>
-                    <th className="py-2.5 px-3">Action Type</th>
-                    <th className="py-2.5 px-3 text-right">Quantity</th>
-                    <th className="py-2.5 px-3">User Attribution</th>
-                    <th className="py-2.5 px-3">Operational Purpose / Reason</th>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Item & Specification</th>
+                    <th className="py-3 px-4">Supplier & PO Ref</th>
+                    <th className="py-3 px-4 text-center">Damaged Qty</th>
+                    <th className="py-3 px-4">Defect Cause & Incident Note</th>
+                    <th className="py-3 px-4 text-right">Unit Rate</th>
+                    <th className="py-3 px-4 text-right">Write-Off Loss</th>
+                    <th className="py-3 px-4 text-center">Settlement Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(productBatches || []).flatMap(b => (b.movements || []).map(m => ({ ...m, batchId: b.batchId, productName: b.productName, unit: b.unit }))).map((mov, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/60">
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{mov.date}</td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-900">{mov.productName}</div>
-                        <div className="font-mono text-[10px] text-slate-400">{mov.batchId}</div>
+                  {damageReturns.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{item.productName}</div>
+                        <div className="text-[11px] font-mono text-slate-400">{item.returnNumber}</div>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          mov.type === 'received'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : mov.type === 'consumed'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {mov.type}
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-800">{item.supplierName}</div>
+                        <div className="text-[11px] text-slate-500">{item.poNumber} • {item.grnNumber}</div>
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-800">
+                        {item.returnQty} {item.unit}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-rose-700 font-medium text-[11px] max-w-sm">
+                          {item.reason}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-600 font-mono">
+                        {formatINR(item.unitCost)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-rose-600">
+                        -{formatINR(item.totalLossAmount)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" /> {item.settlementType || 'Credit Note Claimed'}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                        {mov.quantity} {mov.unit}
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-800">{mov.by}</td>
-                      <td className="py-2.5 px-3 text-slate-600 text-[11px]">{mov.reason}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td colSpan={5} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Total Loading Dock Damage Write-Offs ({damageReturns.length} Incidents)
+                    </td>
+                    <td className="py-3 px-4 text-right text-rose-600 font-extrabold">
+                      -{formatINR(damageReturns.reduce((acc, d) => acc + (d.totalLossAmount || 0), 0))}
+                    </td>
+                    <td className="py-3 px-4 text-center text-emerald-700 text-[11px] font-bold">
+                      100% Recovery Claimed
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Table 3: Unsold Fresh Bread & Dairy SLA Returns Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Unsold Fresh Bread & Dairy SLA Returns Table</h3>
+                  <p className="text-xs text-slate-500">
+                    Perishables returned under 24h & 36h contractual credit agreement clauses
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                Guaranteed Freshness SLA
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Perishable Line / Product</th>
+                    <th className="py-3 px-4">Supplier Partner</th>
+                    <th className="py-3 px-4">Return SLA Clause</th>
+                    <th className="py-3 px-4">Credit Ref (CRN)</th>
+                    <th className="py-3 px-4 text-center">Returned Qty</th>
+                    <th className="py-3 px-4 text-right">Credit Value</th>
+                    <th className="py-3 px-4 text-center">Cutoff & Compliance Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {freshSlaReturns.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{item.productName}</div>
+                        <div className="text-[11px] text-slate-500">{item.reason}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-800">{item.supplierName}</div>
+                        <div className="text-[11px] text-slate-400">Date: {item.requestDate}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-[11px]">
+                          {item.slaAgreement}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-emerald-800">
+                        {item.creditNoteId}
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-900">
+                        {item.returnQty > 0 ? `${item.returnQty} ${item.unit}` : <span className="text-slate-400">0 (100% used)</span>}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                        {item.totalLossAmount > 0 ? formatINR(item.totalLossAmount) : <span className="text-slate-400 font-mono">₹0</span>}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" /> {item.complianceStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td colSpan={5} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Total Unsold Perishables SLA Credit Recovered
+                    </td>
+                    <td className="py-3 px-4 text-right text-emerald-700 font-extrabold">
+                      {formatINR(freshSlaReturns.reduce((acc, s) => acc + (s.totalLossAmount || 0), 0))}
+                    </td>
+                    <td className="py-3 px-4 text-center text-slate-500 text-[11px]">
+                      Within Monthly Allowance
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Table 4: QR Batch Movement Audit Log with Search & Pagination */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <History className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Batch Movements & Traceability Audit Log Table</h3>
+                  <p className="text-xs text-slate-500">
+                    Immutable event log with timestamps, user attribution, and physical action reasons
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter product, batch ID or user..."
+                  value={batchSearchTerm}
+                  onChange={(e) => setBatchSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Event Timestamp</th>
+                    <th className="py-3 px-4">Product & Batch Code</th>
+                    <th className="py-3 px-4 text-center">Movement Type</th>
+                    <th className="py-3 px-4 text-right">Physical Quantity</th>
+                    <th className="py-3 px-4">User Attribution</th>
+                    <th className="py-3 px-4">Operational Purpose / Audit Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredBatchMovements.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                        No batch movements found matching "{batchSearchTerm}".
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBatchMovements.map((mov, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
+                          {mov.date}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">{mov.productName}</div>
+                          <div className="font-mono text-[10px] text-slate-400">{mov.batchId}</div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              mov.type === 'received'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : mov.type === 'consumed'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {mov.type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-slate-900">
+                          {mov.quantity} {mov.unit}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">
+                          {mov.by}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 text-[11px]">
+                          {mov.reason}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td colSpan={3} className="py-3 px-4 text-slate-900 uppercase text-[11px] font-extrabold">
+                      Showing {filteredBatchMovements.length} Logged Traceability Events
+                    </td>
+                    <td colSpan={3} className="py-3 px-4 text-right text-slate-500 font-medium">
+                      Audited under HACCP food safety standards
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
         </div>
       ) : (
-        /* Tab 2: Existing Inventory Valuation & Kitchen Trends */
+        /* Tab 2: Inventory Analytics & Spoilage Trends - Comprehensive Tabular Presentation */
         <div className="space-y-6">
-          {/* KPI Cards */}
+          {/* KPI Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               title="Total Stock Valuation"
               value={formatINR(totalValuation)}
               change="+4.8%"
               trend="up"
-              subtext="Based on active lot costs"
+              subtext="Active warehouse lot costs"
               icon={IndianRupee}
               accentColor="emerald"
             />
@@ -469,7 +950,7 @@ export const ReportsPage = () => {
             <StatCard
               title="Active Ingredient Lots"
               value={restaurantIngredients.length}
-              subtext="Stocked and monitored"
+              subtext="Monitored in inventory matrix"
               icon={Layers}
               accentColor="blue"
             />
@@ -479,97 +960,336 @@ export const ReportsPage = () => {
               value="99.4%"
               change="+0.8%"
               trend="up"
-              subtext="Quarterly audit variance"
+              subtext="Audit variance tolerance"
               icon={Sparkles}
               accentColor="purple"
             />
           </div>
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8">
-              <Card>
-                <CardHeader
-                  title="Daily Ingredient Consumption Trends"
-                  subtitle="Volume of inventory used in prep across days (kg/units)"
-                  icon={BarChart3}
-                />
-                <div className="h-72 w-full pt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={restaurantConsumptionTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="consumptionGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0E5C38" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#0E5C38" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                      <XAxis dataKey="day" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#FFFFFF',
-                          borderColor: '#E2E8F0',
-                          borderRadius: '1rem',
-                          fontSize: '12px',
-                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="consumed"
-                        stroke="#0E5C38"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#consumptionGradient)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+          {/* Table 1: Inventory Valuation by Food Category Breakdown Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <PieIcon className="w-4 h-4" />
                 </div>
-              </Card>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Category Valuation & Capital Allocation Audit Table
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Distribution of restaurant working capital across primary ingredient groups
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                Total Valuation: {formatINR(categoryValuationSummary.totalVal)}
+              </span>
             </div>
 
-            <div className="lg:col-span-4">
-              <Card>
-                <CardHeader
-                  title="Valuation by Category"
-                  subtitle="Capital distribution across food groups"
-                  icon={PieIcon}
-                />
-                <div className="h-64 w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={restaurantCategoryValuation}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={80}
-                        paddingAngle={4}
-                      >
-                        {restaurantCategoryValuation.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-slate-100 text-xs">
-                  {restaurantCategoryValuation.map((item, idx) => (
-                    <div key={item.name} className="flex items-center gap-1.5">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: CATEGORY_COLORS[idx % CATEGORY_COLORS.length] }}
-                      ></span>
-                      <span className="text-slate-600 truncate">{item.name}</span>
-                    </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Food Category</th>
+                    <th className="py-3 px-4 text-center">Monitored Items</th>
+                    <th className="py-3 px-4 text-right">Capital Valuation</th>
+                    <th className="py-3 px-4 text-right">Capital Share</th>
+                    <th className="py-3 px-4">Consumption Turnover Velocity</th>
+                    <th className="py-3 px-4">Safety Buffer Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {categoryValuationSummary.items.map((cat, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                          <span className="font-bold text-slate-900">{cat.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-slate-800">
+                        {cat.items} SKUs
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        {formatINR(cat.value)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-emerald-800">
+                        {cat.share}%
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-700">
+                        {cat.velocity}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            cat.bufferHealth.includes('Critical')
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : cat.bufferHealth.includes('High')
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}
+                        >
+                          {cat.bufferHealth}
+                        </span>
+                      </td>
+                    </tr>
                   ))}
+                </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Total ({categoryValuationSummary.items.length} Food Categories)
+                    </td>
+                    <td className="py-3 px-4 text-center font-extrabold text-slate-900">
+                      {categoryValuationSummary.totalItems} SKUs
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-emerald-800 font-mono">
+                      {formatINR(categoryValuationSummary.totalVal)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-emerald-800">
+                      100.0%
+                    </td>
+                    <td colSpan={2} className="py-3 px-4 text-slate-500 font-normal text-[11px]">
+                      Quarterly inventory turns normalized across prep lines
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Table 2: Daily Kitchen Consumption & Wastage Audit Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                  <BarChart3 className="w-4 h-4" />
                 </div>
-              </Card>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Daily Kitchen Consumption & Spoilage Variance Table
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Prep usage volume, trash wastage, and restocking inflows tracked by day
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 border border-blue-200 self-start sm:self-auto">
+                Avg Efficiency: {dailyConsumptionTableData.avgEfficiency}%
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Day of Week</th>
+                    <th className="py-3 px-4 text-right">Kitchen Prep Usage</th>
+                    <th className="py-3 px-4 text-right">Kitchen Spoilage / Wastage</th>
+                    <th className="py-3 px-4 text-right">Restock Deliveries</th>
+                    <th className="py-3 px-4 text-right">Net Inventory Shift</th>
+                    <th className="py-3 px-4 text-center">Prep Efficiency Index</th>
+                    <th className="py-3 px-4 text-center">Operational Shift Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dailyConsumptionTableData.list.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {row.day === 'Mon' && 'Monday'}
+                        {row.day === 'Tue' && 'Tuesday'}
+                        {row.day === 'Wed' && 'Wednesday'}
+                        {row.day === 'Thu' && 'Thursday'}
+                        {row.day === 'Fri' && 'Friday (Peak Service)'}
+                        {row.day === 'Sat' && 'Saturday (Weekend Rush)'}
+                        {row.day === 'Sun' && 'Sunday (Family Service)'}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        {formatINR(row.consumptionVal)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
+                        {formatINR(row.wastageVal)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+                        {row.purchaseVal > 0 ? formatINR(row.purchaseVal) : <span className="text-slate-400">₹0</span>}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-800">
+                        {row.netDelta > 0 ? `+${formatINR(row.netDelta)}` : formatINR(row.netDelta)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                            parseFloat(row.efficiency) >= 95
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" /> {row.efficiency}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[11px] text-slate-600 font-medium">
+                          {row.day === 'Sat' || row.day === 'Fri' ? 'High Volume Surge' : 'Standard Prep Shift'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Weekly Kitchen Operational Totals
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-slate-900 font-mono">
+                      {formatINR(dailyConsumptionTableData.totalConsumption)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-rose-600 font-mono">
+                      {formatINR(dailyConsumptionTableData.totalWastage)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-emerald-700 font-mono">
+                      {formatINR(dailyConsumptionTableData.totalPurchases)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-slate-900 font-mono">
+                      {formatINR(dailyConsumptionTableData.totalPurchases - dailyConsumptionTableData.totalConsumption)}
+                    </td>
+                    <td className="py-3 px-4 text-center text-emerald-800 font-extrabold">
+                      {dailyConsumptionTableData.avgEfficiency}% Avg
+                    </td>
+                    <td className="py-3 px-4 text-center text-slate-500 font-normal text-[11px]">
+                      SLA Target Met (&gt;95%)
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Table 3: Active Ingredients Inventory Valuation Ledger Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-800 flex items-center justify-center shrink-0">
+                  <Boxes className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Stocked Ingredients Valuation & Storage Audit Table
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Live itemized ledger of ingredients, quantities on hand, unit costs, and asset valuation
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Category Filter */}
+                <select
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                >
+                  <option value="all">All Categories</option>
+                  {uniqueCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+
+                {/* Search Bar */}
+                <div className="relative w-48 sm:w-60">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search ingredient..."
+                    value={ingredientSearchTerm}
+                    onChange={(e) => setIngredientSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Ingredient Name</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4 text-center">Stock Level</th>
+                    <th className="py-3 px-4 text-right">Cost Per Unit</th>
+                    <th className="py-3 px-4 text-right">Total Valuation</th>
+                    <th className="py-3 px-4 text-center">Reorder Level</th>
+                    <th className="py-3 px-4 text-center">Stock Health</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredIngredients.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
+                        No ingredients found matching the filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredIngredients.map((item) => {
+                      const itemVal = item.quantity * item.costPerUnit;
+                      const isLow = item.quantity <= (item.minThreshold || 5);
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{item.name}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">SKU: {item.id}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-[11px]">
+                              {item.category || 'General'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center font-bold text-slate-900">
+                            {item.quantity} {item.unit}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-700">
+                            {formatINR(item.costPerUnit)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800">
+                            {formatINR(itemVal)}
+                          </td>
+                          <td className="py-3 px-4 text-center text-slate-600 font-mono">
+                            {item.minThreshold || 5} {item.unit}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                isLow
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}
+                            >
+                              {isLow ? 'Low Stock Warning' : 'Optimal Stock'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                  <tr>
+                    <td colSpan={4} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                      Filtered Stock Total ({filteredIngredients.length} Items)
+                    </td>
+                    <td className="py-3 px-4 text-right font-extrabold text-emerald-800 font-mono">
+                      {formatINR(filteredIngredients.reduce((acc, i) => acc + (i.quantity * i.costPerUnit), 0))}
+                    </td>
+                    <td colSpan={2} className="py-3 px-4 text-center text-slate-500 font-normal text-[11px]">
+                      Quarterly Audit Reconciled
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
         </div>

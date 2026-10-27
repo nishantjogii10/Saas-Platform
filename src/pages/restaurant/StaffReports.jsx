@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   Bell,
   Search,
+  Table,
+  BarChart3,
+  Layers,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/common/Card';
@@ -58,6 +61,7 @@ export const StaffReports = ({
 
   // Search filter for attendance summary
   const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [leaveSearch, setLeaveSearch] = useState('');
 
   // Enforce branch isolation rule:
   // Restaurant Manager can ONLY see their assigned branch.
@@ -113,7 +117,6 @@ export const StaffReports = ({
         (a) => a.staffId === staff.id && (!a.branchId || a.branchId === targetBranchId)
       );
 
-      // Determine realistic baseline metrics per staff member scaled to timeframe
       let daysPresent = totalWorkingDays;
       let lateArrivals = 0;
       let absent = 0;
@@ -195,7 +198,6 @@ export const StaffReports = ({
   // Overall KPI Card Summary calculations
   const totalStaffCount = branchStaffMembers.length;
 
-  // Present today: active records in attendanceRecords for this branch
   const presentTodayCount = useMemo(() => {
     const todayLogs = (attendanceRecords || []).filter((a) => {
       const isBranchMatch = !a.branchId || a.branchId === targetBranchId;
@@ -204,7 +206,6 @@ export const StaffReports = ({
         (a.punchInTime && a.punchInTime.startsWith('2026-10-24'));
       return isBranchMatch && isToday && a.status === 'active';
     });
-    // Default to minimum 2 active kitchen staff if records exist
     return todayLogs.length > 0 ? todayLogs.length : Math.min(2, totalStaffCount);
   }, [attendanceRecords, targetBranchId, totalStaffCount]);
 
@@ -216,7 +217,6 @@ export const StaffReports = ({
     return attendanceMetrics.reduce((acc, curr) => acc + curr.absent, 0);
   }, [attendanceMetrics]);
 
-  // On leave today: check approved leaves that overlap with current date
   const onLeaveCount = useMemo(() => {
     const todayStr = '2026-10-24';
     return branchLeaves.filter(
@@ -228,36 +228,66 @@ export const StaffReports = ({
     return branchLeaves.filter((l) => l.status === 'pending').length;
   }, [branchLeaves]);
 
-  // Trends Chart Data: Late Arrivals & Absences
-  const trendsChartData = useMemo(() => {
+  // Filtered Leave requests based on search input
+  const filteredLeaves = useMemo(() => {
+    if (!leaveSearch.trim()) return branchLeaves;
+    const q = leaveSearch.toLowerCase();
+    return branchLeaves.filter(
+      (l) =>
+        l.staffName?.toLowerCase().includes(q) ||
+        l.leaveType?.toLowerCase().includes(q) ||
+        l.status?.toLowerCase().includes(q)
+    );
+  }, [branchLeaves, leaveSearch]);
+
+  // Trends Chart & Table Data: Late Arrivals & Absences
+  const trendsData = useMemo(() => {
+    let rawPeriods = [];
     if (timeframe === 'week') {
-      return [
-        { period: 'Mon', late: 0, absent: 0 },
-        { period: 'Tue', late: 0, absent: 0 },
-        { period: 'Wed', late: 0, absent: 0 },
-        { period: 'Thu', late: 1, absent: 0 },
-        { period: 'Fri', late: 0, absent: 0 },
-        { period: 'Sat', late: 0, absent: 0 },
-        { period: 'Sun', late: 0, absent: 0 },
+      rawPeriods = [
+        { period: 'Monday', code: 'Mon', late: 0, absent: 0, scheduled: totalStaffCount },
+        { period: 'Tuesday', code: 'Tue', late: 0, absent: 0, scheduled: totalStaffCount },
+        { period: 'Wednesday', code: 'Wed', late: 0, absent: 0, scheduled: totalStaffCount },
+        { period: 'Thursday', code: 'Thu', late: 1, absent: 0, scheduled: totalStaffCount },
+        { period: 'Friday', code: 'Fri', late: 0, absent: 0, scheduled: totalStaffCount },
+        { period: 'Saturday', code: 'Sat', late: 0, absent: 0, scheduled: totalStaffCount },
+        { period: 'Sunday', code: 'Sun', late: 0, absent: 0, scheduled: totalStaffCount },
       ];
     } else if (timeframe === 'month') {
-      return [
-        { period: 'Week 1', late: 1, absent: 0 },
-        { period: 'Week 2', late: 0, absent: 1 },
-        { period: 'Week 3', late: 1, absent: 0 },
-        { period: 'Week 4', late: 1, absent: 0 },
+      rawPeriods = [
+        { period: 'Week 1 (Oct 1 - Oct 7)', code: 'Week 1', late: 1, absent: 0, scheduled: totalStaffCount * 6 },
+        { period: 'Week 2 (Oct 8 - Oct 14)', code: 'Week 2', late: 0, absent: 1, scheduled: totalStaffCount * 6 },
+        { period: 'Week 3 (Oct 15 - Oct 21)', code: 'Week 3', late: 1, absent: 0, scheduled: totalStaffCount * 6 },
+        { period: 'Week 4 (Oct 22 - Oct 28)', code: 'Week 4', late: 1, absent: 0, scheduled: totalStaffCount * 6 },
       ];
     } else {
-      // quarter
-      return [
-        { period: 'Aug 2026', late: 2, absent: 1 },
-        { period: 'Sep 2026', late: 3, absent: 2 },
-        { period: 'Oct 2026', late: 3, absent: 1 },
+      rawPeriods = [
+        { period: 'August 2026', code: 'Aug 2026', late: 2, absent: 1, scheduled: totalStaffCount * 24 },
+        { period: 'September 2026', code: 'Sep 2026', late: 3, absent: 2, scheduled: totalStaffCount * 24 },
+        { period: 'October 2026', code: 'Oct 2026', late: 3, absent: 1, scheduled: totalStaffCount * 24 },
       ];
     }
-  }, [timeframe]);
 
-  // Staff by Role Distribution
+    return rawPeriods.map((item) => {
+      const onTime = Math.max(0, item.scheduled - item.late - item.absent);
+      const compliance = item.scheduled > 0
+        ? Math.round(((item.scheduled - item.absent - item.late * 0.5) / item.scheduled) * 100)
+        : 100;
+
+      let status = '100% On-Time';
+      if (item.absent > 0) status = 'Absence Logged';
+      else if (item.late > 0) status = 'Late Shift Delay';
+
+      return {
+        ...item,
+        onTime,
+        compliance,
+        status,
+      };
+    });
+  }, [timeframe, totalStaffCount]);
+
+  // Staff by Role Distribution enriched with Station Info & Schedules
   const roleDistribution = useMemo(() => {
     const counts = {};
     branchStaffMembers.forEach((member) => {
@@ -265,11 +295,38 @@ export const StaffReports = ({
       counts[roleKey] = (counts[roleKey] || 0) + 1;
     });
 
-    return Object.entries(counts).map(([roleName, count]) => ({
-      roleName,
-      count,
-      percentage: totalStaffCount > 0 ? Math.round((count / totalStaffCount) * 100) : 0,
-    }));
+    return Object.entries(counts).map(([roleName, count]) => {
+      const percentage = totalStaffCount > 0 ? Math.round((count / totalStaffCount) * 100) : 0;
+      let shift = '09:00 AM – 06:00 PM';
+      let station = 'General Kitchen Station';
+      let staffingStatus = 'Fully Staffed';
+
+      if (roleName.toLowerCase().includes('head chef')) {
+        shift = '08:00 AM – 05:00 PM';
+        station = 'Hot Line & Recipe Pass';
+      } else if (roleName.toLowerCase().includes('sous chef')) {
+        shift = '12:00 PM – 09:00 PM';
+        station = 'Prep & Expediter Station';
+      } else if (roleName.toLowerCase().includes('manager')) {
+        shift = '09:00 AM – 06:30 PM';
+        station = 'Branch Office & Floor Operations';
+      } else if (roleName.toLowerCase().includes('inventory')) {
+        shift = '07:30 AM – 04:30 PM';
+        station = 'Receiving Dock & Cold Storage';
+      } else {
+        shift = '11:00 AM – 08:00 PM';
+        station = 'Line Cooking & Station Prep';
+      }
+
+      return {
+        roleName,
+        count,
+        percentage,
+        shift,
+        station,
+        staffingStatus,
+      };
+    });
   }, [branchStaffMembers, totalStaffCount]);
 
   // Staff Notices & Recent Transfers
@@ -280,30 +337,32 @@ export const StaffReports = ({
     branchTransfers.forEach((tr) => {
       items.push({
         id: tr.id,
-        type: 'transfer',
-        title: `Transfer Request: ${tr.employeeName}`,
-        detail: `${tr.fromBranchName} → ${tr.toBranchName} • "${tr.reason}"`,
+        type: 'Transfer Request',
+        title: tr.employeeName,
+        route: `${tr.fromBranchName} → ${tr.toBranchName}`,
+        detail: tr.reason || 'Operational branch staff balancing',
         date: tr.requestDate || '2026-10-22',
-        status: tr.status,
-        author: tr.requestedBy,
+        status: tr.status || 'Pending',
+        author: tr.requestedBy || 'Branch Manager',
       });
     });
 
     // Add recent staff notices / leave alerts
-    (staffAlerts || []).slice(0, 3).forEach((alert) => {
+    (staffAlerts || []).slice(0, 4).forEach((alert) => {
       items.push({
         id: alert.id,
-        type: 'notice',
+        type: 'Staff Notice',
         title: alert.title,
+        route: activeBranch.name,
         detail: alert.message,
         date: '2026-10-24',
-        status: alert.severity === 'high' ? 'High Priority' : 'Notice',
+        status: alert.severity === 'high' ? 'High Priority' : 'Acknowledged',
         author: 'Operations Desk',
       });
     });
 
     return items;
-  }, [branchTransfers, staffAlerts]);
+  }, [branchTransfers, staffAlerts, activeBranch]);
 
   // Export Staff Report to CSV
   const handleExportCSV = () => {
@@ -344,7 +403,15 @@ export const StaffReports = ({
       });
       rows.push([]);
 
-      // Section 2: Staff Leave Records
+      // Section 2: Trends Summary
+      rows.push(['--- PUNCTUALITY & ATTENDANCE TRENDS ---']);
+      rows.push(['Period', 'Scheduled Shifts', 'On-Time Staff', 'Late Arrivals', 'Absences', 'Compliance (%)', 'Status']);
+      trendsData.forEach((t) => {
+        rows.push([`"${t.period}"`, t.scheduled, t.onTime, t.late, t.absent, `${t.compliance}%`, `"${t.status}"`]);
+      });
+      rows.push([]);
+
+      // Section 3: Staff Leave Records
       rows.push(['--- STAFF LEAVE RECORDS & BALANCES ---']);
       rows.push([
         'Staff Name',
@@ -368,11 +435,11 @@ export const StaffReports = ({
       });
       rows.push([]);
 
-      // Section 3: Role Distribution
-      rows.push(['--- BRANCH HEADCOUNT BY ROLE ---']);
-      rows.push(['Role', 'Headcount', 'Percentage']);
+      // Section 4: Role Distribution
+      rows.push(['--- BRANCH HEADCOUNT BY ROLE & STATION ---']);
+      rows.push(['Role', 'Headcount', 'Shift Standard', 'Assigned Station', 'Percentage']);
       roleDistribution.forEach((r) => {
-        rows.push([`"${r.roleName}"`, r.count, `${r.percentage}%`]);
+        rows.push([`"${r.roleName}"`, r.count, `"${r.shift}"`, `"${r.station}"`, `${r.percentage}%`]);
       });
 
       const csvContent =
@@ -402,8 +469,8 @@ export const StaffReports = ({
       {/* Standalone Page Header for Restaurant Manager */}
       {!isEmbedded && (
         <PageHeader
-          title="Staff Reports"
-          subtitle="Attendance, leaves and staff activity for your branch."
+          title="Staff Reports & Attendance Audits"
+          subtitle="Tabular rosters, punctuality trends, leave balance tracking, and inter-branch movement logs"
           breadcrumbs={[
             { label: 'Restaurant', href: '#/dashboard' },
             { label: 'Staff Reports' },
@@ -432,7 +499,7 @@ export const StaffReports = ({
                 icon={Download}
                 onClick={handleExportCSV}
               >
-                Export Report
+                Export Tabular Report (CSV)
               </Button>
             </div>
           }
@@ -479,7 +546,7 @@ export const StaffReports = ({
               icon={Download}
               onClick={handleExportCSV}
             >
-              Export Staff Data
+              Export Staff Data (CSV)
             </Button>
           </div>
         </div>
@@ -531,154 +598,214 @@ export const StaffReports = ({
         />
       </div>
 
-      {/* 2. Main Analytics Grid: Trends & Team Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Section c: Late and Absent Trends Chart */}
-        <div className="lg:col-span-8">
-          <Card padding={false} className="h-full flex flex-col justify-between">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-emerald-700" /> Late & Absent Trends
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Punctuality exceptions recorded across the selected {timeframe}
-                </p>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
-                Period: {timeframe.toUpperCase()}
-              </span>
+      {/* Table 1: Late & Absent Trends Audit Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
             </div>
-
-            <div className="p-5 h-72 w-full">
-              {trendsChartData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  No trend data available for this period.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={trendsChartData}
-                    margin={{ top: 15, right: 10, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis
-                      dataKey="period"
-                      stroke="#94A3B8"
-                      fontSize={11}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke="#94A3B8"
-                      fontSize={11}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#FFFFFF',
-                        borderColor: '#E2E8F0',
-                        borderRadius: '0.75rem',
-                        fontSize: '12px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                      }}
-                    />
-                    <Legend
-                      verticalAlign="top"
-                      align="right"
-                      iconType="circle"
-                      wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }}
-                    />
-                    <Bar
-                      name="Late Arrivals"
-                      dataKey="late"
-                      fill="#F59E0B"
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={32}
-                    />
-                    <Bar
-                      name="Absences"
-                      dataKey="absent"
-                      fill="#F43F5E"
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={32}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div className="p-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
-              <span>Shift standard: 9-hour operational block</span>
-              <span className="font-medium text-emerald-800">
-                Punctuality Index: {totalLateArrivals === 0 ? '100% On Time' : `${Math.max(88, 100 - totalLateArrivals * 3)}% Compliance`}
-              </span>
-            </div>
-          </Card>
-        </div>
-
-        {/* Section d: Staff by Role */}
-        <div className="lg:col-span-4">
-          <Card padding={false} className="h-full flex flex-col justify-between">
-            <div className="p-5 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <ChefHat className="w-4 h-4 text-emerald-700" /> Staff by Role
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">
+                Punctuality & Attendance Trends Table
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Headcount breakdown across branch stations
+              <p className="text-xs text-slate-500">
+                Scheduled shifts, punctual arrivals, and exceptions logged across the {timeframe}
               </p>
             </div>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 self-start sm:self-auto">
+            Period: {timeframe.toUpperCase()}
+          </span>
+        </div>
 
-            <div className="p-5 space-y-4">
-              {roleDistribution.length === 0 ? (
-                <div className="text-xs text-slate-400 text-center py-8">
-                  No staff registered for this branch.
-                </div>
-              ) : (
-                roleDistribution.map((role) => (
-                  <div key={role.roleName} className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-800">
-                        {role.roleName}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-3 px-4">Shift Period</th>
+                <th className="py-3 px-4 text-center">Scheduled Shifts</th>
+                <th className="py-3 px-4 text-center">On-Time Staff</th>
+                <th className="py-3 px-4 text-center">Late Arrivals</th>
+                <th className="py-3 px-4 text-center">Absences</th>
+                <th className="py-3 px-4 text-center">Punctuality Compliance Rate</th>
+                <th className="py-3 px-4 text-center">Shift Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {trendsData.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4 font-bold text-slate-900">
+                    {row.period}
+                  </td>
+                  <td className="py-3 px-4 text-center font-semibold text-slate-800">
+                    {row.scheduled} shifts
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-emerald-700">
+                    {row.onTime}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {row.late > 0 ? (
+                      <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        {row.late}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900">
-                          {role.count} {role.count === 1 ? 'member' : 'members'}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          ({role.percentage}%)
-                        </span>
-                      </div>
-                    </div>
-                    {/* Visual Progress Bar */}
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-emerald-700 h-full rounded-full transition-all duration-300"
-                        style={{ width: `${role.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span className="text-slate-500">Total Assigned Headcount</span>
-              <span className="font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                {totalStaffCount} Active Staff
-              </span>
-            </div>
-          </Card>
+                    ) : (
+                      <span className="text-slate-400 font-mono">0</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {row.absent > 0 ? (
+                      <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                        {row.absent}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-mono">0</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        row.compliance >= 95
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : row.compliance >= 85
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> {row.compliance}%
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="text-[11px] text-slate-600 font-medium">
+                      {row.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+              <tr>
+                <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                  Total {timeframe.toUpperCase()} Shift Records
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-slate-900">
+                  {trendsData.reduce((acc, t) => acc + t.scheduled, 0)} Shifts
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-emerald-700">
+                  {trendsData.reduce((acc, t) => acc + t.onTime, 0)}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-amber-600">
+                  {trendsData.reduce((acc, t) => acc + t.late, 0)}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-rose-600">
+                  {trendsData.reduce((acc, t) => acc + t.absent, 0)}
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-emerald-800">
+                  {Math.round(
+                    trendsData.reduce((acc, t) => acc + t.compliance, 0) / (trendsData.length || 1)
+                  )}% Average
+                </td>
+                <td className="py-3 px-4 text-center text-emerald-800 text-[11px] font-bold">
+                  SLA Compliance Maintained
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
-      {/* Section a: Staff Attendance Summary Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Table 2: Staff Headcount & Station Allocation Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+              <ChefHat className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">
+                Staff Headcount & Station Allocation Table
+              </h3>
+              <p className="text-xs text-slate-500">
+                Assigned station coverage, standard operational shifts, and role distribution for {branchDisplayName}
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+            {totalStaffCount} Active Team Members
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-3 px-4">Role Title / Designation</th>
+                <th className="py-3 px-4 text-center">Active Headcount</th>
+                <th className="py-3 px-4">Standard Shift Timing</th>
+                <th className="py-3 px-4">Assigned Workstation</th>
+                <th className="py-3 px-4 text-right">Headcount Share</th>
+                <th className="py-3 px-4 text-center">Coverage Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {roleDistribution.map((role, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-4">
+                    <span className="font-bold text-slate-900">{role.roleName}</span>
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-slate-900">
+                    {role.count} {role.count === 1 ? 'member' : 'members'}
+                  </td>
+                  <td className="py-3 px-4 text-slate-700 font-mono text-[11px]">
+                    {role.shift}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-[11px]">
+                      {role.station}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-bold text-emerald-800">
+                    {role.percentage}%
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3" /> {role.staffingStatus}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+              <tr>
+                <td className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                  Total Assigned Team
+                </td>
+                <td className="py-3 px-4 text-center font-extrabold text-slate-900">
+                  {totalStaffCount} Members
+                </td>
+                <td colSpan={2} className="py-3 px-4 text-slate-500 font-normal text-[11px]">
+                  Full coverage across kitchen, receiving dock, and service floor
+                </td>
+                <td className="py-3 px-4 text-right font-extrabold text-emerald-800">
+                  100%
+                </td>
+                <td className="py-3 px-4 text-center text-emerald-700 text-[11px]">
+                  Optimal Manning
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Table 3: Staff Attendance Summary Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-emerald-800" /> Attendance Summary
-            </h3>
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-emerald-800" />
+              <h3 className="font-bold text-slate-900 text-sm">Staff Attendance Ledger Table</h3>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Detailed punctuality, hours rendered, and attendance percentage for {branchDisplayName} ({timeframe})
             </p>
@@ -699,12 +826,12 @@ export const StaffReports = ({
         <div className="overflow-x-auto">
           {filteredAttendance.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-xs">
-              No staff attendance data for this period.
+              No staff attendance data found matching your query.
             </div>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <th className="py-3 px-4">Staff Member</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4 text-center">Days Present</th>
@@ -717,7 +844,7 @@ export const StaffReports = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAttendance.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <img
@@ -777,56 +904,85 @@ export const StaffReports = ({
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                <tr>
+                  <td colSpan={2} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                    Branch Roster Summary ({filteredAttendance.length} Staff)
+                  </td>
+                  <td className="py-3 px-4 text-center font-extrabold text-slate-900">
+                    {filteredAttendance.reduce((acc, m) => acc + m.daysPresent, 0)} days
+                  </td>
+                  <td className="py-3 px-4 text-center font-extrabold text-amber-600">
+                    {filteredAttendance.reduce((acc, m) => acc + m.lateArrivals, 0)}
+                  </td>
+                  <td className="py-3 px-4 text-center font-extrabold text-rose-600">
+                    {filteredAttendance.reduce((acc, m) => acc + m.absent, 0)}
+                  </td>
+                  <td className="py-3 px-4 text-center font-extrabold text-slate-700">
+                    {filteredAttendance.reduce((acc, m) => acc + m.halfDays, 0)}
+                  </td>
+                  <td className="py-3 px-4 text-right font-extrabold text-slate-900">
+                    {filteredAttendance.reduce((acc, m) => acc + m.totalHours, 0).toFixed(1)} hrs
+                  </td>
+                  <td className="py-3 px-4 text-right font-extrabold text-emerald-800">
+                    {Math.round(
+                      filteredAttendance.reduce((acc, m) => acc + m.attendanceRate, 0) /
+                        (filteredAttendance.length || 1)
+                    )}%
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>
       </div>
 
-      {/* Grid: Leave Report & Notices / Transfers */}
+      {/* Table 4 & Table 5 Grid: Leave Records Table & Staff Notices/Transfers Table */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Section b: Leave Report Table */}
+        {/* Table 4: Leave Report Table */}
         <div className="lg:col-span-7">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden h-full flex flex-col justify-between">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden h-full flex flex-col justify-between">
             <div>
-              <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-emerald-800" /> Leave Records & Balances
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-emerald-800" />
+                    <h3 className="font-bold text-slate-900 text-sm">Leave Records & Balance Quota Table</h3>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Time-off requests, approval status, and remaining quota
+                    Time-off requests, duration, and remaining annual balances
                   </p>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 self-start sm:self-auto">
                   Annual Quota: 18 Days
                 </span>
               </div>
 
               <div className="overflow-x-auto">
-                {branchLeaves.length === 0 ? (
+                {filteredLeaves.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-xs">
-                    No staff data for this period.
+                    No leave requests found for this period.
                   </div>
                 ) : (
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                        <th className="py-2.5 px-3">Staff Name</th>
-                        <th className="py-2.5 px-3">Leave Type</th>
-                        <th className="py-2.5 px-3">Duration</th>
-                        <th className="py-2.5 px-3 text-center">Status</th>
-                        <th className="py-2.5 px-3 text-right">Remaining Balance</th>
+                      <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">Staff Member</th>
+                        <th className="py-3 px-4">Leave Type</th>
+                        <th className="py-3 px-4">Duration & Window</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Remaining Balance</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {branchLeaves.map((leave) => {
+                      {filteredLeaves.map((leave) => {
                         const remainingDays = Math.max(
                           0,
                           18 - (leave.status === 'approved' ? leave.durationDays : 0)
                         );
                         return (
-                          <tr key={leave.id} className="hover:bg-slate-50/60">
-                            <td className="py-3 px-3">
+                          <tr key={leave.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3 px-4">
                               <div className="font-bold text-slate-900">
                                 {leave.staffName}
                               </div>
@@ -834,12 +990,12 @@ export const StaffReports = ({
                                 {leave.staffRole || 'Branch Staff'}
                               </div>
                             </td>
-                            <td className="py-3 px-3">
+                            <td className="py-3 px-4">
                               <span className="font-semibold text-slate-800">
                                 {leave.leaveType}
                               </span>
                             </td>
-                            <td className="py-3 px-3">
+                            <td className="py-3 px-4">
                               <div className="font-medium text-slate-700">
                                 {leave.startDate} to {leave.endDate}
                               </div>
@@ -847,7 +1003,7 @@ export const StaffReports = ({
                                 {leave.durationDays} day(s) requested
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-center">
+                            <td className="py-3 px-4 text-center">
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                                   leave.status === 'approved'
@@ -860,7 +1016,7 @@ export const StaffReports = ({
                                 {leave.status}
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-right">
+                            <td className="py-3 px-4 text-right">
                               <span className="font-semibold text-slate-900">
                                 {remainingDays} / 18 days
                               </span>
@@ -872,83 +1028,119 @@ export const StaffReports = ({
                         );
                       })}
                     </tbody>
+                    <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                      <tr>
+                        <td colSpan={3} className="py-3 px-4 text-slate-900 uppercase text-[11px] font-extrabold">
+                          Total {filteredLeaves.length} Requests Handled
+                        </td>
+                        <td className="py-3 px-4 text-center text-emerald-800 font-extrabold">
+                          {filteredLeaves.filter(l => l.status === 'approved').length} Approved
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-500 font-normal text-[11px]">
+                          Annual cycle resets April 1
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 )}
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
-              Paid casual leaves reset on annual financial year cycle.
+              Paid casual and sick leaves reset on annual financial year cycle.
             </div>
           </div>
         </div>
 
-        {/* Section e: Staff Notices and Transfers */}
+        {/* Table 5: Staff Notices & Inter-Branch Transfers Table */}
         <div className="lg:col-span-5">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden h-full flex flex-col justify-between">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden h-full flex flex-col justify-between">
             <div>
               <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <ArrowLeftRight className="w-4 h-4 text-emerald-800" /> Staff Notices & Transfers
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-emerald-800" />
+                    <h3 className="font-bold text-slate-900 text-sm">Staff Notices & Transfers Table</h3>
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Recent inter-branch movements and operational notices
+                    Inter-branch relocations and operational shift notices
                   </p>
                 </div>
                 <span className="text-xs text-slate-500">
-                  {noticesAndTransfers.length} Recent
+                  {noticesAndTransfers.length} Logged Events
                 </span>
               </div>
 
-              <div className="p-4 divide-y divide-slate-100">
+              <div className="overflow-x-auto">
                 {noticesAndTransfers.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-xs">
-                    No staff data for this period.
+                    No transfer or notice records logged.
                   </div>
                 ) : (
-                  noticesAndTransfers.map((item) => (
-                    <div key={item.id} className="py-3 first:pt-0 last:pb-0 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
-                              item.type === 'transfer'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {item.type === 'transfer' ? (
-                              <ArrowLeftRight className="w-3.5 h-3.5" />
-                            ) : (
-                              <Bell className="w-3.5 h-3.5" />
-                            )}
-                          </div>
-                          <span className="font-bold text-slate-900 text-xs">
-                            {item.title}
-                          </span>
-                        </div>
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
-                            item.status === 'Approved'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : item.status === 'Pending'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-                      <p className="text-slate-600 text-[11px] pl-8">
-                        {item.detail}
-                      </p>
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 pl-8 pt-0.5">
-                        <span>Date: {item.date}</span>
-                        <span>Source: {item.author}</span>
-                      </div>
-                    </div>
-                  ))
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">Event Type</th>
+                        <th className="py-3 px-4">Subject / Staff Member</th>
+                        <th className="py-3 px-4">Transfer Route / Station</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {noticesAndTransfers.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                item.type.includes('Transfer')
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {item.type.includes('Transfer') ? (
+                                <ArrowLeftRight className="w-3 h-3" />
+                              ) : (
+                                <Bell className="w-3 h-3" />
+                              )}
+                              {item.type}
+                            </span>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{item.date}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{item.title}</div>
+                            <div className="text-[11px] text-slate-500 max-w-xs">{item.detail}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-[11px] font-semibold text-slate-800">{item.route}</div>
+                            <div className="text-[10px] text-slate-400">By: {item.author}</div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                item.status === 'Approved'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : item.status === 'Pending'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
+                      <tr>
+                        <td colSpan={2} className="py-3 px-4 text-slate-900 uppercase text-[11px] font-extrabold">
+                          Transfer Audits Logged
+                        </td>
+                        <td colSpan={2} className="py-3 px-4 text-right text-slate-500 font-normal text-[11px]">
+                          Authorized by Restaurant Owner
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 )}
               </div>
             </div>
@@ -962,4 +1154,3 @@ export const StaffReports = ({
     </div>
   );
 };
-
