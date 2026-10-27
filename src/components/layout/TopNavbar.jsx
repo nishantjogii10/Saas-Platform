@@ -92,14 +92,18 @@ export const TopNavbar = ({ onOpenMobile }) => {
       action: () => {
         markAlertRead(a.id);
         if (a.actionLink) {
-          navigate(a.actionLink);
+          if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => a.actionLink.startsWith(p))) {
+            navigate('/alerts');
+          } else {
+            navigate(a.actionLink);
+          }
           setShowNotifications(false);
         }
       },
       link: a.actionLink || '/alerts'
     }));
 
-    const annNotifs = (ownerNotifications || []).filter(n => n.actionLink === '/inbox').map(n => ({
+    const annNotifs = (currentUser?.role === 'restaurant_owner' ? (ownerNotifications || []) : []).filter(n => n.actionLink === '/inbox').map(n => ({
       id: n.id,
       title: n.title,
       message: n.message,
@@ -253,8 +257,8 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 )}
               </div>
             ) : (
-              /* Non-owners OR single-branch restaurants: static non-clickable chip */
-              currentBranch ? (
+              /* Non-owners OR single-branch restaurants: static non-clickable chip (hidden for restaurant manager) */
+              currentBranch && currentUser?.role !== 'restaurant_manager' ? (
                 <div
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300"
                   title={`Assigned Outlet: ${formatBranchName(currentBranch.name)}`}

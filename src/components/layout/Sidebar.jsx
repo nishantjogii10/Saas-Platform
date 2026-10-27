@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
+import { getRoleLandingRoute } from '../../utils/permissions';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
@@ -58,16 +59,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   } = useApp();
 
   const getHomeRoute = () => {
-    switch (currentUser?.role) {
-      case 'super_admin':
-        return '/admin/dashboard';
-      case 'supplier':
-        return '/supplier';
-      case 'kitchen_staff':
-        return '/kitchen';
-      default:
-        return '/dashboard';
-    }
+    return getRoleLandingRoute(currentUser?.role);
   };
 
   const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
@@ -187,6 +179,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
+              { to: '/profile', label: 'My Profile', icon: User },
             ],
           },
         ];
@@ -194,10 +187,9 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
       case 'restaurant_manager':
         return [
           {
-            section: 'Restaurant Operations & Staff',
+            section: 'Staff Management',
             items: [
-              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-{ to: '/workforce', label: 'People & Workforce', icon: Users },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
@@ -206,6 +198,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 icon: Bell,
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
+              { to: '/profile', label: 'My Profile', icon: User },
             ],
           },
         ];

@@ -44,16 +44,16 @@ const ROLE_OPTIONS = [
     label: 'Manager',
     icon: UserCheck,
     placeholder: 'manager@restaurant.com',
-    description: 'Branch Operations, Staff Shifts & Leaves',
-    dashboard: '/dashboard',
+    description: 'Staff Roster, Station Shifts & Leave Management',
+    dashboard: '/workforce',
   },
   {
     id: 'inventory_manager',
     label: 'Inventory Manager',
     icon: Boxes,
     placeholder: 'inventory@restaurant.com',
-    description: 'Physical Goods Receiving, QR Batches & Dock',
-    dashboard: '/goods-receiving',
+    description: 'Inventory Valuation, Stock Alerts & Purchase Orders',
+    dashboard: '/dashboard',
   },
   {
     id: 'kitchen_staff',
@@ -109,10 +109,10 @@ export const LoginPage = () => {
         navigate('/dashboard');
         break;
       case 'restaurant_manager':
-        navigate('/dashboard');
+        navigate('/workforce');
         break;
       case 'inventory_manager':
-        navigate('/goods-receiving');
+        navigate('/dashboard');
         break;
       case 'supplier':
         navigate('/supplier');

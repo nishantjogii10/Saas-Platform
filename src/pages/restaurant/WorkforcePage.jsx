@@ -78,6 +78,9 @@ export const WorkforcePage = () => {
     addToast,
   } = useApp();
 
+  const isManager = currentUser?.role === 'restaurant_manager';
+  const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
+
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -144,16 +147,27 @@ export const WorkforcePage = () => {
     managerId: '',
   });
 
-  // Live calculations
-  const activeAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
-  const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
-  const pendingTransfers = staffTransfers?.filter((t) => t.status === 'Pending') || [];
+  // Live calculations (scoped strictly by branch for manager)
+  const scopedStaff = isManager
+    ? branchStaff.filter((s) => s.branchId === assignedBranchId)
+    : branchStaff;
+  const activeAttendance = isManager
+    ? (attendanceRecords || []).filter((r) => r.branchId === assignedBranchId && r.status === 'active')
+    : (attendanceRecords || []).filter((r) => r.status === 'active');
+  const pendingLeaves = isManager
+    ? (leaveRequests || []).filter((l) => (!l.branchId || l.branchId === assignedBranchId) && l.status === 'pending')
+    : (leaveRequests || []).filter((l) => l.status === 'pending');
+  const pendingTransfers = isManager
+    ? (staffTransfers || []).filter((t) => (t.fromBranchId === assignedBranchId || t.toBranchId === assignedBranchId) && t.status === 'Pending')
+    : (staffTransfers || []).filter((t) => t.status === 'Pending');
 
-  const totalEmployees = branchStaff.length;
+  const totalEmployees = scopedStaff.length;
   const totalOnDuty = activeAttendance.length;
   const pendingLeavesCount = pendingLeaves.length;
   const pendingTransfersCount = pendingTransfers.length;
-  const totalMonthlyPayrollDisbursed = salaryPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalMonthlyPayrollDisbursed = salaryPayments
+    .filter((p) => !isManager || p.branchId === assignedBranchId)
+    .reduce((sum, p) => sum + Number(p.amount), 0);
 
   // Filtered staff
   const filteredStaff = useMemo(() => {
@@ -164,7 +178,10 @@ export const WorkforcePage = () => {
         s.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.roleLabel.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesBranch = branchFilter === 'all' || s.branchId === branchFilter;
+      const matchesBranch = isManager
+        ? s.branchId === assignedBranchId
+        : (branchFilter === 'all' || s.branchId === branchFilter);
+
       const matchesRole =
         roleFilter === 'all' ||
         (roleFilter === 'restaurant_manager' && s.role === 'restaurant_manager') ||
@@ -174,16 +191,18 @@ export const WorkforcePage = () => {
 
       return matchesSearch && matchesBranch && matchesRole;
     });
-  }, [branchStaff, searchTerm, branchFilter, roleFilter]);
+  }, [branchStaff, searchTerm, branchFilter, roleFilter, isManager, assignedBranchId]);
 
   // Filtered leave requests
   const filteredLeaves = useMemo(() => {
     return leaveRequests.filter((l) => {
       const matchesStatus = leaveStatusFilter === 'all' || l.status === leaveStatusFilter;
-      const matchesBranch = branchFilter === 'all' || l.branchId === branchFilter;
+      const matchesBranch = isManager
+        ? (!l.branchId || l.branchId === assignedBranchId)
+        : (branchFilter === 'all' || l.branchId === branchFilter);
       return matchesStatus && matchesBranch;
     });
-  }, [leaveRequests, leaveStatusFilter, branchFilter]);
+  }, [leaveRequests, leaveStatusFilter, branchFilter, isManager, assignedBranchId]);
 
   // Filtered transfers
   const filteredTransfers = useMemo(() => {
@@ -195,9 +214,10 @@ export const WorkforcePage = () => {
         t.id.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = transferStatusTab === 'all' || t.status === transferStatusTab;
-      return matchesSearch && matchesStatus;
+      const matchesBranch = !isManager || t.fromBranchId === assignedBranchId || t.toBranchId === assignedBranchId;
+      return matchesSearch && matchesStatus && matchesBranch;
     });
-  }, [staffTransfers, searchTerm, transferStatusTab]);
+  }, [staffTransfers, searchTerm, transferStatusTab, isManager, assignedBranchId]);
 
   // Tab change handler
   const handleTabChange = (tab) => {
@@ -362,14 +382,16 @@ export const WorkforcePage = () => {
             >
               Request Transfer
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Star}
-              onClick={() => setIsAssignMgrOpen(true)}
-            >
-              Appoint Manager
-            </Button>
+            {currentUser?.role === 'restaurant_owner' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Star}
+                onClick={() => setIsAssignMgrOpen(true)}
+              >
+                Appoint Manager
+              </Button>
+            )}
             <Button
               variant="brand"
               size="sm"
@@ -528,18 +550,25 @@ export const WorkforcePage = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                >
-                  <option value="all">All Outlets ({branchStaff.length})</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                {!isManager ? (
+                  <select
+                    value={branchFilter}
+                    onChange={(e) => setBranchFilter(e.target.value)}
+                    className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="all">All Outlets ({branchStaff.length})</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
+                    <Store className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{branches.find((b) => b.id === assignedBranchId)?.name || 'Assigned Branch'}</span>
+                  </div>
+                )}
 
                 <select
                   value={roleFilter}
@@ -1495,7 +1524,7 @@ export const WorkforcePage = () => {
               required
             >
               <option value="">Select staff candidate...</option>
-              {branchStaff.map((staff) => (
+              {scopedStaff.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name} ({staff.roleLabel} - {staff.branchName?.replace('Spice Garden — ', '')})
                 </option>
@@ -1545,7 +1574,7 @@ export const WorkforcePage = () => {
               required
             >
               <option value="">Choose employee from roster...</option>
-              {branchStaff.map((staff) => (
+              {scopedStaff.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name} ({staff.roleLabel}) — Currently at {staff.branchName?.replace('Spice Garden — ', '')}
                 </option>
