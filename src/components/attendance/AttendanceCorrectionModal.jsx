@@ -253,3 +253,4 @@ export const AttendanceCorrectionModal = ({ isOpen, onClose, record }) => {
     </Modal>
   );
 };
+
