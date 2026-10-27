@@ -1,3 +1,12 @@
+
+owner- priya@spicegarden.com
+Manager id & pass:- vikram.mgr@spicegarden.com
+inventory magr - rahul.v@spicegarden.com
+staff - anita.chef@spicegarden.com
+admin- admin@stockmate.io password123
+supplier - david@metrofoods.com
+
+
 # StockMate — Restaurant Inventory Management SaaS Platform
 
 A professional, modern, responsive B2B SaaS web application designed to help restaurants manage inventory, ingredients, batch expiry dates, suppliers, purchase orders, and stock movements with multi-tenant architecture and platform governance.

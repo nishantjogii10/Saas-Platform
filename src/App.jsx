@@ -10,6 +10,8 @@ import { LandingPage } from './pages/LandingPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { SetNewPasswordPage } from './pages/auth/SetNewPasswordPage';
+import { MyProfilePage } from './pages/profile/MyProfilePage';
 import { SignUpPage } from './pages/auth/SignUpPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 
@@ -82,6 +84,11 @@ const RoleGuard = ({ allowedRoles, children }) => {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
+  // Intercept users who must set a new password on first login
+  if (currentUser.mustChangePassword && location.pathname !== '/set-new-password') {
+    return <Navigate to="/set-new-password" replace />;
+  }
+
   // Super Admin has master platform access to audit and view all tenant modules
   if (currentUser.role === 'super_admin') {
     return children;
@@ -98,6 +105,10 @@ const RoleGuard = ({ allowedRoles, children }) => {
 const RootRedirect = () => {
   const { currentUser } = useApp();
   if (!currentUser) return <Navigate to="/login" replace />;
+
+  if (currentUser.mustChangePassword) {
+    return <Navigate to="/set-new-password" replace />;
+  }
 
   switch (currentUser.role) {
     case 'super_admin':
@@ -146,6 +157,21 @@ function App() {
           <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/set-new-password" element={<SetNewPasswordPage />} />
+          <Route
+            path="/profile"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['kitchen_staff', 'inventory_manager', 'restaurant_manager', 'restaurant_owner']}>
+                  <MyProfilePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/my-profile"
+            element={<Navigate to="/profile" replace />}
+          />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 

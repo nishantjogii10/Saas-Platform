@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
+const formatBranchName = (name) => {
+  if (!name) return '';
+  return name.replace(/^Spice Garden\s*[-–—]\s*/i, '');
+};
+
 export const TopNavbar = ({ onOpenMobile }) => {
   const {
     currentUser,
@@ -80,10 +85,17 @@ export const TopNavbar = ({ onOpenMobile }) => {
       message: a.message,
       timestamp: a.timestamp,
       read: a.read,
-      type: 'alert',
+      type: a.type || 'alert',
       severity: a.severity,
-      action: () => markAlertRead(a.id),
-      link: '/alerts'
+      actionLink: a.actionLink,
+      action: () => {
+        markAlertRead(a.id);
+        if (a.actionLink) {
+          navigate(a.actionLink);
+          setShowNotifications(false);
+        }
+      },
+      link: a.actionLink || '/alerts'
     }));
 
     const annNotifs = (ownerNotifications || []).filter(n => n.actionLink === '/inbox').map(n => ({
@@ -154,12 +166,12 @@ export const TopNavbar = ({ onOpenMobile }) => {
                   title={
                     authorizedBranches.length > 1
                       ? 'Switch Active Branch'
-                      : `Assigned Branch: ${currentBranch?.name || 'Assigned Outlet'}`
+                      : `Assigned Branch: ${formatBranchName(currentBranch?.name) || 'Assigned Outlet'}`
                   }
                 >
                   <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="max-w-[130px] sm:max-w-[190px] truncate">
-                    {currentBranch?.name || 'Select Branch'}
+                    {formatBranchName(currentBranch?.name) || 'Select Branch'}
                   </span>
                   {authorizedBranches.length > 1 ? (
                     <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
@@ -197,7 +209,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className={`text-xs truncate ${isCurrent ? 'font-bold text-emerald-950' : 'font-semibold text-slate-900'}`}>
-                                  {b.name}
+                                  {formatBranchName(b.name)}
                                 </span>
                                 {isCurrent && (
                                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-200" />
@@ -275,7 +287,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
               </span>
             </div>
           </div>
-        ) : (
+        ) : currentUser?.role === 'supplier' ? (
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">
               SP
@@ -289,7 +301,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
               </span>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Right: Notifications, Role Badge & User Profile Dropdown */}
@@ -316,7 +328,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</span>
+<span className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {currentUser?.role === 'restaurant_manager' ? 'Staff Notifications' : 'Notifications'}
+                    </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
                       {totalUnreadNotifs} new
                     </span>
@@ -334,12 +348,14 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                   {combinedNotifications.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500">
-                      No alerts or notifications at this time.
+{currentUser?.role === 'restaurant_manager'
+                        ? 'No active staff notices. All shift rosters and leave requests are clear!'
+                        : 'No alerts or notifications at this time.'}
                     </div>
                   ) : (
                     combinedNotifications.slice(0, 6).map((notif) => (
                       <div
-                        key={notif.id}
+key={notif.id}
                         onClick={notif.action}
                         className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${
                           !notif.read ? 'bg-emerald-50/25 dark:bg-emerald-950/30' : ''
@@ -347,8 +363,20 @@ export const TopNavbar = ({ onOpenMobile }) => {
                       >
                         <div className="flex items-start gap-2.5">
                           <div className="shrink-0 mt-0.5">
-                            {notif.type === 'announcement' ? (
+{notif.type === 'announcement' ? (
                               <Megaphone className="w-4 h-4 text-purple-600" />
+                            ) : notif.type === 'leave_request' ? (
+                              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                                📋
+                              </span>
+                            ) : notif.type === 'transfer_request' ? (
+                              <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                                ⇄
+                              </span>
+                            ) : notif.type === 'attendance_notice' ? (
+                              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                                ⏱️
+                              </span>
                             ) : notif.severity === 'critical' ? (
                               <AlertCircle className="w-4 h-4 text-rose-600" />
                             ) : notif.severity === 'high' ? (
@@ -381,11 +409,16 @@ export const TopNavbar = ({ onOpenMobile }) => {
 
                 <div className="border-t border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between text-xs">
                   <Link
-                    to="/alerts"
+                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
                     onClick={() => setShowNotifications(false)}
                     className="font-semibold text-slate-600 hover:text-slate-900"
                   >
-                    Alerts ({restaurantAlerts.length})
+<span>
+                      {currentUser?.role === 'restaurant_manager'
+                        ? `Manage all ${restaurantAlerts.length} staff notices`
+                        : `View all ${restaurantAlerts.length} alerts`}
+                    </span>
+                    <ExternalLink className="w-3 h-3" />
                   </Link>
                   {currentUser?.role === 'restaurant_owner' && (
                     <Link
@@ -431,7 +464,11 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    openProfileModal();
+                    if (currentUser?.role === 'kitchen_staff' || currentUser?.role === 'inventory_manager') {
+                      navigate('/profile');
+                    } else {
+                      openProfileModal();
+                    }
                     setShowUserDropdown(false);
                   }}
                   className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition-colors border-b border-slate-100"

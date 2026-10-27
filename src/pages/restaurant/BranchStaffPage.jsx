@@ -24,12 +24,14 @@ import {
   Clock,
   IndianRupee,
   Receipt,
+  CreditCard,
   XCircle,
   Eye,
   Send,
   Sparkles,
   Timer,
   Check,
+  Copy,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -43,16 +45,47 @@ import { formatINR } from '../../data/financeData';
 import { ProcessSalaryModal } from '../../components/restaurant/ProcessSalaryModal';
 import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
 
+// Auto-generate next Employee ID (e.g. EMP-0001, EMP-0002)
+const generateNextEmployeeId = (allStaff = []) => {
+  let maxId = 0;
+  (allStaff || []).forEach((s) => {
+    if (s.employeeId && typeof s.employeeId === 'string') {
+      const match = s.employeeId.match(/EMP-(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxId) maxId = num;
+      }
+    }
+  });
+  if (maxId === 0) {
+    maxId = (allStaff || []).length;
+  }
+  const nextNum = maxId + 1;
+  return `EMP-${String(nextNum).padStart(4, '0')}`;
+};
+
+// Auto-generate a random 6-character temporary password
+const generateTempPassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pass = '';
+  for (let i = 0; i < 6; i++) {
+    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pass;
+};
+
 export const BranchStaffPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
+    currentUser,
     branches,
     currentBranchId,
     branchStaff,
     addBranchStaffMember,
     removeBranchStaffMember,
+    verifyStaffBankDetails,
     assignBranchManager,
     attendanceRecords,
     leaveRequests,
@@ -87,18 +120,78 @@ export const BranchStaffPage = () => {
   const [rejectingLeave, setRejectingLeave] = useState(null);
   const [rejectReason, setRejectReason] = useState('Kitchen line coverage constraint during peak rush');
 
-  // Add Staff Form
+  // Branch is auto-set to the manager's own branch (not editable)
+  const managerBranchId = useMemo(() => {
+    if (currentUser?.role === 'restaurant_manager') {
+      return currentUser.branchId || 'branch-pune-central';
+    }
+    return currentBranchId || branches[0]?.id || 'branch-pune-central';
+  }, [currentUser, currentBranchId, branches]);
+
+  const managerBranch = useMemo(() => {
+    return (
+      branches.find((b) => b.id === managerBranchId) || {
+        id: managerBranchId,
+        name: 'Spice Garden — Pune Central',
+      }
+    );
+  }, [branches, managerBranchId]);
+
+  // Add Staff Form with required fields
   const [addForm, setAddForm] = useState({
     name: '',
     email: '',
     phone: '',
     role: 'kitchen_staff',
     roleLabel: 'Line Cook',
-    branchId: currentBranchId || (branches[0] ? branches[0].id : ''),
-    pin: '1234',
+    joinedDate: new Date().toISOString().split('T')[0],
+    shift: 'Morning Shift (07:00 AM - 03:30 PM)',
+    baseSalary: '25000',
     isManager: false,
     assignedModules: ['Kitchen Terminal', 'Prep Usage'],
   });
+
+  const [formErrors, setFormErrors] = useState({});
+  const [invitedStaffSuccess, setInvitedStaffSuccess] = useState(null);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+  const [verifyingStaff, setVerifyingStaff] = useState(null);
+
+  // Helper: Manager sees the account number masked only; full number is visible only to Owner and self
+  const getVisibleAccountDisplay = (staffMember, viewer) => {
+    if (!staffMember) return { bankName: 'Bank', accountNumber: '•••• 4421', isMasked: true };
+    const isOwner = viewer?.role === 'restaurant_owner';
+    const isSelf = viewer?.id === staffMember.id;
+    const isManager = viewer?.role === 'restaurant_manager';
+
+    const bank = staffMember.bankDetails || {};
+    const bankName = bank.bankName || (staffMember.bankAccount ? staffMember.bankAccount.split(' ••••')[0] : 'HDFC Bank');
+    const masked = bank.maskedAccountNumber || (staffMember.bankAccount ? `•••• ${staffMember.bankAccount.slice(-4)}` : '•••• 4421');
+    const full = bank.accountNumberFull || bank.accountNumber || (staffMember.bankAccount?.includes('••••') ? staffMember.bankAccount.replace('••••', '50100456') : staffMember.bankAccount) || '501004564421';
+
+    if (isManager && !isSelf) {
+      // Manager MUST see masked only!
+      return {
+        bankName,
+        accountNumber: masked,
+        isMasked: true,
+      };
+    }
+
+    if (isOwner || isSelf) {
+      // Owner and self can view full account number
+      return {
+        bankName,
+        accountNumber: full,
+        isMasked: false,
+      };
+    }
+
+    return {
+      bankName,
+      accountNumber: masked,
+      isMasked: true,
+    };
+  };
 
   // Assign Manager Form
   const [assignMgrForm, setAssignMgrForm] = useState({
@@ -149,14 +242,51 @@ export const BranchStaffPage = () => {
   // Handle Add Staff Submit
   const handleAddSubmit = (e) => {
     e.preventDefault();
-    if (!addForm.name || !addForm.email || !addForm.branchId) {
-      addToast('Please complete required fields (Name, Email, Branch)', 'error');
+    const errors = {};
+
+    // 1. Validate Name
+    if (!addForm.name.trim()) {
+      errors.name = 'Full name is required.';
+    }
+
+    // 2. Validate Email format and uniqueness
+    const emailTrimmed = (addForm.email || '').trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailTrimmed) {
+      errors.email = 'Email address is required.';
+    } else if (!emailRegex.test(emailTrimmed)) {
+      errors.email = 'Please enter a valid email format (e.g. name@company.com).';
+    } else {
+      const emailLower = emailTrimmed.toLowerCase();
+      const duplicate = (branchStaff || []).some(
+        (s) => s.email && s.email.trim().toLowerCase() === emailLower
+      );
+      if (duplicate) {
+        errors.email = 'A staff member with this email address already exists.';
+      }
+    }
+
+    // 3. Validate Role Label, Joining Date & Wage
+    if (!addForm.roleLabel.trim()) {
+      errors.roleLabel = 'Job title is required.';
+    }
+    if (!addForm.joinedDate) {
+      errors.joinedDate = 'Joining date is required.';
+    }
+    if (!addForm.baseSalary || Number(addForm.baseSalary) <= 0) {
+      errors.baseSalary = 'Please enter a valid base monthly wage.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      addToast('Please complete all required fields correctly.', 'error');
       return;
     }
 
-    const targetBranch = branches.find((b) => b.id === addForm.branchId);
+    // Check branch quota
+    const targetBranch = managerBranch;
     const planConfig = BRANCH_PLANS_CONFIG[targetBranch?.planId] || BRANCH_PLANS_CONFIG['plan-starter'];
-    const currentStaffCount = branchStaff.filter((s) => s.branchId === addForm.branchId).length;
+    const currentStaffCount = branchStaff.filter((s) => s.branchId === managerBranchId).length;
 
     if (currentStaffCount >= planConfig.maxStaff) {
       addToast(
@@ -166,31 +296,59 @@ export const BranchStaffPage = () => {
       return;
     }
 
-    addBranchStaffMember({
-      name: addForm.name,
-      email: addForm.email,
-      phone: addForm.phone,
+    // Auto-generate: Employee ID (e.g. EMP-0001) and random 6-character temporary password
+    const employeeId = generateNextEmployeeId(branchStaff);
+    const tempPassword = generateTempPassword();
+
+    // Call service layer (temporary password will be hashed inside addBranchStaffMember; plain text is never stored)
+    const newStaff = addBranchStaffMember({
+      name: addForm.name.trim(),
+      email: emailTrimmed,
+      phone: addForm.phone.trim() || '+91 98200 XXXXX',
       role: addForm.role,
-      roleLabel: addForm.roleLabel,
-      branchId: addForm.branchId,
+      roleLabel: addForm.roleLabel.trim(),
+      branchId: managerBranchId,
       branchName: targetBranch?.name || 'Branch',
-      pin: addForm.pin,
-      isManager: addForm.isManager,
-      assignedModules: addForm.assignedModules,
+      joinedDate: addForm.joinedDate,
+      shift: addForm.shift,
+      baseSalary: Number(addForm.baseSalary),
+      employeeId,
+      tempPassword,
+      status: 'Invited',
+      mustChangePassword: true,
+      isManager: addForm.role === 'restaurant_manager' || addForm.role === 'inventory_manager',
+      assignedModules:
+        addForm.role === 'restaurant_manager'
+          ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Staff Reports', 'Alerts']
+          : addForm.role === 'inventory_manager'
+          ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
+          : ['Kitchen Terminal', 'Prep Usage', 'Wastage'],
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     });
 
+    if (!newStaff) return;
+
+    // Reset add form and close modal
     setIsAddStaffOpen(false);
+    setFormErrors({});
     setAddForm({
       name: '',
       email: '',
       phone: '',
       role: 'kitchen_staff',
       roleLabel: 'Line Cook',
-      branchId: currentBranchId || branches[0]?.id || '',
-      pin: '1234',
+      joinedDate: new Date().toISOString().split('T')[0],
+      shift: 'Morning Shift (07:00 AM - 03:30 PM)',
+      baseSalary: '25000',
       isManager: false,
       assignedModules: ['Kitchen Terminal', 'Prep Usage'],
+    });
+
+    // Show temporary password once in a success dialog with a Copy button
+    setInvitedStaffSuccess({
+      staff: newStaff,
+      tempPassword,
+      employeeId,
     });
   };
 
@@ -418,8 +576,9 @@ export const BranchStaffPage = () => {
                     <th className="py-3.5 px-4">Employee</th>
                     <th className="py-3.5 px-4">Role &amp; Title</th>
                     <th className="py-3.5 px-4">Assigned Outlet</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Bank Status</th>
                     <th className="py-3.5 px-4">Live Attendance Status</th>
-                    <th className="py-3.5 px-4">Module Access</th>
                     <th className="py-3.5 px-4">Contact</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
@@ -427,7 +586,7 @@ export const BranchStaffPage = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredStaff.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-xs text-slate-500">
+                      <td colSpan={8} className="py-8 text-center text-xs text-slate-500">
                         No staff members match the selected search or filter criteria.
                       </td>
                     </tr>
@@ -456,8 +615,20 @@ export const BranchStaffPage = () => {
                                       Manager
                                     </span>
                                   )}
+                                  {staff.status === 'Invited' && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                      Invited
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="text-[11px] text-slate-500">{staff.email}</div>
+                                <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                                  <span>{staff.email}</span>
+                                  {staff.employeeId && (
+                                    <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded">
+                                      {staff.employeeId}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -475,6 +646,71 @@ export const BranchStaffPage = () => {
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono">
                               {branchObj?.code}
+                            </div>
+                          </td>
+
+                          {/* Status Column: Invited / Active / Inactive */}
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                (staff.status || 'Active').toLowerCase() === 'active'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : staff.status === 'Invited'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {staff.status || 'Active'}
+                            </span>
+                          </td>
+
+                          {/* Bank Status Badge & Masked/Full Account Display */}
+                          <td className="py-3.5 px-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    (staff.bankStatus || 'Not Added') === 'Verified'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : staff.bankStatus === 'Pending Verification'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                  }`}
+                                >
+                                  {(staff.bankStatus || 'Not Added') === 'Verified' ? (
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                  ) : staff.bankStatus === 'Pending Verification' ? (
+                                    <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  ) : (
+                                    <AlertCircle className="w-2.5 h-2.5 text-slate-400" />
+                                  )}
+                                  {staff.bankStatus || 'Not Added'}
+                                </span>
+
+                                {/* Verify Button for Restaurant Manager and Owner */}
+                                {(currentUser?.role === 'restaurant_manager' || currentUser?.role === 'restaurant_owner') &&
+                                  staff.bankStatus === 'Pending Verification' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setVerifyingStaff(staff)}
+                                      className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors"
+                                      title="Review and verify bank account details"
+                                    >
+                                      Verify
+                                    </button>
+                                  )}
+                              </div>
+
+                              {/* Account Number Display: Manager sees masked only; Owner and self see full number */}
+                              {staff.bankStatus !== 'Not Added' && (
+                                <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1">
+                                  <CreditCard className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{getVisibleAccountDisplay(staff, currentUser).accountNumber}</span>
+                                  {getVisibleAccountDisplay(staff, currentUser).isMasked && (
+                                    <span className="text-[9px] text-slate-400">(Masked)</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
 
@@ -502,18 +738,7 @@ export const BranchStaffPage = () => {
                             )}
                           </td>
 
-                          <td className="py-3.5 px-4">
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {staff.assignedModules?.map((mod, i) => (
-                                <span
-                                  key={i}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200"
-                                >
-                                  {mod}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
+
 
                           <td className="py-3.5 px-4">
                             <div className="text-slate-800">{staff.phone || '+91 98200 XXXXX'}</div>
@@ -897,11 +1122,30 @@ export const BranchStaffPage = () => {
                   {branchStaff.map((staff) => {
                     const profile = STAFF_SALARY_PROFILES?.[staff.id];
                     const lastPayment = salaryPayments.find((p) => p.staffId === staff.id);
+                    const isStaffActive = (staff.status || 'Active').toLowerCase() === 'active';
+                    const isBankVerified = (staff.bankStatus || '').toLowerCase() === 'verified';
+                    const canDisburse = isStaffActive && isBankVerified;
+
+                    let disburseDisabledReason = '';
+                    if (!isStaffActive && !isBankVerified) {
+                      disburseDisabledReason = 'Cannot disburse: Staff is not Active and bank details are not Verified.';
+                    } else if (!isStaffActive) {
+                      disburseDisabledReason = `Cannot disburse: Staff status is "${staff.status || 'Invited'}" (must be Active).`;
+                    } else if (!isBankVerified) {
+                      disburseDisabledReason = `Cannot disburse: Bank status is "${staff.bankStatus || 'Not Added'}" (must be Verified).`;
+                    }
 
                     return (
                       <tr key={staff.id} className="hover:bg-slate-50/70">
                         <td className="py-3.5 px-4">
-                          <span className="font-bold text-slate-900 block">{staff.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{staff.name}</span>
+                            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                              isStaffActive ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {staff.status || 'Active'}
+                            </span>
+                          </div>
                           <span className="text-[10px] text-slate-500">{staff.roleLabel}</span>
                         </td>
                         <td className="py-3.5 px-4 text-slate-600">{staff.branchName || 'Pune Central'}</td>
@@ -909,7 +1153,20 @@ export const BranchStaffPage = () => {
                           {formatINR(profile?.baseSalary || 35000)}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600">
-                          {profile?.bankAccount || 'HDFC Bank •••• 4421'}
+                          <div className="space-y-0.5">
+                            <div className="font-medium text-slate-800">
+                              {getVisibleAccountDisplay(staff, currentUser).accountNumber}
+                            </div>
+                            <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                              isBankVerified
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : staff.bankStatus === 'Pending Verification'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {staff.bankStatus || 'Not Added'}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3.5 px-4">
                           {lastPayment ? (
@@ -926,17 +1183,23 @@ export const BranchStaffPage = () => {
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <Button
-                            variant="primary"
-                            size="xs"
-                            icon={IndianRupee}
-                            onClick={() => {
-                              setSalaryTargetStaff(staff);
-                              setIsSalaryModalOpen(true);
-                            }}
-                          >
-                            Disburse
-                          </Button>
+                          <div className="inline-block" title={!canDisburse ? disburseDisabledReason : 'Disburse compensation'}>
+                            <Button
+                              variant={canDisburse ? 'primary' : 'outline'}
+                              size="xs"
+                              icon={IndianRupee}
+                              disabled={!canDisburse}
+                              onClick={() => {
+                                if (canDisburse) {
+                                  setSalaryTargetStaff(staff);
+                                  setIsSalaryModalOpen(true);
+                                }
+                              }}
+                              className={!canDisburse ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200' : ''}
+                            >
+                              Disburse
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1028,32 +1291,68 @@ export const BranchStaffPage = () => {
         payment={viewingSalarySlip}
       />
 
-      {/* Existing Add Staff Modal */}
+      {/* Add Staff Member Modal */}
       <Modal
         isOpen={isAddStaffOpen}
-        onClose={() => setIsAddStaffOpen(false)}
-        title="Add Staff Member to Branch"
+        onClose={() => {
+          setIsAddStaffOpen(false);
+          setFormErrors({});
+        }}
+        title="Add Staff Member"
         maxWidth="max-w-xl"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormInput
-              label="Full Name *"
-              placeholder="e.g. Chef Alok Kumar"
-              value={addForm.name}
-              onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-              required
-            />
-            <FormInput
-              label="Email Address *"
-              type="email"
-              placeholder="alok.k@spicegarden.com"
-              value={addForm.email}
-              onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-              required
-            />
+          {/* Read-only Branch Notice - No Target Branch dropdown */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-700" />
+              <div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">Assigned Branch</div>
+                <div className="text-xs font-bold text-slate-900">{managerBranch.name}</div>
+              </div>
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">
+              Auto-assigned to your branch
+            </span>
           </div>
 
+          {/* Full Name & Email */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <FormInput
+                label="Full Name *"
+                placeholder="e.g. Chef Alok Kumar"
+                value={addForm.name}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, name: e.target.value });
+                  if (formErrors.name) setFormErrors({ ...formErrors, name: null });
+                }}
+                required
+              />
+              {formErrors.name && (
+                <p className="text-[11px] text-rose-600 mt-1">{formErrors.name}</p>
+              )}
+            </div>
+
+            <div>
+              <FormInput
+                label="Email Address *"
+                type="email"
+                placeholder="alok.k@spicegarden.com"
+                value={addForm.email}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, email: e.target.value });
+                  if (formErrors.email) setFormErrors({ ...formErrors, email: null });
+                }}
+                required
+              />
+              {formErrors.email && (
+                <p className="text-[11px] text-rose-600 mt-1">{formErrors.email}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Phone & Staff Role */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormInput
               label="Contact Phone"
@@ -1061,41 +1360,10 @@ export const BranchStaffPage = () => {
               value={addForm.phone}
               onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
             />
-            <FormInput
-              label="Terminal PIN (4 Digits)"
-              type="password"
-              maxLength={4}
-              placeholder="e.g. 5566"
-              value={addForm.pin}
-              onChange={(e) => setAddForm({ ...addForm, pin: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Target Restaurant Branch *
-              </label>
-              <select
-                value={addForm.branchId}
-                onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })}
-                className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              >
-                {branches.map((b) => {
-                  const staffCount = branchStaff.filter((s) => s.branchId === b.id).length;
-                  const planConfig = BRANCH_PLANS_CONFIG[b.planId] || BRANCH_PLANS_CONFIG['plan-starter'];
-                  return (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({staffCount}/{planConfig.maxStaff} staff)
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Staff Role
+                Staff Role *
               </label>
               <select
                 value={addForm.role}
@@ -1124,17 +1392,98 @@ export const BranchStaffPage = () => {
             </div>
           </div>
 
-          <div>
-            <FormInput
-              label="Job Title / Role Label"
-              placeholder="e.g. Head Pastry Chef, Senior Line Cook"
-              value={addForm.roleLabel}
-              onChange={(e) => setAddForm({ ...addForm, roleLabel: e.target.value })}
-            />
+          {/* Job Title & Joining Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <FormInput
+                label="Job Title *"
+                placeholder="e.g. Head Pastry Chef, Senior Line Cook"
+                value={addForm.roleLabel}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, roleLabel: e.target.value });
+                  if (formErrors.roleLabel) setFormErrors({ ...formErrors, roleLabel: null });
+                }}
+                required
+              />
+              {formErrors.roleLabel && (
+                <p className="text-[11px] text-rose-600 mt-1">{formErrors.roleLabel}</p>
+              )}
+            </div>
+
+            <div>
+              <FormInput
+                label="Joining Date *"
+                type="date"
+                value={addForm.joinedDate}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, joinedDate: e.target.value });
+                  if (formErrors.joinedDate) setFormErrors({ ...formErrors, joinedDate: null });
+                }}
+                required
+              />
+              {formErrors.joinedDate && (
+                <p className="text-[11px] text-rose-600 mt-1">{formErrors.joinedDate}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Shift Schedule & Base Monthly Wage */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Shift Schedule *
+              </label>
+              <select
+                value={addForm.shift}
+                onChange={(e) => setAddForm({ ...addForm, shift: e.target.value })}
+                className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="Morning Shift (07:00 AM - 03:30 PM)">Morning Shift (07:00 AM - 03:30 PM)</option>
+                <option value="Evening Shift (03:00 PM - 11:30 PM)">Evening Shift (03:00 PM - 11:30 PM)</option>
+                <option value="Night / Closing Shift (07:00 PM - 03:30 AM)">Night / Closing Shift (07:00 PM - 03:30 AM)</option>
+                <option value="General Full-Day (09:00 AM - 06:00 PM)">General Full-Day (09:00 AM - 06:00 PM)</option>
+              </select>
+            </div>
+
+            <div>
+              <FormInput
+                label="Base Monthly Wage (₹) *"
+                type="number"
+                min="0"
+                placeholder="e.g. 28000"
+                value={addForm.baseSalary}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, baseSalary: e.target.value });
+                  if (formErrors.baseSalary) setFormErrors({ ...formErrors, baseSalary: null });
+                }}
+                required
+              />
+              {formErrors.baseSalary && (
+                <p className="text-[11px] text-rose-600 mt-1">{formErrors.baseSalary}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Automated Onboarding Notice */}
+          <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-start gap-2">
+            <Key className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-semibold">Automated Credentials &amp; Onboarding</div>
+              <p className="text-[11px] text-blue-700 mt-0.5">
+                An Employee ID and a random 6-character temporary password will be auto-generated. The temporary password will be shown once for copying upon submission.
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-            <Button variant="outline" size="sm" onClick={() => setIsAddStaffOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsAddStaffOpen(false);
+                setFormErrors({});
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit">
@@ -1142,6 +1491,110 @@ export const BranchStaffPage = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Success Dialog: Temporary Password Shown Once */}
+      <Modal
+        isOpen={!!invitedStaffSuccess}
+        onClose={() => {
+          setInvitedStaffSuccess(null);
+          setCopiedPassword(false);
+        }}
+        title="Staff Invitation Created"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-1">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-1">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <h4 className="font-bold text-slate-900 text-sm">
+              {invitedStaffSuccess?.staff?.name} Invited Successfully
+            </h4>
+            <p className="text-xs text-slate-600">
+              Assigned ID: <span className="font-mono font-bold text-emerald-800">{invitedStaffSuccess?.employeeId}</span>
+            </p>
+          </div>
+
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Email:</span>
+              <span className="font-medium text-slate-800">{invitedStaffSuccess?.staff?.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Role & Title:</span>
+              <span className="font-medium text-slate-800">{invitedStaffSuccess?.staff?.roleLabel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Branch:</span>
+              <span className="font-medium text-slate-800">{invitedStaffSuccess?.staff?.branchName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Joining Date:</span>
+              <span className="font-medium text-slate-800">{invitedStaffSuccess?.staff?.joinedDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Shift:</span>
+              <span className="font-medium text-slate-800">{invitedStaffSuccess?.staff?.shift}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Status:</span>
+              <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-[10px] border border-blue-200">
+                Invited (mustChangePassword = true)
+              </span>
+            </div>
+          </div>
+
+          {/* Temporary Password Box */}
+          <div className="p-4 rounded-xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-700" /> Temporary Password
+              </span>
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                Shown Once
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-amber-200 shadow-xs">
+              <span className="font-mono text-xl font-extrabold tracking-widest text-slate-900 select-all">
+                {invitedStaffSuccess?.tempPassword}
+              </span>
+              <Button
+                variant={copiedPassword ? 'secondary' : 'primary'}
+                size="xs"
+                icon={copiedPassword ? Check : Copy}
+                onClick={() => {
+                  if (invitedStaffSuccess?.tempPassword) {
+                    navigator.clipboard.writeText(invitedStaffSuccess.tempPassword);
+                    setCopiedPassword(true);
+                    addToast('Temporary password copied to clipboard!', 'success');
+                    setTimeout(() => setCopiedPassword(false), 2500);
+                  }
+                }}
+              >
+                {copiedPassword ? 'Copied!' : 'Copy'}
+              </Button>
+            </div>
+
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              <strong>Security Policy:</strong> This temporary password will not be shown again and is stored as a secure cryptographic hash. The employee will be required to change it on their first login.
+            </p>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setInvitedStaffSuccess(null);
+                setCopiedPassword(false);
+              }}
+            >
+              Done
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Existing Assign Manager Modal */}
@@ -1280,6 +1733,84 @@ export const BranchStaffPage = () => {
           type="danger"
         />
       )}
+      {/* Bank Details Verification Modal for Restaurant Manager and Owner */}
+      <Modal
+        isOpen={!!verifyingStaff}
+        onClose={() => setVerifyingStaff(null)}
+        title="Verify Staff Bank Account"
+        maxWidth="max-w-md"
+      >
+        {verifyingStaff && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Staff Member:</span>
+                <span className="font-bold text-slate-900">{verifyingStaff.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Role &amp; Title:</span>
+                <span className="font-medium text-slate-800">{verifyingStaff.roleLabel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Bank Name:</span>
+                <span className="font-bold text-slate-900">
+                  {verifyingStaff.bankDetails?.bankName || 'HDFC Bank'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Account Number:</span>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-slate-900">
+                    {getVisibleAccountDisplay(verifyingStaff, currentUser).accountNumber}
+                  </span>
+                  {getVisibleAccountDisplay(verifyingStaff, currentUser).isMasked && (
+                    <div className="text-[10px] text-slate-400">
+                      Full number restricted to Restaurant Owner
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">IFSC Code:</span>
+                <span className="font-mono font-bold text-emerald-800">
+                  {verifyingStaff.bankDetails?.ifscCode || 'HDFC0001234'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Current Bank Status:</span>
+                <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 text-[10px]">
+                  {verifyingStaff.bankStatus || 'Pending Verification'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+              <span>
+                Verifying certifies that the account holder name and IFSC match payroll bank records. Once verified, salary disbursements will be enabled.
+              </span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button variant="outline" size="sm" onClick={() => setVerifyingStaff(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={CheckCircle2}
+                onClick={() => {
+                  verifyStaffBankDetails(verifyingStaff.id);
+                  setVerifyingStaff(null);
+                }}
+              >
+                Confirm &amp; Verify Bank Details
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </div>
   );
 };
