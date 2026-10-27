@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   PackageCheck,
+  Truck,
   Store,
   QrCode,
   FileText,
@@ -172,6 +173,14 @@ export const LandingPage = () => {
               </div>
             ) : (
               <>
+                <Link
+                  to="/supplier-portal"
+                  className="px-3 py-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Supplier Portal</span>
+                </Link>
+
                 <Link
                   to="/login"
                   className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors"

@@ -71,6 +71,9 @@ import { SupplierHistoryPage } from './pages/supplier/SupplierHistoryPage';
 import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage';
 import { SupplierInvoicesPage } from './pages/supplier/SupplierInvoicesPage';
 import { SupplierReturnsPage as SupplierPortalReturnsPage } from './pages/supplier/SupplierReturnsPage';
+import { SupplierLandingPage } from './pages/supplier/SupplierLandingPage';
+import { SupplierProductsPage } from './pages/supplier/SupplierProductsPage';
+import { B2BMarketplacePage } from './pages/restaurant/B2BMarketplacePage';
 
 // Role Guard Component
 const RoleGuard = ({ allowedRoles, children }) => {
@@ -173,6 +176,9 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/supplier-portal" element={<SupplierLandingPage />} />
+          <Route path="/supplier-landing" element={<Navigate to="/supplier-portal" replace />} />
+          <Route path="/suppliers-join" element={<Navigate to="/supplier-portal" replace />} />
 
           {/* Super Admin Module */}
           <Route
@@ -384,6 +390,17 @@ function App() {
               </AppLayout>
             }
           />
+          <Route
+            path="/marketplace"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager', 'inventory_manager', 'super_admin', 'supplier']}>
+                  <B2BMarketplacePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/b2b-marketplace" element={<Navigate to="/marketplace" replace />} />
           <Route
             path="/goods-receiving"
             element={
@@ -664,6 +681,17 @@ function App() {
               </AppLayout>
             }
           />
+          <Route
+            path="/supplier/products"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['supplier', 'super_admin']}>
+                  <SupplierProductsPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/supplier/catalog" element={<Navigate to="/supplier/products" replace />} />
           <Route
             path="/supplier/orders"
             element={

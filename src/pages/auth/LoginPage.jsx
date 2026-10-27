@@ -390,14 +390,25 @@ export const LoginPage = () => {
           </form>
 
           {/* Registration CTA (Strictly for Restaurant Owners) */}
-          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400">
-            <span>New restaurant owner? </span>
-            <Link
-              to="/signup"
-              className="font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
-            >
-              Register &amp; Start Free Trial →
-            </Link>
+          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400 space-y-2">
+            <div>
+              <span>New restaurant owner? </span>
+              <Link
+                to="/signup"
+                className="font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Register &amp; Start Free Trial →
+              </Link>
+            </div>
+            <div>
+              <span>Wholesale supplier or producer? </span>
+              <Link
+                to="/supplier-portal"
+                className="font-bold text-teal-400 hover:text-teal-300 transition-colors"
+              >
+                Join Supplier B2B Network →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

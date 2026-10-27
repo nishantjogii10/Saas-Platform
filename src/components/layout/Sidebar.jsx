@@ -124,6 +124,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
               { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
               { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',
@@ -177,6 +178,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/supplier-billing', label: 'Supplier Invoices', icon: Receipt },
               { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
               { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',
@@ -197,6 +199,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
               { to: '/branch-staff', label: 'Staff & Attendance', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
+              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/reports', label: 'Operations Reports', icon: BarChart3 },
               {
                 to: '/alerts',
@@ -239,6 +242,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Supplier Portal',
             items: [
               { to: '/supplier', label: 'Supplier Dashboard', icon: LayoutDashboard },
+              { to: '/supplier/products', label: 'Product Catalog', icon: Boxes },
+              { to: '/marketplace', label: 'Marketplace View', icon: Store },
               { to: '/supplier/orders', label: 'Assigned Orders', icon: ShoppingBag },
               { to: '/supplier/invoices', label: 'Invoices & Receivables', icon: Receipt },
               { to: '/supplier/returns', label: 'Returns & Credit Claims', icon: RotateCcw },

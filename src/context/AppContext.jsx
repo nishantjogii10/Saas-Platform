@@ -61,6 +61,12 @@ import {
   STAFF_SALARY_PROFILES,
 } from '../data/staffAttendanceData';
 
+import {
+  SUPPLIER_SUBSCRIPTION_PLANS,
+  SUPPLIER_CATEGORIES,
+  INITIAL_SUPPLIER_PRODUCTS,
+} from '../data/supplierMarketplaceData';
+
 const AppContext = createContext(null);
 
 const STORAGE_KEY = 'stockmate_saas_v2';
@@ -138,6 +144,9 @@ export const AppProvider = ({ children }) => {
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
+
+  // Third-Party Supplier B2B Marketplace Products State
+  const [supplierProducts, setSupplierProducts] = useState(() => loadStored('supplierProducts', INITIAL_SUPPLIER_PRODUCTS));
 
   // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
   // or restore from localStorage
@@ -289,6 +298,10 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
   }, [customPlanRequests]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_supplierProducts`, JSON.stringify(supplierProducts));
+  }, [supplierProducts]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(currentUser));
@@ -1208,6 +1221,365 @@ export const AppProvider = ({ children }) => {
 
     const targetPO = purchaseOrders.find(p => p.id === poId);
     addToast(`Purchase Order ${targetPO?.poNumber || poId} marked as "${newStatus.toUpperCase()}".`, 'info');
+  };
+
+  // ==============================================================
+  // THIRD-PARTY SUPPLIER B2B MARKETPLACE & PROCUREMENT WORKFLOW
+  // ==============================================================
+
+  // 1. Supplier Product Inventory Management (Add, Edit, Delete, Toggle Stock)
+  const addSupplierProduct = (productData) => {
+    const activeSupplier = suppliers.find(s => s.id === (productData.supplierId || currentUser?.supplierId));
+    const newProduct = {
+      id: `sprod-${Date.now()}`,
+      supplierId: productData.supplierId || currentUser?.supplierId || 'sup-1',
+      supplierName: productData.supplierName || activeSupplier?.name || currentUser?.supplierName || 'Metro Food Distributors',
+      supplierPlan: activeSupplier?.planName || 'Pro Vendor',
+      supplierRating: activeSupplier?.rating || 4.9,
+      name: productData.name,
+      category: productData.category || 'Fresh Vegetables & Greens',
+      unit: productData.unit || 'kg',
+      price: Number(productData.price) || 100,
+      mrp: Number(productData.mrp) || Math.round((Number(productData.price) || 100) * 1.25),
+      stock: Number(productData.stock) || 50,
+      minOrderQty: Number(productData.minOrderQty) || 1,
+      leadTimeDays: Number(productData.leadTimeDays) || 1,
+      shelfLifeDays: Number(productData.shelfLifeDays) || 7,
+      fssai: productData.fssai || '11522034000188',
+      organic: Boolean(productData.organic),
+      inStock: true,
+      description: productData.description || '',
+      image: productData.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+    };
+
+    setSupplierProducts((prev) => [newProduct, ...prev]);
+    addToast(`"${newProduct.name}" listed successfully in the B2B Marketplace.`, 'success');
+    return newProduct;
+  };
+
+  const updateSupplierProduct = (productId, updatedData) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, ...updatedData } : p))
+    );
+    addToast('Product details updated successfully.', 'success');
+  };
+
+  const deleteSupplierProduct = (productId) => {
+    setSupplierProducts((prev) => prev.filter((p) => p.id !== productId));
+    addToast('Product removed from catalog.', 'info');
+  };
+
+  const toggleSupplierProductStock = (productId) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, inStock: !p.inStock } : p))
+    );
+  };
+
+  // 2. Seamless Supplier Onboarding with Subscription Plan & Automatic System Notifications
+  const registerSupplierAccount = (formData) => {
+    const selectedPlan =
+      SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === formData.planId) ||
+      SUPPLIER_SUBSCRIPTION_PLANS[1]; // default to Pro Vendor
+
+    const supplierId = `sup-${Date.now()}`;
+    const userId = `usr-sup-${Date.now()}`;
+
+    const newSupplier = {
+      id: supplierId,
+      name: formData.name,
+      contactPerson: formData.contactPerson,
+      email: formData.email,
+      phone: formData.phone || '+91 98000 00000',
+      address: formData.address || 'Central Logistics Park, Sector 4, Pune',
+      categories:
+        formData.categories && formData.categories.length > 0
+          ? formData.categories
+          : ['Dairy & Cheese', 'Fresh Vegetables & Greens'],
+      rating: 5.0,
+      leadTimeDays: Number(formData.leadTimeDays) || 1,
+      paymentTerms:
+        selectedPlan.payoutDays === 'Same Day'
+          ? 'Immediate Settlement'
+          : selectedPlan.payoutDays === '48 Hours'
+          ? 'Net 2 (48h Payout)'
+          : 'Net 14 (Standard)',
+      activeOrdersCount: 0,
+      status: 'active',
+      verificationStatus: 'verified',
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      planPrice: formData.billingCycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.price,
+      billingCycle: formData.billingCycle || 'monthly',
+      commissionRate: selectedPlan.commissionRate,
+      gstin: formData.gstin || '27AABCU9603R1ZM',
+      city: formData.city || 'Pune',
+      joinedDate: new Date().toISOString(),
+      restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+    };
+
+    const newSupplierUser = {
+      id: userId,
+      name: formData.contactPerson,
+      email: formData.email,
+      password: formData.password || 'password123',
+      role: 'supplier',
+      supplierId: supplierId,
+      supplierName: newSupplier.name,
+      restaurantId: null,
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
+      joinedDate: new Date().toISOString().split('T')[0],
+      lastActive: 'Just now',
+    };
+
+    // Update Suppliers state
+    setSuppliers((prev) => [newSupplier, ...prev]);
+
+    // Update Users state
+    setUsers((prev) => [newSupplierUser, ...prev]);
+
+    // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
+    const adminLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      action: 'SUPPLIER_ONBOARDED',
+      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Products & catalog pending review.`,
+      user: newSupplier.contactPerson,
+      role: 'supplier',
+    };
+    setPlatformLogs((prev) => [adminLog, ...prev]);
+
+    // SYSTEM NOTIFICATION B: To Restaurant Owner & Manager (Unread badge will light up)
+    const ownerNotif = {
+      id: `notif-${Date.now()}-sup`,
+      type: 'supplier_onboarding',
+      title: `🎉 New B2B Supplier Partner: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has registered on StockMate Marketplace offering ${newSupplier.categories.join(', ')}. Fresh wholesale catalog is ready for procurement.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/marketplace',
+      actionLabel: 'Browse Products',
+      badge: 'New Supplier',
+      supplierId: newSupplier.id,
+    };
+    setOwnerNotifications((prev) => [ownerNotif, ...prev]);
+
+    const supplierAlert = {
+      id: `alt-${Date.now()}-sup`,
+      restaurantId: currentRestaurantId,
+      type: 'supplier_new',
+      severity: 'low',
+      title: `New Supplier: ${newSupplier.name}`,
+      message: `Verified partner for ${newSupplier.categories.slice(0, 2).join(' & ')} with ${newSupplier.leadTimeDays}-day delivery lead time.`,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/marketplace',
+      actionLabel: 'Procure Stock',
+    };
+    setAlerts((prev) => [supplierAlert, ...prev]);
+
+    // Auto-login the new supplier
+    setCurrentUser(newSupplierUser);
+
+    addToast(
+      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier.`,
+      'success'
+    );
+
+    return { success: true, supplier: newSupplier, user: newSupplierUser };
+  };
+
+  // 3. Structured 4-Stage Purchase Order (PO) Workflow:
+  // Stage 1: Request PO (Cart Requisition)
+  const createMarketplacePO = (orderData) => {
+    const { supplierId, items, notes, expectedDelivery, requireApproval } = orderData;
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    const rest = currentRestaurant;
+
+    const subtotal = items.reduce(
+      (sum, item) => sum + Number(item.quantity) * Number(item.price || item.unitCost),
+      0
+    );
+    const tax = Number((subtotal * 0.05).toFixed(2)); // 5% GST
+    const shippingFee = subtotal > 1500 ? 0 : 150.0;
+    const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
+    const poNum = `PO-B2B-${Math.floor(1000 + purchaseOrders.length + Math.random() * 900)}`;
+
+    const isOwnerOrManager =
+      currentUser?.role === 'restaurant_owner' || currentUser?.role === 'restaurant_manager';
+    const initialStatus = requireApproval || !isOwnerOrManager ? 'pending_approval' : 'pending';
+
+    const newPO = {
+      id: `po-${Date.now()}`,
+      poNumber: poNum,
+      restaurantId: currentRestaurantId,
+      restaurantName: rest?.name || 'Mango Tree Kitchen & Bar',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Main Branch',
+      supplierId: supplierId,
+      supplierName: supplier ? supplier.name : 'Marketplace Supplier',
+      supplierContact: supplier ? `${supplier.contactPerson} (${supplier.email})` : '',
+      status: initialStatus,
+      createdAt: new Date().toISOString(),
+      expectedDelivery:
+        expectedDelivery ||
+        new Date(Date.now() + (supplier?.leadTimeDays || 2) * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+      notes: notes || 'Procured via StockMate B2B Marketplace.',
+      items: items.map((it) => ({
+        ingredientId: it.id || it.ingredientId,
+        name: it.name,
+        quantity: Number(it.quantity),
+        unit: it.unit,
+        unitCost: Number(it.price || it.unitCost),
+        totalCost: Number((Number(it.quantity) * Number(it.price || it.unitCost)).toFixed(2)),
+      })),
+      subtotal,
+      tax,
+      shippingFee,
+      totalAmount,
+      source: 'b2b_marketplace',
+      timeline: [
+        {
+          status: 'po_requested',
+          timestamp: new Date().toISOString(),
+          note: `PO Requisition created by ${currentUser?.name || 'Kitchen Staff'} (${currentUser?.role || 'user'}) via B2B Marketplace.`,
+        },
+        ...(initialStatus === 'pending'
+          ? [
+              {
+                status: 'pending',
+                timestamp: new Date().toISOString(),
+                note: `PO verified and dispatched to ${supplier?.name || 'Supplier'} queue.`,
+              },
+            ]
+          : []),
+      ],
+    };
+
+    setPurchaseOrders((prev) => [newPO, ...prev]);
+
+    if (initialStatus === 'pending_approval') {
+      const approvalNotif = {
+        id: `notif-${Date.now()}-poapp`,
+        type: 'po_approval_needed',
+        title: `Requisition Approval Needed: ${newPO.poNumber}`,
+        message: `${newPO.items.length} items from ${newPO.supplierName} (₹${newPO.totalAmount.toLocaleString('en-IN')}) requires Manager/Owner approval.`,
+        read: false,
+        timestamp: 'Just now',
+        actionLink: '/purchase-orders',
+        actionLabel: 'Review PO',
+        badge: 'PO Approval',
+      };
+      setOwnerNotifications((prev) => [approvalNotif, ...prev]);
+      addToast(`Purchase Order ${newPO.poNumber} created and awaiting Manager approval.`, 'info');
+    } else {
+      addToast(`Purchase Order ${newPO.poNumber} dispatched to ${newPO.supplierName}.`, 'success');
+    }
+
+    return newPO;
+  };
+
+  // Stage 2: Admin/Manager Approval
+  const approvePurchaseOrder = (poId) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const approvalEntry = {
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            note: `Approved by ${currentUser.name} (${currentUser.role.replace('_', ' ')}). Sent to supplier.`,
+          };
+          return {
+            ...po,
+            status: 'pending',
+            timeline: [...po.timeline, approvalEntry],
+          };
+        }
+        return po;
+      })
+    );
+    addToast('Purchase Order approved and dispatched to supplier queue.', 'success');
+  };
+
+  // Stage 4: Receiving Goods & Live Inventory Update
+  const receivePOAndStock = (poId, receiptNotes = 'Goods verified and received in optimal condition.') => {
+    const targetPO = purchaseOrders.find((p) => p.id === poId);
+    if (!targetPO) return;
+
+    // 1. Update Inventory Quantities
+    setIngredients((prev) =>
+      prev.map((ing) => {
+        const matchingItem = targetPO.items.find(
+          (it) => it.ingredientId === ing.id || it.name.toLowerCase() === ing.name.toLowerCase()
+        );
+        if (matchingItem) {
+          const addedQty = Number(matchingItem.quantity) || 0;
+          return {
+            ...ing,
+            currentStock: Number((ing.currentStock + addedQty).toFixed(2)),
+            lastRestocked: new Date().toISOString().split('T')[0],
+          };
+        }
+        return ing;
+      })
+    );
+
+    // 2. Add Stock Movement records
+    const newMovements = targetPO.items.map((it) => ({
+      id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      type: 'purchase',
+      quantity: Number(it.quantity),
+      unit: it.unit,
+      timestamp: new Date().toISOString(),
+      performedBy: currentUser?.name || 'Manager',
+      referenceNumber: targetPO.poNumber,
+      notes: `Restocked via B2B Purchase Order ${targetPO.poNumber} from ${targetPO.supplierName}`,
+    }));
+    setStockMovements((prev) => [...newMovements, ...prev]);
+
+    // 3. Mark PO as 'received' and 'delivered'
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const receivedEntry = {
+            status: 'received',
+            timestamp: new Date().toISOString(),
+            note: `Stock received & inventory updated by ${currentUser?.name || 'Manager'} (${currentUser?.role || 'user'}). ${receiptNotes}`,
+          };
+          return {
+            ...po,
+            status: 'received',
+            receivedAt: new Date().toISOString(),
+            timeline: [...po.timeline, receivedEntry],
+          };
+        }
+        return po;
+      })
+    );
+
+    // 4. Create batch records for QR tracking
+    const newBatches = targetPO.items.map((it) => ({
+      id: `BATCH-${new Date().getFullYear()}-${it.name.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      supplierId: targetPO.supplierId,
+      supplierName: targetPO.supplierName,
+      poNumber: targetPO.poNumber,
+      receivedDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      initialQuantity: Number(it.quantity),
+      remainingQuantity: Number(it.quantity),
+      unit: it.unit,
+      status: 'active',
+      storageLocation: 'Kitchen Storage A',
+    }));
+    setProductBatches((prev) => [...newBatches, ...prev]);
+
+    addToast(`PO ${targetPO.poNumber} received. Restaurant inventory stock updated!`, 'success');
   };
 
   // ==========================================
@@ -3537,6 +3909,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem(`${STORAGE_KEY}_salaryPayments`);
     localStorage.removeItem(`${STORAGE_KEY}_staffNotifications`);
     localStorage.removeItem(`${STORAGE_KEY}_custom_plan_requests`);
+    localStorage.removeItem(`${STORAGE_KEY}_supplierProducts`);
 
     setRestaurants(initialRestaurants);
     setPlans(initialPlans);
@@ -3571,6 +3944,7 @@ export const AppProvider = ({ children }) => {
     setSalaryPayments(initialSalaryPayments);
     setStaffNotifications(initialStaffNotifications);
     setCustomPlanRequests(initialCustomPlanRequests);
+    setSupplierProducts(INITIAL_SUPPLIER_PRODUCTS);
     setCurrentUser(initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0]);
     setCurrentRestaurantId('rest-1');
 
@@ -3902,6 +4276,19 @@ export const AppProvider = ({ children }) => {
         BASE_PLANS,
         FEATURE_ADDONS,
         AUTOMATION_LIMITS,
+
+        // Third-Party Supplier B2B Marketplace & Procurement Workflow
+        supplierProducts,
+        SUPPLIER_SUBSCRIPTION_PLANS,
+        SUPPLIER_CATEGORIES,
+        addSupplierProduct,
+        updateSupplierProduct,
+        deleteSupplierProduct,
+        toggleSupplierProductStock,
+        registerSupplierAccount,
+        createMarketplacePO,
+        approvePurchaseOrder,
+        receivePOAndStock,
       }}
     >
       {children}
