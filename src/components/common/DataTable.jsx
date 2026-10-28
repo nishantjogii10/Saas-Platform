@@ -68,7 +68,7 @@ export const DataTable = ({
                   }`}
                   onClick={() => col.sortable && handleSort(col.accessor)}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className={`flex items-center gap-1.5 ${col.className?.includes('text-right') ? 'justify-end' : col.className?.includes('text-center') ? 'justify-center' : ''}`}>
                     <span>{col.header}</span>
                     {col.sortable && (
                       <span className="text-slate-400">

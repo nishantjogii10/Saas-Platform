@@ -178,52 +178,76 @@ export const PurchaseOrdersPage = () => {
 
   const columns = [
     {
-      header: 'PO Number & Date',
+      header: 'PO Number',
       accessor: 'poNumber',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-            <span>{row.poNumber}</span>
-          </div>
-          <div className="text-xs text-slate-400">
-            {new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 dark:text-white font-mono text-xs">
+          {row.poNumber}
+        </span>
       ),
     },
     {
-      header: 'Assigned Supplier',
+      header: 'Order Date',
+      accessor: 'createdAt',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-700 dark:text-slate-300">
+          {row.createdAt ? new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Supplier Name',
       accessor: 'supplierName',
       sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">{row.supplierName}</div>
-          <div className="text-slate-400 truncate max-w-[160px]">{row.supplierContact}</div>
-        </div>
+        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+          {row.supplierName}
+        </span>
       ),
     },
     {
-      header: 'Items Ordered',
-      accessor: 'items',
+      header: 'Supplier Contact',
+      accessor: 'supplierContact',
+      sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <span className="font-bold text-slate-800">{row.items.length} item(s)</span>
-          <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
-            {row.items.map(it => `${it.quantity} ${it.unit} ${it.name}`).join(', ')}
-          </div>
-        </div>
+        <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[150px] block" title={row.supplierContact}>
+          {row.supplierContact || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Items Count',
+      accessor: 'items',
+      className: 'text-center',
+      cellClassName: 'text-center',
+      render: (row) => (
+        <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md">
+          {row.items?.length || 0} items
+        </span>
+      ),
+    },
+    {
+      header: 'Expected Delivery',
+      accessor: 'expectedDelivery',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 dark:text-slate-400">
+          {row.expectedDelivery || '—'}
+        </span>
       ),
     },
     {
       header: 'Total Value',
       accessor: 'totalAmount',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-extrabold text-slate-900">{formatINR(row.totalAmount)}</div>
-          <div className="text-[10px] text-slate-400">Incl. tax & delivery</div>
-        </div>
+        <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">
+          {formatINR(row.totalAmount)}
+        </span>
       ),
     },
     {
@@ -249,7 +273,7 @@ export const PurchaseOrdersPage = () => {
             Details
           </Button>
 
-          {/* Owner / Admin Direct Requisition Fallback (if any legacy PO pending approval) */}
+          {/* Owner / Admin Direct Requisition Fallback */}
           {row.status === 'pending_approval' &&
             (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
               <Button

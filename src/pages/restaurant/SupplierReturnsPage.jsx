@@ -517,20 +517,25 @@ export const SupplierReturnsPage = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-4">Return ID & Date</th>
-                <th className="py-3 px-4">Product & Batch Ref</th>
+                <th className="py-3 px-4">Return ID</th>
+                <th className="py-3 px-4">Request Date</th>
+                <th className="py-3 px-4">PO Reference</th>
+                <th className="py-3 px-4">Product Name</th>
+                <th className="py-3 px-4">Batch ID</th>
                 <th className="py-3 px-4">Supplier Partner</th>
                 <th className="py-3 px-4">Return Category</th>
                 <th className="py-3 px-4 text-right">Return Qty</th>
+                <th className="py-3 px-4 text-right">Unit Rate</th>
                 <th className="py-3 px-4 text-right">Loss Claimed</th>
-                <th className="py-3 px-4">Settlement & Status</th>
+                <th className="py-3 px-4">Settlement Mode</th>
+                <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredReturns.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={13} className="py-12 text-center text-slate-400">
                     <PackageX className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700 text-sm">No return records found</p>
                     <p className="text-xs text-slate-400 mt-0.5">Try adjusting search filters or log a new damage claim.</p>
@@ -539,39 +544,47 @@ export const SupplierReturnsPage = () => {
               ) : (
                 filteredReturns.map((ret) => (
                   <tr key={ret.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">{ret.returnNumber}</div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                        <Calendar className="w-3 h-3" /> {ret.requestDate}
-                      </div>
-                      <div className="text-[11px] font-mono text-emerald-800">{ret.poNumber}</div>
+                    <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                      {ret.returnNumber}
                     </td>
 
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-800">{ret.productName}</div>
-                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
-                        Batch: {ret.batchId}
+                    <td className="py-3 px-4 text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{ret.requestDate}</span>
                       </div>
-                      <div className="text-[11px] text-slate-400">GRN: {ret.grnNumber}</div>
                     </td>
 
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800">{ret.supplierName}</div>
-                      <div className="text-[11px] text-slate-500">By: {ret.requestedBy}</div>
+                    <td className="py-3 px-4 font-mono text-emerald-800 font-medium">
+                      {ret.poNumber || '—'}
+                    </td>
+
+                    <td className="py-3 px-4 font-bold text-slate-800">
+                      {ret.productName}
+                    </td>
+
+                    <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
+                      {ret.batchId || '—'}
+                    </td>
+
+                    <td className="py-3 px-4 font-semibold text-slate-800">
+                      {ret.supplierName}
+                      <div className="text-[10px] text-slate-400 font-normal">By: {ret.requestedBy}</div>
                     </td>
 
                     <td className="py-3 px-4">
                       {getTypeBadge(ret.returnType)}
-                      <div className="text-[11px] text-slate-500 mt-1 max-w-[180px] truncate" title={ret.reason}>
+                      <div className="text-[10px] text-slate-500 mt-0.5 max-w-[140px] truncate" title={ret.reason}>
                         {ret.reason}
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <span className="font-bold text-slate-900">
-                        {ret.returnQty} {ret.unit}
-                      </span>
-                      <div className="text-[11px] text-slate-400">@{formatINR(ret.unitCost)}</div>
+                    <td className="py-3 px-4 text-right font-bold text-slate-900">
+                      {ret.returnQty} {ret.unit}
+                    </td>
+
+                    <td className="py-3 px-4 text-right text-slate-600 font-mono">
+                      {formatINR(ret.unitCost)}
                     </td>
 
                     <td className="py-3 px-4 text-right">
@@ -579,25 +592,23 @@ export const SupplierReturnsPage = () => {
                         {formatINR(ret.totalLossAmount)}
                       </div>
                       {ret.creditNoteAmount && (
-                        <div className="text-[11px] text-emerald-600 font-medium">
+                        <div className="text-[10px] text-emerald-600 font-medium">
                           Credit: {formatINR(ret.creditNoteAmount)}
                         </div>
                       )}
                     </td>
 
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        {getStatusBadge(ret.status)}
-                      </div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
-                        <span>Mode:</span>
-                        <span className="font-semibold text-slate-700">{ret.settlementType}</span>
-                      </div>
+                      <span className="font-semibold text-slate-700">{ret.settlementType}</span>
                       {ret.creditNoteId && (
                         <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block mt-0.5">
                           {ret.creditNoteId}
                         </div>
                       )}
+                    </td>
+
+                    <td className="py-3 px-4 text-center">
+                      {getStatusBadge(ret.status)}
                     </td>
 
                     <td className="py-3 px-4 text-center">

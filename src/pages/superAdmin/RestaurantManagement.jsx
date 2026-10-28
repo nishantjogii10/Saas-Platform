@@ -108,30 +108,42 @@ export const RestaurantManagement = () => {
 
   const columns = [
     {
-      header: 'Restaurant Name & Concept',
+      header: 'Restaurant Name',
       accessor: 'name',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-3">
-          <span className="text-2xl p-1.5 rounded-xl bg-slate-100/80">{row.logo || '🍽️'}</span>
-          <div>
-            <div className="font-bold text-slate-900 hover:text-emerald-800 transition-colors cursor-pointer" onClick={() => openDetails(row)}>
-              {row.name}
-            </div>
-            <div className="text-xs text-slate-500">{row.cuisine}</div>
+          <span className="text-xl p-1 rounded-xl bg-slate-100/80 shrink-0">{row.logo || '🍽️'}</span>
+          <div className="font-bold text-slate-900 hover:text-emerald-800 transition-colors cursor-pointer text-xs" onClick={() => openDetails(row)}>
+            {row.name}
           </div>
         </div>
       ),
     },
     {
-      header: 'Owner Details',
+      header: 'Cuisine / Concept',
+      accessor: 'cuisine',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-medium px-2 py-0.5 bg-slate-100 rounded-md">
+          {row.cuisine}
+        </span>
+      ),
+    },
+    {
+      header: 'Owner Name',
       accessor: 'ownerName',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-semibold text-slate-800">{row.ownerName}</div>
-          <div className="text-xs text-slate-500">{row.ownerEmail}</div>
-        </div>
+        <span className="font-semibold text-slate-800 text-xs">{row.ownerName}</span>
+      ),
+    },
+    {
+      header: 'Owner Email',
+      accessor: 'ownerEmail',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-mono">{row.ownerEmail}</span>
       ),
     },
     {
@@ -139,14 +151,19 @@ export const RestaurantManagement = () => {
       accessor: 'planName',
       sortable: true,
       render: (row) => (
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-            {row.planName}
-          </span>
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            Joined {new Date(row.joinedDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-        </div>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+          {row.planName}
+        </span>
+      ),
+    },
+    {
+      header: 'Joined Date',
+      accessor: 'joinedDate',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-500 font-mono">
+          {new Date(row.joinedDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
       ),
     },
     {

@@ -319,21 +319,26 @@ export const SupplierBillingPage = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-4">Invoice & Due Date</th>
+                <th className="py-3 px-4">Invoice Number</th>
+                <th className="py-3 px-4">Issue Date</th>
+                <th className="py-3 px-4">Due Date</th>
                 <th className="py-3 px-4">Supplier Partner</th>
-                <th className="py-3 px-4">PO & GRN Ref</th>
+                <th className="py-3 px-4">PO Reference</th>
+                <th className="py-3 px-4">GRN Ref</th>
                 <th className="py-3 px-4 text-right">Billed Amount</th>
                 <th className="py-3 px-4 text-right">Deductions</th>
                 <th className="py-3 px-4 text-right">Net Payable</th>
+                <th className="py-3 px-4 text-right">Paid Amount</th>
                 <th className="py-3 px-4 text-right">Outstanding</th>
-                <th className="py-3 px-4">Status & UTR</th>
+                <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4">UTR / Ref</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={14} className="py-12 text-center text-slate-400">
                     <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700 text-sm">No supplier invoices found</p>
                     <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or complete a delivery GRN.</p>
@@ -342,41 +347,48 @@ export const SupplierBillingPage = () => {
               ) : (
                 filteredInvoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">{inv.invoiceNumber}</div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                        <Calendar className="w-3 h-3" /> Issued: {inv.issueDate}
-                      </div>
-                      <div className="text-[11px] font-medium text-amber-700">Due: {inv.dueDate}</div>
+                    <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                      {inv.invoiceNumber}
+                    </td>
+
+                    <td className="py-3 px-4 text-slate-600">
+                      {inv.issueDate}
+                    </td>
+
+                    <td className="py-3 px-4 text-amber-700 font-semibold">
+                      {inv.dueDate}
                     </td>
 
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-800">{inv.supplierName}</div>
-                      <div className="text-[11px] font-mono text-slate-400">
-                        GST: {inv.supplierGstin || '27AABC...'}
+                      <div className="text-[10px] font-mono text-slate-400">
+                        {inv.supplierGstin || '27AABC...'}
                       </div>
                     </td>
 
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-700">{inv.poNumber}</div>
-                      <div className="text-[11px] font-mono text-emerald-800">{inv.grnNumber}</div>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-700">
+                      {inv.poNumber}
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <div className="font-semibold text-slate-800">{formatINR(inv.totalAmount)}</div>
-                      <div className="text-[11px] text-slate-400">Tax: {formatINR(inv.taxAmount)}</div>
+                    <td className="py-3 px-4 font-mono text-emerald-800">
+                      {inv.grnNumber}
+                    </td>
+
+                    <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                      <div>{formatINR(inv.totalAmount)}</div>
+                      <div className="text-[10px] text-slate-400">Tax: {formatINR(inv.taxAmount)}</div>
                     </td>
 
                     <td className="py-3 px-4 text-right">
                       {(inv.damageDeduction > 0 || inv.creditNoteApplied > 0) ? (
                         <div>
                           {inv.damageDeduction > 0 && (
-                            <div className="text-[11px] text-rose-600 font-medium">
+                            <div className="text-[10px] text-rose-600 font-medium">
                               -Damages: {formatINR(inv.damageDeduction)}
                             </div>
                           )}
                           {inv.creditNoteApplied > 0 && (
-                            <div className="text-[11px] text-emerald-600 font-medium">
+                            <div className="text-[10px] text-emerald-600 font-medium">
                               -Credit: {formatINR(inv.creditNoteApplied)}
                             </div>
                           )}
@@ -386,33 +398,35 @@ export const SupplierBillingPage = () => {
                       )}
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <div className="font-bold text-slate-900">{formatINR(inv.netPayable)}</div>
-                      <div className="text-[11px] text-emerald-700 font-medium">
-                        Paid: {formatINR(inv.paidAmount)}
-                      </div>
+                    <td className="py-3 px-4 text-right font-bold text-slate-900">
+                      {formatINR(inv.netPayable)}
+                    </td>
+
+                    <td className="py-3 px-4 text-right text-emerald-700 font-bold">
+                      {formatINR(inv.paidAmount)}
                     </td>
 
                     <td className="py-3 px-4 text-right">
-                      <div
+                      <span
                         className={`font-bold ${
                           inv.outstandingBalance > 0 ? 'text-amber-700 text-sm' : 'text-slate-400'
                         }`}
                       >
                         {formatINR(inv.outstandingBalance)}
-                      </div>
+                      </span>
+                    </td>
+
+                    <td className="py-3 px-4 text-center">
+                      {getStatusBadge(inv.paymentStatus)}
                     </td>
 
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        {getStatusBadge(inv.paymentStatus)}
-                      </div>
                       {inv.transactionRef ? (
-                        <div className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded inline-block">
-                          Ref: {inv.transactionRef}
-                        </div>
+                        <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded inline-block">
+                          {inv.transactionRef}
+                        </span>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic">No payment record</span>
+                        <span className="text-[11px] text-slate-400 italic">—</span>
                       )}
                     </td>
 

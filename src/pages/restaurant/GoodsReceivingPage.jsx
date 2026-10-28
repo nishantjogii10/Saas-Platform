@@ -459,20 +459,23 @@ export const GoodsReceivingPage = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3.5 px-4">GRN &amp; Date</th>
-                    <th className="py-3.5 px-4">Supplier &amp; PO Ref</th>
-                    <th className="py-3.5 px-4">Invoice &amp; Challan</th>
-                    <th className="py-3.5 px-4">Items Breakdown</th>
-                    <th className="py-3.5 px-4">Accepted Value</th>
-                    <th className="py-3.5 px-4">Damage / Loss</th>
-                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">GRN Number</th>
+                    <th className="py-3.5 px-4">Received Date</th>
+                    <th className="py-3.5 px-4">Supplier Name</th>
+                    <th className="py-3.5 px-4">Purchase Order ID</th>
+                    <th className="py-3.5 px-4">Invoice Number</th>
+                    <th className="py-3.5 px-4">Delivery Challan</th>
+                    <th className="py-3.5 px-4 text-center">Product Lines</th>
+                    <th className="py-3.5 px-4 text-right">Accepted Value</th>
+                    <th className="py-3.5 px-4 text-right">Damage Loss</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredGRNs.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-xs text-slate-500">
+                      <td colSpan={11} className="py-8 text-center text-xs text-slate-500">
                         No Goods Received Notes match your search criteria.
                       </td>
                     </tr>
@@ -482,52 +485,64 @@ export const GoodsReceivingPage = () => {
 
                       return (
                         <tr key={grn.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-4">
-                            <div className="font-mono font-bold text-slate-900">{grn.grnNumber}</div>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span>{grn.receivedDate} • {grn.receivedTime || '10:00 AM'}</span>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                            {grn.grnNumber}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-slate-600">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{grn.receivedDate}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">{grn.receivedTime || '10:00 AM'}</span>
+                          </td>
+
+                          <td className="py-3.5 px-4 font-semibold text-slate-900">
+                            {grn.supplierName}
+                          </td>
+
+                          <td className="py-3.5 px-4 font-mono text-slate-700">
+                            {grn.poNumber}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-slate-800 font-mono">
+                            {grn.invoiceNumber || '—'}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">
+                            {grn.deliveryChallan || '—'}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="font-bold text-slate-800 px-2 py-0.5 bg-slate-100 rounded-md">
+                              {grn.items.length} Lines
+                            </span>
+                            <div className="text-[10px] text-slate-500 truncate max-w-[160px] mx-auto mt-0.5" title={grn.items.map((it) => `${it.name} (${it.acceptedQty}/${it.receivedQty})`).join(', ')}>
+                              {grn.items.map((it) => `${it.name}`).join(', ')}
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-4">
-                            <div className="font-semibold text-slate-900">{grn.supplierName}</div>
-                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                              <span>PO: {grn.poNumber}</span>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <div className="text-slate-800 font-medium">{grn.invoiceNumber}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">Challan: {grn.deliveryChallan}</div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <span className="font-bold text-slate-800">{grn.items.length} Product Line(s)</span>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
-                              {grn.items.map((it) => `${it.name} (${it.acceptedQty}/${it.receivedQty})`).join(', ')}
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 text-right">
                             <span className="font-bold text-emerald-800 text-sm">
                               {formatINR(grn.totalAcceptedAmount)}
                             </span>
-                            <div className="text-[10px] text-emerald-600">Added to Inventory</div>
+                            <div className="text-[10px] text-emerald-600">Stocked</div>
                           </td>
 
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 text-right">
                             {grn.totalDamageLoss > 0 ? (
-                              <div className="text-rose-600 font-bold">
-                                {formatINR(grn.totalDamageLoss)}
-                                <div className="text-[10px] text-rose-500">Claimed as Return</div>
+                              <div>
+                                <span className="text-rose-600 font-bold">
+                                  {formatINR(grn.totalDamageLoss)}
+                                </span>
+                                <div className="text-[10px] text-rose-500">Return Claim</div>
                               </div>
                             ) : (
-                              <span className="text-slate-400 font-medium">₹0 (Zero Loss)</span>
+                              <span className="text-slate-400 font-medium">₹0</span>
                             )}
                           </td>
 
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 text-center">
                             <span
                               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                                 isPartial
@@ -608,13 +623,14 @@ export const GoodsReceivingPage = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Damaged Product</th>
-                  <th className="py-3 px-4">Damaged Qty</th>
-                  <th className="py-3 px-4">Unit Cost</th>
-                  <th className="py-3 px-4">Calculated Loss</th>
-                  <th className="py-3 px-4">Damage Reason / Evidence</th>
-                  <th className="py-3 px-4">Linked GRN &amp; Supplier</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4 text-right">Status</th>
+                  <th className="py-3 px-4 text-right">Damaged Qty</th>
+                  <th className="py-3 px-4 text-right">Unit Cost</th>
+                  <th className="py-3 px-4 text-right">Calculated Loss</th>
+                  <th className="py-3 px-4">Damage Reason</th>
+                  <th className="py-3 px-4">Linked GRN</th>
+                  <th className="py-3 px-4">Supplier Name</th>
+                  <th className="py-3 px-4">Received Date</th>
+                  <th className="py-3 px-4 text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -623,26 +639,28 @@ export const GoodsReceivingPage = () => {
                     <td className="py-3 px-4 font-bold text-slate-900">
                       {item.name}
                     </td>
-                    <td className="py-3 px-4 font-bold text-rose-700">
+                    <td className="py-3 px-4 font-bold text-rose-700 text-right">
                       {item.damagedQty} {item.unit}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 font-mono">
+                    <td className="py-3 px-4 text-slate-600 font-mono text-right">
                       {formatINR(item.unitCost)}
                     </td>
-                    <td className="py-3 px-4 font-bold text-rose-600 font-mono">
+                    <td className="py-3 px-4 font-bold text-rose-600 font-mono text-right">
                       {formatINR(item.lossAmount)}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate" title={item.damageReason}>
                       {item.damageReason}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="font-mono font-bold text-slate-800">{item.grnNumber}</div>
-                      <div className="text-[10px] text-slate-500">{item.supplierName}</div>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                      {item.grnNumber}
+                    </td>
+                    <td className="py-3 px-4 text-slate-700 font-medium">
+                      {item.supplierName}
                     </td>
                     <td className="py-3 px-4 text-slate-500 font-mono">
                       {item.receivedDate}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-center">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                         {item.status}
                       </span>

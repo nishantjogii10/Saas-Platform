@@ -78,21 +78,26 @@ export const UserManagement = () => {
 
   const columns = [
     {
-      header: 'User & Profile',
+      header: 'User Name',
       accessor: 'name',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <img
             src={row.avatar}
             alt={row.name}
-            className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-100"
+            className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
           />
-          <div>
-            <div className="font-semibold text-slate-900">{row.name}</div>
-            <div className="text-xs text-slate-500">{row.email}</div>
-          </div>
+          <span className="font-semibold text-slate-900 text-xs">{row.name}</span>
         </div>
+      ),
+    },
+    {
+      header: 'Email Address',
+      accessor: 'email',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-mono">{row.email}</span>
       ),
     },
     {
@@ -102,18 +107,13 @@ export const UserManagement = () => {
       render: (row) => <Badge status={row.role} />,
     },
     {
-      header: 'Restaurant Workspace',
+      header: 'Workspace',
       accessor: 'restaurantName',
       sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <span className="font-medium text-slate-800">
-            {row.restaurantName || (row.role === 'super_admin' ? 'Platform Wide' : 'Supplier Partner')}
-          </span>
-          {row.restaurantId && (
-            <span className="block text-[11px] text-slate-400">ID: {row.restaurantId}</span>
-          )}
-        </div>
+        <span className="text-xs font-medium text-slate-800">
+          {row.restaurantName || (row.role === 'super_admin' ? 'Platform Wide' : 'Supplier Partner')}
+        </span>
       ),
     },
     {
@@ -123,14 +123,19 @@ export const UserManagement = () => {
       render: (row) => <Badge status={row.status} />,
     },
     {
-      header: 'Activity',
+      header: 'Last Active',
       accessor: 'lastActive',
       sortable: true,
       render: (row) => (
-        <div className="text-xs text-slate-500">
-          <div>{row.lastActive || 'Recently'}</div>
-          <div className="text-[10px] text-slate-400">Joined {row.joinedDate}</div>
-        </div>
+        <span className="text-xs text-slate-600">{row.lastActive || 'Recently'}</span>
+      ),
+    },
+    {
+      header: 'Joined Date',
+      accessor: 'joinedDate',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-500 font-mono">{row.joinedDate}</span>
       ),
     },
     {

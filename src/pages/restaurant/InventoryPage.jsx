@@ -135,6 +135,10 @@ export const InventoryPage = () => {
   };
 
   const handleOpenConsume = (ingredient) => {
+    if (currentUser?.role === 'inventory_manager') {
+      addToast('Inventory Managers are not permitted to record kitchen consumption.', 'error');
+      return;
+    }
     setSelectedIngredient(ingredient);
     setConsumeAmount(Math.min(ingredient.quantity > 0 ? 1 : 0, ingredient.quantity));
     setConsumeReason('Line prep for lunch service');
@@ -191,100 +195,142 @@ export const InventoryPage = () => {
 
   const columns = [
     {
-      header: 'Ingredient & Batch',
+      header: 'Ingredient Name',
       accessor: 'name',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.name}</div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-            <span className="font-medium text-slate-600">{row.category}</span>
-            <span>•</span>
-            <span className="font-mono text-[11px] text-slate-400">{row.batchNumber}</span>
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 dark:text-white">{row.name}</span>
+      ),
+    },
+    {
+      header: 'Category',
+      accessor: 'category',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+          {row.category}
+        </span>
+      ),
+    },
+    {
+      header: 'Batch Number',
+      accessor: 'batchNumber',
+      sortable: true,
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-600 dark:text-slate-400 font-semibold">
+          {row.batchNumber || '—'}
+        </span>
       ),
     },
     {
       header: 'Current Stock',
       accessor: 'quantity',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div>
-          <div className="flex items-baseline gap-1">
-            <span className={`text-base font-extrabold ${
-              row.quantity === 0
-                ? 'text-rose-600'
-                : row.quantity <= row.minThreshold
-                ? 'text-amber-600'
-                : 'text-slate-900'
-            }`}>
-              {row.quantity}
-            </span>
-            <span className="text-xs text-slate-500 font-medium">{row.unit}</span>
-          </div>
-          <div className="text-[11px] text-slate-400">
-            Min Safety: {row.minThreshold} {row.unit}
-          </div>
+        <div className="font-extrabold text-sm">
+          <span className={
+            row.quantity === 0
+              ? 'text-rose-600'
+              : row.quantity <= row.minThreshold
+              ? 'text-amber-600'
+              : 'text-slate-900 dark:text-slate-100'
+          }>
+            {row.quantity}
+          </span>
+          <span className="text-xs text-slate-400 font-normal ml-1">{row.unit}</span>
         </div>
       ),
     },
     {
-      header: 'Unit Cost & Value',
+      header: 'Min Safety',
+      accessor: 'minThreshold',
+      sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
+      render: (row) => (
+        <span className="text-xs text-slate-500 font-medium">
+          {row.minThreshold} {row.unit}
+        </span>
+      ),
+    },
+    {
+      header: 'Unit Cost',
       accessor: 'costPerUnit',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">
-            {formatINR(row.costPerUnit)} / {row.unit}
-          </div>
-          <div className="text-slate-500 font-medium">
-            Total: {formatINR(row.quantity * row.costPerUnit)}
-          </div>
-        </div>
+        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+          {formatINR(row.costPerUnit)} / {row.unit}
+        </span>
       ),
     },
     {
-      header: 'Stock Status',
-      accessor: 'status',
+      header: 'Total Value',
+      accessor: 'totalValue',
       sortable: true,
-      render: (row) => <Badge status={row.status} />,
+      className: 'text-right',
+      cellClassName: 'text-right',
+      render: (row) => (
+        <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">
+          {formatINR(row.quantity * row.costPerUnit)}
+        </span>
+      ),
     },
     {
-      header: 'Supplier & Expiry',
+      header: 'Supplier',
       accessor: 'supplierName',
       sortable: true,
       render: (row) => (
+        <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[150px] block" title={row.supplierName}>
+          {row.supplierName || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Expiry Date',
+      accessor: 'expiryDate',
+      sortable: true,
+      render: (row) => (
         <div className="text-xs">
-          <div className="font-medium text-slate-700 truncate max-w-[150px]">{row.supplierName}</div>
-          <div className={`mt-0.5 ${
+          <div className="font-medium text-slate-800 dark:text-slate-200">{row.expiryDate}</div>
+          <div className={`text-[11px] font-semibold ${
             row.daysUntilExpiry < 0
               ? 'text-rose-600 font-bold'
               : row.daysUntilExpiry <= 3
-              ? 'text-amber-600 font-semibold'
+              ? 'text-amber-600'
               : 'text-slate-400'
           }`}>
-            Exp: {row.expiryDate} ({row.daysUntilExpiry < 0 ? 'Expired' : `${row.daysUntilExpiry}d left`})
+            {row.daysUntilExpiry < 0 ? 'Expired' : `${row.daysUntilExpiry}d left`}
           </div>
         </div>
       ),
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      sortable: true,
+      render: (row) => <Badge status={row.status} />,
     },
     {
       header: 'Actions',
       accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-1.5">
-          {/* Quick Record Usage shortcut for Workflow B */}
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={Scale}
-            title="Record kitchen consumption (Workflow B)"
-            className="text-emerald-800 hover:bg-emerald-50"
-            onClick={() => handleOpenConsume(row)}
-          >
-            Use
-          </Button>
+          {currentUser?.role !== 'inventory_manager' && (
+            <Button
+              variant="ghost"
+              size="xs"
+              icon={Scale}
+              title="Record kitchen consumption (Workflow B)"
+              className="text-emerald-800 hover:bg-emerald-50"
+              onClick={() => handleOpenConsume(row)}
+            >
+              Use
+            </Button>
+          )}
 
           <Button
             variant="ghost"

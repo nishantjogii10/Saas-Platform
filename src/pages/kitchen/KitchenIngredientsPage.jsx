@@ -35,29 +35,50 @@ export const KitchenIngredientsPage = () => {
 
   const columns = [
     {
-      header: 'Ingredient',
+      header: 'Ingredient Name',
       accessor: 'name',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.name}</div>
-          <div className="text-xs text-slate-500">{row.category}</div>
+        <span className="font-bold text-slate-900 dark:text-white text-xs">{row.name}</span>
+      ),
+    },
+    {
+      header: 'Category',
+      accessor: 'category',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+          {row.category}
+        </span>
+      ),
+    },
+    {
+      header: 'Available Stock',
+      accessor: 'quantity',
+      sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
+      render: (row) => (
+        <div className="font-extrabold text-sm">
+          <span className={
+            row.quantity === 0 ? 'text-rose-600' : row.quantity <= row.minThreshold ? 'text-amber-600' : 'text-slate-900 dark:text-slate-100'
+          }>
+            {row.quantity}
+          </span>
+          <span className="text-xs text-slate-400 font-normal ml-1">{row.unit}</span>
         </div>
       ),
     },
     {
-      header: 'Available Quantity',
-      accessor: 'quantity',
+      header: 'Min Safety',
+      accessor: 'minThreshold',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="flex items-baseline gap-1">
-          <span className={`text-base font-extrabold ${
-            row.quantity === 0 ? 'text-rose-600' : row.quantity <= row.minThreshold ? 'text-amber-600' : 'text-slate-900'
-          }`}>
-            {row.quantity}
-          </span>
-          <span className="text-xs text-slate-500 font-medium">{row.unit}</span>
-        </div>
+        <span className="text-xs text-slate-500 font-medium">
+          {row.minThreshold} {row.unit}
+        </span>
       ),
     },
     {
@@ -65,10 +86,36 @@ export const KitchenIngredientsPage = () => {
       accessor: 'storageLocation',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-1.5 text-xs text-slate-700">
+        <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
           <MapPin className="w-3.5 h-3.5 text-slate-400" />
           <span>{row.storageLocation}</span>
         </div>
+      ),
+    },
+    {
+      header: 'Expiry Date',
+      accessor: 'expiryDate',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          {row.expiryDate}
+        </span>
+      ),
+    },
+    {
+      header: 'Days Left',
+      accessor: 'daysUntilExpiry',
+      sortable: true,
+      render: (row) => (
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+          row.daysUntilExpiry < 0
+            ? 'bg-rose-100 text-rose-800'
+            : row.daysUntilExpiry <= 3
+            ? 'bg-amber-100 text-amber-800'
+            : 'bg-slate-100 text-slate-700'
+        }`}>
+          {row.daysUntilExpiry < 0 ? 'Expired' : `${row.daysUntilExpiry}d left`}
+        </span>
       ),
     },
     {
@@ -76,18 +123,6 @@ export const KitchenIngredientsPage = () => {
       accessor: 'status',
       sortable: true,
       render: (row) => <Badge status={row.status} />,
-    },
-    {
-      header: 'Expiry Date',
-      accessor: 'daysUntilExpiry',
-      sortable: true,
-      render: (row) => (
-        <span className={`text-xs font-semibold ${
-          row.daysUntilExpiry <= 3 ? 'text-amber-600' : 'text-slate-600'
-        }`}>
-          {row.expiryDate} ({row.daysUntilExpiry}d left)
-        </span>
-      ),
     },
     {
       header: 'Action',
