@@ -27,6 +27,8 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { FormInput } from '../../components/common/FormInput';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
+import { Download } from 'lucide-react';
 import { formatINR } from '../../data/inventoryBillingData';
 
 export const PurchaseOrdersPage = () => {
@@ -45,9 +47,11 @@ export const PurchaseOrdersPage = () => {
     verifyAndReceiveStock,
     receivePOAndStock,
     currentUser,
+    currentBranch,
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
   // Modals
@@ -295,34 +299,36 @@ export const PurchaseOrdersPage = () => {
           { label: 'Purchase Orders' },
         ]}
         actions={
-          currentUser.role !== 'kitchen_staff' && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Store}
-                onClick={() => navigate('/marketplace')}
-              >
-                B2B Marketplace
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                icon={PackageCheck}
-                onClick={() => navigate('/goods-receiving')}
-              >
-                Receiving Dock (GRN)
-              </Button>
-              <Button
-                variant="brand"
-                size="sm"
-                icon={Plus}
-                onClick={() => setIsCreateModalOpen(true)}
-              >
-                Create Purchase Order
-              </Button>
-            </div>
-          )
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              onClick={() => setIsExportOpen(true)}
+            >
+              Export to Excel
+            </Button>
+            {currentUser.role !== 'kitchen_staff' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={PackageCheck}
+                  onClick={() => navigate('/goods-receiving')}
+                >
+                  Receiving Dock (GRN)
+                </Button>
+                <Button
+                  variant="brand"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => setIsCreateModalOpen(true)}
+                >
+                  Create Purchase Order
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -698,6 +704,30 @@ export const PurchaseOrdersPage = () => {
           </div>
         </Modal>
       )}
+
+      {/* Customizable Excel Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={filteredOrders}
+        availableColumns={[
+          { key: 'poNumber', header: 'PO Number' },
+          { key: 'createdAt', header: 'Order Date', format: (val) => val ? new Date(val).toLocaleDateString('en-IN') : '—' },
+          { key: 'supplierName', header: 'Supplier Name' },
+          { key: 'totalAmount', header: 'Total Value (INR)', format: (val) => formatINR(val) },
+          { key: 'status', header: 'Status', format: (val) => (val || '').toUpperCase() },
+          { key: 'expectedDelivery', header: 'Expected Delivery' },
+          { key: 'itemsCount', header: 'Line Items Count', format: (_, row) => (row.items || []).length },
+          { key: 'notes', header: 'Notes / Instructions' },
+        ]}
+        reportTitle={`Purchase Orders — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_purchase_orders"
+        filtersSummary={{
+          Status: statusFilter.toUpperCase(),
+          Search: searchTerm || 'All Orders',
+          Outlet: currentBranch?.name || 'All Outlets',
+        }}
+      />
     </div>
   );
 };

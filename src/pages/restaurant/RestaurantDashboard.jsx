@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Boxes,
@@ -64,6 +64,11 @@ export const RestaurantDashboard = () => {
     currentUser,
   } = useApp();
 
+  // Strict Role Guard: Restaurant Manager is restricted to Staff Management (/workforce)
+  if (currentUser?.role === 'restaurant_manager') {
+    return <Navigate to="/workforce" replace />;
+  }
+
   const activeStaffAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
   const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
   const totalStaffCount = branchStaff?.length || 0;
@@ -88,16 +93,8 @@ export const RestaurantDashboard = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={
-          currentUser?.role === 'restaurant_manager'
-            ? 'Operations & Staff Overview'
-            : 'Inventory Overview'
-        }
-        subtitle={
-          currentUser?.role === 'restaurant_manager'
-            ? 'Real-time staff attendance, station shifts, leave approvals & operations tracking'
-            : 'Real-time stock counts, active alerts, and consumption analytics'
-        }
+        title="Inventory Overview"
+        subtitle="Real-time stock valuation, active alerts, and consumption analytics"
         badge={
           currentUser?.role === 'restaurant_owner' ? (
             <div className="flex items-center gap-2">
@@ -112,48 +109,34 @@ export const RestaurantDashboard = () => {
                 <span>{currentRestaurant?.planName} Tier</span>
               </span>
             </div>
+          ) : currentUser?.role === 'inventory_manager' && currentBranch ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{currentBranch.name.replace(/^Spice Garden\s*[-–—]\s*/i, '')}</span>
+              </span>
+            </div>
           ) : null
         }
         actions={
-          currentUser?.role === 'restaurant_manager' ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Users}
-                onClick={() => navigate('/branch-staff')}
-              >
-                Staff Roster ({totalStaffCount})
-              </Button>
-              <Button
-                variant="brand"
-                size="sm"
-                icon={Plus}
-                onClick={() => navigate('/branch-staff?action=add')}
-              >
-                Add Staff Member
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                icon={ShoppingBag}
-                onClick={() => navigate('/purchase-orders')}
-              >
-                Purchase Orders ({activePendingOrders.length})
-              </Button>
-              <Button
-                variant="brand"
-                size="sm"
-                icon={Plus}
-                onClick={() => navigate('/inventory?action=add')}
-              >
-                Add Ingredient
-              </Button>
-            </div>
-          )
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={ShoppingBag}
+              onClick={() => navigate('/purchase-orders')}
+            >
+              Purchase Orders ({activePendingOrders.length})
+            </Button>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={Plus}
+              onClick={() => navigate('/inventory?action=add')}
+            >
+              Add Ingredient
+            </Button>
+          </div>
         }
       />
 
@@ -198,65 +181,7 @@ export const RestaurantDashboard = () => {
       )}
 
       {/* Primary KPI Grid */}
-      {currentUser?.role === 'restaurant_manager' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard
-            title="Kitchen Staff On Duty"
-            value={activeStaffAttendance.length}
-            change={`${activeStaffAttendance.length} Clocked In`}
-            trend="up"
-            subtext="Live kitchen station status"
-            icon={Clock}
-            accentColor="emerald"
-            onClick={() => navigate('/branch-staff?tab=attendance')}
-          />
-
-          <StatCard
-            title="Pending Leaves"
-            value={pendingLeaves.length}
-            change={pendingLeaves.length > 0 ? 'Requires Action' : 'All Clear'}
-            trend={pendingLeaves.length > 0 ? 'down' : 'up'}
-            subtext="Awaiting manager sign-off"
-            icon={Calendar}
-            accentColor={pendingLeaves.length > 0 ? 'amber' : 'emerald'}
-            onClick={() => navigate('/branch-staff?tab=leave')}
-          />
-
-          <StatCard
-            title="Total Branch Staff"
-            value={totalStaffCount}
-            change="Outlet Team Roster"
-            trend="neutral"
-            subtext="Active team members"
-            icon={Users}
-            accentColor="blue"
-            onClick={() => navigate('/branch-staff')}
-          />
-
-          <StatCard
-            title="Pending Transfers"
-            value={pendingTransfers.length}
-            change={pendingTransfers.length > 0 ? 'Requires Action' : 'All Clear'}
-            trend={pendingTransfers.length > 0 ? 'down' : 'up'}
-            subtext="Inter-branch requests"
-            icon={ArrowLeftRight}
-            accentColor={pendingTransfers.length > 0 ? 'purple' : 'emerald'}
-            onClick={() => navigate('/staff-transfers')}
-          />
-
-          <StatCard
-            title="Active System Alerts"
-            value={restaurantAlerts.filter((a) => !a.read && (!a.targetRoles || a.targetRoles.includes(currentUser?.role) || currentUser?.role === 'super_admin')).length}
-            change="Operations Notices"
-            trend="neutral"
-            subtext="Unread staff notices"
-            icon={Bell}
-            accentColor="teal"
-            onClick={() => navigate('/alerts')}
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="Total Stock Value"
             value={formatINR(totalValuation)}
@@ -312,7 +237,6 @@ export const RestaurantDashboard = () => {
             onClick={() => navigate('/expiry-tracking')}
           />
         </div>
-      )}
 
       {/* Pending Staff Leave Requests Approval Alert */}
       {currentUser?.role !== 'inventory_manager' && pendingLeaves.length > 0 && (

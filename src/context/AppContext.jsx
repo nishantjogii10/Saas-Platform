@@ -60,7 +60,10 @@ import {
   initialLeaveRequests,
   initialSalaryPayments,
   initialStaffNotifications,
+  initialHolidays,
+  INITIAL_STAFF_LEAVE_BALANCES,
   LEAVE_TYPES,
+  LEAVE_POLICIES,
   KITCHEN_STATIONS,
   STAFF_SALARY_PROFILES,
 } from '../data/staffAttendanceData';
@@ -218,6 +221,8 @@ export const AppProvider = ({ children }) => {
   const [leaveRequests, setLeaveRequests] = useState(() => loadStored('leaveRequests', initialLeaveRequests));
   const [salaryPayments, setSalaryPayments] = useState(() => loadStored('salaryPayments', initialSalaryPayments));
   const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
+  const [holidays, setHolidays] = useState(() => loadStored('holidays', initialHolidays));
+  const [staffLeaveBalances, setStaffLeaveBalances] = useState(() => loadStored('staffLeaveBalances', INITIAL_STAFF_LEAVE_BALANCES));
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
@@ -405,6 +410,14 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_staffNotifications`, JSON.stringify(staffNotifications));
   }, [staffNotifications]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_holidays`, JSON.stringify(holidays));
+  }, [holidays]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_staffLeaveBalances`, JSON.stringify(staffLeaveBalances));
+  }, [staffLeaveBalances]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
@@ -3334,6 +3347,23 @@ export const AppProvider = ({ children }) => {
   // Multi-Branch Management & Staff Transfer Operations
   // --------------------------------------------------------------------------
   const switchBranch = (branchId) => {
+    if (!currentUser) return false;
+
+    // Strict role check: Only restaurant_owner or super_admin can switch active branch
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+      addToast('Access Denied: Only restaurant owners are authorized to switch active branches.', 'error');
+      return false;
+    }
+
+    if (branchId === 'all') {
+      setCurrentBranchId('all');
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify('all'));
+      } catch (e) {}
+      addToast('Switched to Aggregated View (All Authorized Outlets).', 'info');
+      return true;
+    }
+
     const isAllowed = authorizedBranches.some((b) => b.id === branchId);
     if (!isAllowed) {
       addToast('Access Denied: You are not authorized to view or manage this branch.', 'error');
@@ -3936,16 +3966,16 @@ export const AppProvider = ({ children }) => {
     addToast(`Ticket status updated to ${newStatus}.`, 'info');
   };
 
-  // --- KITCHEN ATTENDANCE (PUNCH-IN / PUNCH-OUT) ---
+  // --- KITCHEN & EMPLOYEE ATTENDANCE (PUNCH-IN / PUNCH-OUT / BREAKS) ---
   const punchInStaff = ({ staffId, staffName, staffRole, branchId, branchName, station, notes }) => {
     const user = currentUser;
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
-    // Check if already active
+    // Prevent duplicate active session
     const existingActive = attendanceRecords.find(r => r.staffId === targetId && r.status === 'active');
     if (existingActive) {
       addToast(`${targetName} is already clocked in!`, 'warning');
@@ -3953,6 +3983,12 @@ export const AppProvider = ({ children }) => {
     }
 
     const now = new Date();
+    // Late arrival check: past 09:30 AM on morning shift
+    const hrs = now.getHours();
+    const mins = now.getMinutes();
+    const isLate = hrs > 9 || (hrs === 9 && mins > 30);
+    const initialStatus = isLate ? 'late' : 'present';
+
     const newRecord = {
       id: `att-${Date.now()}`,
       staffId: targetId,
@@ -3966,14 +4002,20 @@ export const AppProvider = ({ children }) => {
       punchInTime: now.toISOString(),
       punchOutTime: null,
       status: 'active',
+      attendanceStatus: initialStatus,
       totalHours: null,
       station: station || 'Main Prep Line',
-      notes: notes || 'Started station shift prep',
+      notes: notes || 'Clocked in via Workstation',
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: 0,
+      isCorrected: false,
+      correctionAudit: [],
     };
 
     setAttendanceRecords(prev => [newRecord, ...prev]);
 
-    // Live notification for Manager
+    // Live notification for Manager/Owner
     const notif = {
       id: `notif-punch-${Date.now()}`,
       type: 'staff_punch_in',
@@ -3983,14 +4025,50 @@ export const AppProvider = ({ children }) => {
       branchName: newRecord.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Attendance',
       badge: 'Attendance',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punch-in recorded! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
+    addToast(`Clocked in successfully! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
     return newRecord;
+  };
+
+  const startStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec) {
+      addToast('No active attendance session found.', 'error');
+      return false;
+    }
+    if (rec.isOnBreak) {
+      addToast('You are already on break.', 'warning');
+      return false;
+    }
+    const now = new Date().toISOString();
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? { ...r, isOnBreak: true, breakStartTime: now } : r));
+    addToast('Break started. Enjoy your rest!', 'info');
+    return true;
+  };
+
+  const endStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec || !rec.isOnBreak) {
+      addToast('No active break found to end.', 'error');
+      return false;
+    }
+    const now = Date.now();
+    const breakStart = new Date(rec.breakStartTime).getTime();
+    const breakMins = Math.max(1, Math.round((now - breakStart) / 60000));
+    const totalBreak = (rec.totalBreakMinutes || 0) + breakMins;
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? {
+      ...r,
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: totalBreak,
+    } : r));
+    addToast(`Break ended (${breakMins} mins). Back on duty!`, 'success');
+    return true;
   };
 
   const punchOutStaff = (recordId, notes = '') => {
@@ -4002,7 +4080,12 @@ export const AppProvider = ({ children }) => {
 
     const now = new Date();
     const inTime = new Date(record.punchInTime);
-    const diffHours = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const totalElapsedHrs = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const breakHrs = Number(((record.totalBreakMinutes || 0) / 60).toFixed(2));
+    const netWorkedHrs = Math.max(0.1, Number((totalElapsedHrs - breakHrs).toFixed(2)));
+    
+    // Determine attendance status: half-day if < 5 hrs, else keep existing (present or late)
+    const attStatus = netWorkedHrs < 5.0 ? 'half_day' : (record.attendanceStatus || 'present');
 
     setAttendanceRecords(prev => prev.map(r => {
       if (r.id === record.id) {
@@ -4010,7 +4093,10 @@ export const AppProvider = ({ children }) => {
           ...r,
           punchOutTime: now.toISOString(),
           status: 'completed',
-          totalHours: diffHours,
+          attendanceStatus: attStatus,
+          totalHours: netWorkedHrs,
+          isOnBreak: false,
+          breakStartTime: null,
           notes: notes ? `${r.notes ? r.notes + ' • ' : ''}Closing: ${notes}` : r.notes,
         };
       }
@@ -4022,18 +4108,79 @@ export const AppProvider = ({ children }) => {
       id: `notif-punchout-${Date.now()}`,
       type: 'staff_punch_out',
       title: `Staff Punched Out: ${record.staffName}`,
-      message: `${record.staffName} completed shift. Total work duration: ${diffHours} hrs.`,
+      message: `${record.staffName} completed shift. Total work duration: ${netWorkedHrs} hrs.`,
       branchId: record.branchId,
       branchName: record.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Timesheet',
       badge: 'Shift End',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punched out successfully. Total shift duration: ${diffHours} hrs.`, 'success');
+    addToast(`Punched out successfully. Total shift duration: ${netWorkedHrs} hrs.`, 'success');
+    return true;
+  };
+
+  // --- ATTENDANCE CORRECTIONS (AUDIT TRAIL) ---
+  const correctAttendanceRecord = (recordId, correctionData) => {
+    const record = attendanceRecords.find(r => r.id === recordId);
+    if (!record) {
+      addToast('Attendance record not found.', 'error');
+      return false;
+    }
+    if (!correctionData.reason || !correctionData.reason.trim()) {
+      addToast('Correction reason is mandatory.', 'error');
+      return false;
+    }
+
+    const inTime = correctionData.punchInTime ? new Date(correctionData.punchInTime) : (record.punchInTime ? new Date(record.punchInTime) : null);
+    const outTime = correctionData.punchOutTime ? new Date(correctionData.punchOutTime) : (record.punchOutTime ? new Date(record.punchOutTime) : null);
+    
+    if (inTime && outTime && outTime < inTime) {
+      addToast('Clock-out time cannot be earlier than clock-in time.', 'error');
+      return false;
+    }
+
+    let newTotalHours = record.totalHours;
+    if (inTime && outTime) {
+      newTotalHours = Math.max(0.1, Number(((outTime - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    }
+
+    const auditEntry = {
+      id: `audit-${Date.now()}`,
+      correctedBy: `${currentUser?.name || 'Authorized Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      correctedAt: new Date().toISOString(),
+      originalPunchIn: record.punchInTime,
+      originalPunchOut: record.punchOutTime,
+      originalStatus: record.attendanceStatus || 'present',
+      originalTotalHours: record.totalHours,
+      newPunchIn: correctionData.punchInTime || record.punchInTime,
+      newPunchOut: correctionData.punchOutTime || record.punchOutTime,
+      newStatus: correctionData.attendanceStatus || record.attendanceStatus,
+      newTotalHours,
+      reason: correctionData.reason.trim(),
+    };
+
+    setAttendanceRecords(prev => prev.map(r => {
+      if (r.id === recordId) {
+        return {
+          ...r,
+          punchInTime: correctionData.punchInTime !== undefined ? correctionData.punchInTime : r.punchInTime,
+          punchOutTime: correctionData.punchOutTime !== undefined ? correctionData.punchOutTime : r.punchOutTime,
+          attendanceStatus: correctionData.attendanceStatus || r.attendanceStatus,
+          totalHours: newTotalHours,
+          station: correctionData.station || r.station,
+          notes: correctionData.notes ? `${r.notes ? r.notes + ' • ' : ''}Correction Note: ${correctionData.notes}` : r.notes,
+          isCorrected: true,
+          correctionAudit: [auditEntry, ...(r.correctionAudit || [])],
+        };
+      }
+      return r;
+    }));
+
+    addToast('Attendance record corrected and audit trail logged.', 'success');
     return true;
   };
 
@@ -4043,13 +4190,37 @@ export const AppProvider = ({ children }) => {
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    const durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (end < start) {
+      addToast('End date cannot precede start date.', 'error');
+      return null;
+    }
+
+    const durationDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Overlap validation with existing active/pending leave requests
+    const hasOverlap = leaveRequests.some(l => {
+      if (l.staffId !== targetId || l.status === 'rejected' || l.status === 'cancelled') return false;
+      const lStart = new Date(l.startDate);
+      const lEnd = new Date(l.endDate);
+      return (start <= lEnd && end >= lStart);
+    });
+
+    if (hasOverlap) {
+      addToast('You already have an existing leave request spanning these dates.', 'error');
+      return null;
+    }
+
+    // Leave balance check
+    const currentStaffBal = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {};
+    const bal = currentStaffBal[leaveType];
+    if (bal && (bal.total - bal.used) < durationDays && leaveType !== 'Unpaid Leave') {
+      addToast(`Notice: Requested duration (${durationDays}d) exceeds current ${leaveType} balance (${Math.max(0, bal.total - bal.used)}d remaining). Will require Manager special sign-off.`, 'warning');
+    }
 
     const newLeave = {
       id: `leave-${Date.now()}`,
@@ -4085,7 +4256,7 @@ export const AppProvider = ({ children }) => {
       leaveId: newLeave.id,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=leave',
       actionLabel: 'Review Request',
       badge: 'Leave Request',
     };
@@ -4104,14 +4275,35 @@ export const AppProvider = ({ children }) => {
     };
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
-    addToast(`Leave request for ${durationDays} days submitted to Manager!`, 'success');
+    addToast(`Leave request for ${durationDays} days submitted for Manager review!`, 'success');
     return newLeave;
+  };
+
+  const cancelLeaveRequest = (leaveId) => {
+    const req = leaveRequests.find(l => l.id === leaveId);
+    if (!req) {
+      addToast('Leave request not found.', 'error');
+      return false;
+    }
+    if (req.status !== 'pending') {
+      addToast(`Cannot cancel request that is already ${req.status}.`, 'error');
+      return false;
+    }
+    setLeaveRequests(prev => prev.map(l => l.id === leaveId ? { ...l, status: 'cancelled' } : l));
+    addToast('Leave request cancelled.', 'info');
+    return true;
   };
 
   const reviewLeaveRequest = (leaveId, decision, reviewNotes = '') => {
     const req = leaveRequests.find(l => l.id === leaveId);
     if (!req) {
       addToast('Leave request not found.', 'error');
+      return;
+    }
+
+    // Manager self-approval prevention check
+    if (req.staffId === currentUser?.id && currentUser?.role === 'restaurant_manager') {
+      addToast('Managers cannot approve their own leave applications. An Owner must review your request.', 'error');
       return;
     }
 
@@ -4129,8 +4321,69 @@ export const AppProvider = ({ children }) => {
       return l;
     }));
 
-    // Automatically mark the leave request notification in ownerNotifications as read
-    setOwnerNotifications(prev => prev.map(n => n.leaveId === leaveId ? { ...n, read: true } : n));
+    // If approved, deduct leave balance and mark dates on attendance calendar
+    if (decision === 'approved') {
+      setStaffLeaveBalances(prev => {
+        const currentStaffBal = prev[req.staffId] || INITIAL_STAFF_LEAVE_BALANCES[req.staffId] || {};
+        const typeBal = currentStaffBal[req.leaveType] || { total: 12, used: 0 };
+        return {
+          ...prev,
+          [req.staffId]: {
+            ...currentStaffBal,
+            [req.leaveType]: {
+              ...typeBal,
+              used: (typeBal.used || 0) + req.durationDays,
+            },
+          },
+        };
+      });
+
+      // Update/insert attendance records for leave dates
+      const startDate = new Date(req.startDate);
+      const endDate = new Date(req.endDate);
+      const datesToMark = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        datesToMark.push(d.toISOString().split('T')[0]);
+      }
+
+      setAttendanceRecords(prev => {
+        let updated = [...prev];
+        datesToMark.forEach(dateStr => {
+          const existingIdx = updated.findIndex(r => r.staffId === req.staffId && r.date === dateStr);
+          if (existingIdx !== -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+            };
+          } else {
+            updated.unshift({
+              id: `att-leave-${Date.now()}-${dateStr}`,
+              staffId: req.staffId,
+              staffName: req.staffName,
+              staffRole: req.staffRole,
+              staffAvatar: req.staffAvatar,
+              branchId: req.branchId,
+              branchName: req.branchName,
+              restaurantId: req.restaurantId || currentRestaurantId,
+              date: dateStr,
+              punchInTime: null,
+              punchOutTime: null,
+              status: 'completed',
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              totalHours: 0,
+              station: 'On Approved Leave',
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+              isCorrected: false,
+              correctionAudit: [],
+            });
+          }
+        });
+        return updated;
+      });
+    }
 
     // Real-time Staff Notification
     const staffNotif = {
@@ -4146,6 +4399,72 @@ export const AppProvider = ({ children }) => {
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
     addToast(`Leave request ${decision} for ${req.staffName}.`, decision === 'approved' ? 'success' : 'info');
+  };
+
+  const getStaffLeaveBalance = (staffId) => {
+    const targetId = staffId || currentUser?.id || 'usr-sg-3';
+    const balances = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {
+      'Casual Leave': { total: 12, used: 0 },
+      'Sick Leave': { total: 10, used: 0 },
+      'Earned Leave': { total: 15, used: 0 },
+      'Emergency Leave': { total: 5, used: 0 },
+      'Unpaid Leave': { total: 99, used: 0 },
+      'Festival / Compensatory Off': { total: 6, used: 0 },
+    };
+    const result = {};
+    Object.keys(balances).forEach(type => {
+      const b = balances[type];
+      result[type] = {
+        total: b.total,
+        used: b.used,
+        remaining: Math.max(0, b.total - b.used),
+      };
+    });
+    return result;
+  };
+
+  // --- HOLIDAY MANAGEMENT ---
+  const addHoliday = (holidayData) => {
+    if (!holidayData.name || !holidayData.date) {
+      addToast('Holiday name and date are required.', 'error');
+      return null;
+    }
+    // Check duplicate date for same scope
+    const existing = holidays.find(h => 
+      h.date === holidayData.date && 
+      h.restaurantId === currentRestaurantId &&
+      (h.scope === 'all' || holidayData.scope === 'all' || h.branchId === holidayData.branchId)
+    );
+    if (existing) {
+      addToast(`A holiday ("${existing.name}") is already scheduled for ${holidayData.date}.`, 'warning');
+      return null;
+    }
+
+    const newHol = {
+      id: `hol-${Date.now()}`,
+      name: holidayData.name.trim(),
+      date: holidayData.date,
+      type: holidayData.type || 'Festival',
+      scope: holidayData.scope || 'all',
+      branchId: holidayData.scope === 'all' ? null : (holidayData.branchId || currentBranchId),
+      restaurantId: currentRestaurantId,
+      description: holidayData.description || 'Official restaurant holiday',
+      createdBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      createdAt: new Date().toISOString(),
+    };
+    setHolidays(prev => [...prev, newHol]);
+    addToast(`Holiday "${newHol.name}" scheduled for ${newHol.date}.`, 'success');
+    return newHol;
+  };
+
+  const updateHoliday = (holidayId, updatedData) => {
+    setHolidays(prev => prev.map(h => h.id === holidayId ? { ...h, ...updatedData, modifiedBy: currentUser?.name, modifiedAt: new Date().toISOString() } : h));
+    addToast('Holiday details updated successfully.', 'success');
+  };
+
+  const deleteHoliday = (holidayId) => {
+    setHolidays(prev => prev.filter(h => h.id !== holidayId));
+    addToast('Holiday removed from calendar.', 'info');
   };
 
   // --- SALARY & PAYROLL NOTIFICATIONS ---
@@ -4337,13 +4656,20 @@ export const AppProvider = ({ children }) => {
 
     const userRestId = currentUser.restaurantId || currentRestaurantId;
 
+    // Restaurant Owner sees all branches belonging to their restaurant tenant
     if (currentUser.role === 'restaurant_owner') {
       return branches.filter((b) => b.restaurantId === userRestId);
     }
 
-    if (currentUser.branchId) {
+    // ALL OTHER ROLES (restaurant_manager, inventory_manager, kitchen_staff, supplier):
+    // Strictly limited to their single assigned branch!
+    const assignedId =
+      currentUser.branchId ||
+      branchStaff.find((s) => s.id === currentUser.id || s.email === currentUser.email)?.branchId;
+
+    if (assignedId) {
       return branches.filter(
-        (b) => b.restaurantId === userRestId && b.id === currentUser.branchId
+        (b) => b.restaurantId === userRestId && b.id === assignedId
       );
     }
 
@@ -4355,12 +4681,10 @@ export const AppProvider = ({ children }) => {
       );
     }
 
-    if (currentUser.role === 'restaurant_manager') {
-      return branches.filter((b) => b.restaurantId === userRestId);
-    }
-
-    return branches.filter((b) => b.restaurantId === userRestId);
-  }, [branches, currentUser, currentRestaurantId]);
+    // Fallback: at most the single first branch of their restaurant tenant
+    const fallback = branches.filter((b) => b.restaurantId === userRestId);
+    return fallback.slice(0, 1);
+  }, [branches, currentUser, currentRestaurantId, branchStaff]);
 
   const organizationBranches = useMemo(() => {
     const userRestId = currentUser?.restaurantId || currentRestaurantId;
@@ -4370,6 +4694,21 @@ export const AppProvider = ({ children }) => {
   // Keep currentBranchId synchronized with authorizedBranches
   useEffect(() => {
     if (authorizedBranches.length > 0) {
+      // Non-owners are strictly locked to their single authorized branch
+      if (currentUser && currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+        const singleBranchId = authorizedBranches[0].id;
+        if (currentBranchId !== singleBranchId) {
+          setCurrentBranchId(singleBranchId);
+        }
+        return;
+      }
+
+      if (currentBranchId === 'all') {
+        if (authorizedBranches.length > 1) return;
+        setCurrentBranchId(authorizedBranches[0].id);
+        return;
+      }
+
       const isAllowed = authorizedBranches.some((b) => b.id === currentBranchId);
       if (!isAllowed) {
         setCurrentBranchId(authorizedBranches[0].id);
@@ -4380,10 +4719,19 @@ export const AppProvider = ({ children }) => {
     } else {
       if (currentBranchId !== null) setCurrentBranchId(null);
     }
-  }, [authorizedBranches, currentBranchId]);
+  }, [authorizedBranches, currentBranchId, currentUser]);
 
   const currentBranch = useMemo(() => {
     if (!authorizedBranches || authorizedBranches.length === 0) return null;
+    if (currentBranchId === 'all') {
+      return {
+        id: 'all',
+        name: 'All Outlets (Aggregated)',
+        code: 'ALL',
+        type: 'Aggregated View',
+        status: 'active',
+      };
+    }
     return authorizedBranches.find((b) => b.id === currentBranchId) || authorizedBranches[0];
   }, [authorizedBranches, currentBranchId]);
 
@@ -4391,7 +4739,7 @@ export const AppProvider = ({ children }) => {
   const restaurantIngredients = useMemo(() => {
     return ingredients.filter((i) => {
       if (i.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && i.branchId) return i.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && i.branchId) return i.branchId === currentBranchId;
       return true;
     });
   }, [ingredients, currentRestaurantId, currentBranchId]);
@@ -4399,7 +4747,7 @@ export const AppProvider = ({ children }) => {
   const restaurantOrders = useMemo(() => {
     return purchaseOrders.filter((p) => {
       if (p.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && p.branchId) return p.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && p.branchId) return p.branchId === currentBranchId;
       return true;
     });
   }, [purchaseOrders, currentRestaurantId, currentBranchId]);
@@ -4407,7 +4755,7 @@ export const AppProvider = ({ children }) => {
   const restaurantMovements = useMemo(() => {
     return stockMovements.filter((m) => {
       if (m.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && m.branchId) return m.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && m.branchId) return m.branchId === currentBranchId;
       return true;
     });
   }, [stockMovements, currentRestaurantId, currentBranchId]);
@@ -4523,11 +4871,8 @@ export const AppProvider = ({ children }) => {
       return staffAlerts;
     }
     return alerts.filter((a) => {
-      if (a.restaurantId && a.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && a.branchId && a.branchId !== currentBranchId) return false;
-      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
-        return false;
-      }
+      if (a.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && currentBranchId !== 'all' && a.branchId) return a.branchId === currentBranchId;
       return true;
     });
   }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId, currentUser]);
@@ -4535,7 +4880,7 @@ export const AppProvider = ({ children }) => {
   const branchGRNs = useMemo(() => {
     return goodsReceivedNotes.filter((g) => {
       if (g.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && g.branchId) return g.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && g.branchId) return g.branchId === currentBranchId;
       return true;
     });
   }, [goodsReceivedNotes, currentRestaurantId, currentBranchId]);
@@ -4543,7 +4888,7 @@ export const AppProvider = ({ children }) => {
   const branchBatches = useMemo(() => {
     return productBatches.filter((b) => {
       if (b.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && b.branchId) return b.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && b.branchId) return b.branchId === currentBranchId;
       return true;
     });
   }, [productBatches, currentRestaurantId, currentBranchId]);
@@ -4558,7 +4903,7 @@ export const AppProvider = ({ children }) => {
     }
     return (supplierReturns || []).filter((r) => {
       if (r.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && r.branchId) return r.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && r.branchId) return r.branchId === currentBranchId;
       return true;
     });
   }, [supplierReturns, currentRestaurantId, currentBranchId, currentUser]);
@@ -4573,21 +4918,7 @@ export const AppProvider = ({ children }) => {
     }
     return (supplierInvoices || []).filter((inv) => {
       if (inv.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && inv.branchId && inv.branchId !== currentBranchId) return false;
-      return true;
-    });
-  }, [supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
-
-  const branchSupplierPayments = useMemo(() => {
-    if (currentUser?.role === 'supplier') {
-      const activeSupId = currentUser?.supplierId;
-      const activeSupName = currentUser?.supplierName;
-      return (supplierPayments || []).filter((pay) => {
-        return (activeSupId && pay.supplierId === activeSupId) || (activeSupName && pay.supplierName === activeSupName);
-      });
-    }
-    return (supplierPayments || []).filter((pay) => {
-      if (pay.restaurantId && pay.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
   }, [supplierPayments, currentRestaurantId, currentUser]);
@@ -4616,7 +4947,7 @@ export const AppProvider = ({ children }) => {
   const branchStaffList = useMemo(() => {
     return branchStaff.filter((s) => {
       if (s.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && s.branchId) return s.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && s.branchId) return s.branchId === currentBranchId;
       return true;
     });
   }, [branchStaff, currentRestaurantId, currentBranchId]);
@@ -5029,6 +5360,164 @@ export const AppProvider = ({ children }) => {
     };
   };
 
+
+  // ==========================================
+  // EXCEL / CSV BULK IMPORT OPERATIONS
+  // ==========================================
+  const importIngredientsBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role === 'kitchen_staff' || currentUser.role === 'supplier') {
+      addToast('Permission Denied: Your role is not authorized to import inventory records.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const qty = Number(item.quantity) || 0;
+      const minThresh = Number(item.minThreshold) || 5;
+      const status = qty === 0 ? 'out_of_stock' : qty <= minThresh ? 'low_stock' : 'in_stock';
+      return {
+        id: `ing-imported-${Date.now()}-${idx}`,
+        restaurantId: currentRestaurantId,
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        name: item.name,
+        category: item.category || 'General',
+        quantity: qty,
+        unit: item.unit || 'kg',
+        costPerUnit: Number(item.costPerUnit) || 0,
+        minThreshold: minThresh,
+        status,
+        supplierId: item.supplierId || null,
+        supplierName: item.supplierName || 'Imported via Excel',
+        batchNumber: item.batchNumber || `BCH-IMP-${Math.floor(100 + Math.random() * 900)}`,
+        storageLocation: item.storageLocation || 'Store Room',
+        expiryDate: item.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        daysUntilExpiry: 30,
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setIngredients((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_ingredients`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} ingredient(s) into inventory!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Ingredients into ${currentBranch?.name || 'Branch'}`,
+      'Inventory',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importSuppliersBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'inventory_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only owners and inventory leads can import suppliers.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const mapped = newItems.map((item, idx) => {
+      const rawCats = item.categories
+        ? (Array.isArray(item.categories) ? item.categories : String(item.categories).split(',').map((c) => c.trim()))
+        : ['Produce'];
+      return {
+        id: `sup-imported-${Date.now()}-${idx}`,
+        restaurantIds: [currentRestaurantId],
+        name: item.name,
+        contactPerson: item.contactPerson || item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        address: item.address || 'Local Delivery Depot',
+        leadTimeDays: Number(item.leadTimeDays) || 2,
+        paymentTerms: item.paymentTerms || 'Net 30',
+        categories: rawCats,
+        rating: 4.8,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setSuppliers((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_suppliers`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} supplier(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Suppliers`,
+      'Procurement',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importStaffBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'restaurant_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only restaurant owners and managers can import staff.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const baseSalary = Number(item.baseSalary) || 25000;
+      return {
+        id: `usr-imported-${Date.now()}-${idx}`,
+        name: item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        role: 'kitchen_staff',
+        roleLabel: item.roleLabel || 'Kitchen Team Member',
+        department: item.department || 'Kitchen Operations',
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        restaurantId: currentRestaurantId,
+        baseSalary,
+        bankAccount: item.bankAccount || 'Direct Bank Deposit',
+        status: 'active',
+        joinedDate: new Date().toISOString().split('T')[0],
+        avatar: `https://images.unsplash.com/photo-${1500000000000 + (idx % 1000)}?w=150`,
+      };
+    });
+
+    setBranchStaff((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} staff member(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Staff records into ${currentBranch?.name || 'Branch'}`,
+      'Workforce',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -5092,6 +5581,9 @@ export const AppProvider = ({ children }) => {
         staffAlerts,
         restaurantSuppliers,
         restaurantStaff,
+        importIngredientsBulk,
+        importSuppliersBulk,
+        importStaffBulk,
 
         // Role Matrix & Employee Access
         updateEmployeeRole,
@@ -5196,8 +5688,19 @@ export const AppProvider = ({ children }) => {
         STAFF_SALARY_PROFILES,
         punchInStaff,
         punchOutStaff,
+        startStaffBreak,
+        endStaffBreak,
+        correctAttendanceRecord,
         submitLeaveRequest,
+        cancelLeaveRequest,
         reviewLeaveRequest,
+        getStaffLeaveBalance,
+        staffLeaveBalances,
+        LEAVE_POLICIES,
+        holidays,
+        addHoliday,
+        updateHoliday,
+        deleteHoliday,
         processSalaryPayment,
         markStaffNotificationRead,
         markAllStaffNotificationsRead,

@@ -26,13 +26,16 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { FormInput } from '../../components/common/FormInput';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
+import { Download } from 'lucide-react';
 import { formatINR } from '../../data/inventoryBillingData';
 
 export const ExpiryTrackingPage = () => {
   const navigate = useNavigate();
-  const { restaurantIngredients, recordWastage, currentUser, productBatches, supplierAgreements } = useApp();
+  const { restaurantIngredients, recordWastage, currentUser, currentBranch, productBatches, supplierAgreements } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [filterMode, setFilterMode] = useState('all'); // all | urgent (<=3d) | week (<=7d) | expired | safe
 
   const [wastageModalOpen, setWastageModalOpen] = useState(false);
@@ -196,6 +199,14 @@ export const ExpiryTrackingPage = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              onClick={() => setIsExportOpen(true)}
+            >
+              Export to Excel
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -428,6 +439,31 @@ export const ExpiryTrackingPage = () => {
           </form>
         </Modal>
       )}
+
+      {/* Customizable Excel Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={filteredItems}
+        availableColumns={[
+          { key: 'name', header: 'Ingredient Name' },
+          { key: 'category', header: 'Category' },
+          { key: 'batchNumber', header: 'Batch Number' },
+          { key: 'quantity', header: 'Current Stock', format: (val, row) => `${val} ${row.unit || ''}` },
+          { key: 'storageLocation', header: 'Storage Location' },
+          { key: 'expiryDate', header: 'Expiry Date' },
+          { key: 'daysUntilExpiry', header: 'Days Remaining', format: (val) => val < 0 ? `Expired (${Math.abs(val)}d ago)` : `${val} days left` },
+          { key: 'valueAtRisk', header: 'Value at Risk (INR)', format: (_, row) => formatINR((row.quantity || 0) * (row.costPerUnit || 0)) },
+          { key: 'supplierName', header: 'Supplier' },
+        ]}
+        reportTitle={`Batch Expiry & Shelf-Life Audit — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_expiry_audit"
+        filtersSummary={{
+          Filter: filterMode.toUpperCase(),
+          Search: searchTerm || 'All Items',
+          Outlet: currentBranch?.name || 'All Outlets',
+        }}
+      />
     </div>
   );
 };

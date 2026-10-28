@@ -24,6 +24,9 @@ import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { FormInput } from '../../components/common/FormInput';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
+import { ExcelImportDialog } from '../../components/common/ExcelImportDialog';
+import { Download, UploadCloud } from 'lucide-react';
 import { formatINR } from '../../data/inventoryBillingData';
 
 export const InventoryPage = () => {
@@ -35,7 +38,12 @@ export const InventoryPage = () => {
     deleteIngredient,
     recordConsumption,
     currentUser,
+    currentBranch,
+    importIngredientsBulk,
   } = useApp();
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -315,6 +323,24 @@ export const InventoryPage = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              onClick={() => setIsExportOpen(true)}
+            >
+              Export to Excel
+            </Button>
+            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={UploadCloud}
+                onClick={() => setIsImportOpen(true)}
+              >
+                Import Excel
+              </Button>
+            )}
             <Button
               variant="brand"
               size="sm"
@@ -609,6 +635,44 @@ export const InventoryPage = () => {
         confirmText="Delete Ingredient"
         type="danger"
       />
+
+      {/* Customizable Export & Excel Import Modals */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={filteredIngredients}
+        availableColumns={[
+          { key: 'name', header: 'Ingredient Name' },
+          { key: 'category', header: 'Category' },
+          { key: 'quantity', header: 'Current Stock', format: (val, row) => `${val} ${row.unit || ''}` },
+          { key: 'unit', header: 'Unit' },
+          { key: 'costPerUnit', header: 'Cost Per Unit (INR)', format: (val) => formatINR(val) },
+          { key: 'totalValue', header: 'Total Value (INR)', format: (_, row) => formatINR((row.quantity || 0) * (row.costPerUnit || 0)) },
+          { key: 'minThreshold', header: 'Min Safety Threshold', format: (val, row) => `${val} ${row.unit || ''}` },
+          { key: 'status', header: 'Stock Status', format: (val) => (val || '').replace('_', ' ').toUpperCase() },
+          { key: 'supplierName', header: 'Supplier' },
+          { key: 'storageLocation', header: 'Storage Location' },
+          { key: 'batchNumber', header: 'Batch Number' },
+          { key: 'expiryDate', header: 'Expiry Date' },
+        ]}
+        reportTitle={`Kitchen Inventory — ${currentBranch?.name || 'Active Branch'}`}
+        fileNamePrefix="stockmate_kitchen_inventory"
+        filtersSummary={{
+          Category: selectedCategory !== 'all' ? selectedCategory : 'All',
+          Status: categoryFilter !== 'all' ? categoryFilter.toUpperCase() : 'All',
+          Search: searchTerm || 'None',
+        }}
+      />
+
+      <ExcelImportDialog
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        moduleType="inventory"
+        targetBranchName={currentBranch?.name || 'Current Outlet'}
+        existingRecords={restaurantIngredients}
+        onImportConfirm={importIngredientsBulk}
+      />
+
     </div>
   );
 };

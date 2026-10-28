@@ -23,6 +23,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -49,7 +50,8 @@ import {
 export const RevenueReportsPage = () => {
   const { transactions, subscriptions, addToast } = useApp();
 
-  const [dateRange, setDateRange] = useState('year_to_date'); // 'last_30' | 'last_90' | 'year_to_date' | 'all'
+  const [dateRange, setDateRange] = useState('year_to_date');
+  const [isExportOpen, setIsExportOpen] = useState(false); // 'last_30' | 'last_90' | 'year_to_date' | 'all'
 
   // Calculations
   const totalRevenue = transactions
@@ -201,9 +203,9 @@ export const RevenueReportsPage = () => {
               variant="outline"
               size="sm"
               icon={Download}
-              onClick={handleExportCSV}
+              onClick={() => setIsExportOpen(true)}
             >
-              Export Tabular Report (CSV)
+              Export to Excel
             </Button>
           </div>
         }
@@ -546,6 +548,29 @@ export const RevenueReportsPage = () => {
           </table>
         </div>
       </div>
+
+      {/* Customizable Revenue Report Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        data={enrichedMonthlyTrends}
+        availableColumns={[
+          { key: 'month', header: 'Fiscal Month' },
+          { key: 'revenue', header: 'Gross Revenue (INR)', format: (val) => formatINR(val) },
+          { key: 'starter', header: 'Starter Tier Revenue', format: (val) => formatINR(val) },
+          { key: 'pro', header: 'Pro Tier Revenue', format: (val) => formatINR(val) },
+          { key: 'enterprise', header: 'Enterprise Tier Revenue', format: (val) => formatINR(val) },
+          { key: 'successful', header: 'Successful Settlements' },
+          { key: 'pending', header: 'Pending Retries' },
+          { key: 'failed', header: 'Failed Transactions' },
+          { key: 'momGrowth', header: 'MoM Growth Rate' },
+        ]}
+        reportTitle="Platform Revenue & Monetization Audit"
+        fileNamePrefix="stockmate_platform_revenue"
+        filtersSummary={{
+          DateRange: dateRange.replace('_', ' ').toUpperCase(),
+        }}
+      />
     </div>
   );
 };

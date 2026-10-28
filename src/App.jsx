@@ -67,6 +67,9 @@ import { RecordUsagePage } from './pages/kitchen/RecordUsagePage';
 import { RecordWastagePage } from './pages/kitchen/RecordWastagePage';
 import { ReportLowStockPage } from './pages/kitchen/ReportLowStockPage';
 
+// Staff Attendance & Shifts
+import { InventoryAttendancePage } from './pages/inventory/InventoryAttendancePage';
+
 // Supplier Pages
 import { SupplierDashboard } from './pages/supplier/SupplierDashboard';
 import { SupplierOrdersPage } from './pages/supplier/SupplierOrdersPage';
@@ -74,6 +77,7 @@ import { SupplierHistoryPage } from './pages/supplier/SupplierHistoryPage';
 import { SupplierProfilePage } from './pages/supplier/SupplierProfilePage';
 import { SupplierInvoicesPage } from './pages/supplier/SupplierInvoicesPage';
 import { SupplierReturnsPage as SupplierPortalReturnsPage } from './pages/supplier/SupplierReturnsPage';
+import { getRoleLandingRoute } from './utils/permissions';
 import { SupplierLoginPage } from './pages/supplier/SupplierLoginPage';
 import { SupplierProductsPage } from './pages/supplier/SupplierProductsPage';
 import { SupplierMarketplaceViewPage } from './pages/supplier/SupplierMarketplaceViewPage';
@@ -120,22 +124,7 @@ const RootRedirect = () => {
     return <Navigate to="/set-new-password" replace />;
   }
 
-  switch (currentUser.role) {
-    case 'super_admin':
-      return <Navigate to="/admin/dashboard" replace />;
-    case 'restaurant_owner':
-      return <Navigate to="/dashboard" replace />;
-    case 'restaurant_manager':
-      return <Navigate to="/dashboard" replace />;
-    case 'inventory_manager':
-      return <Navigate to="/goods-receiving" replace />;
-    case 'supplier':
-      return <Navigate to="/supplier" replace />;
-    case 'kitchen_staff':
-      return <Navigate to="/kitchen" replace />;
-    default:
-      return <Navigate to="/dashboard" replace />;
-  }
+  return <Navigate to={getRoleLandingRoute(currentUser.role)} replace />;
 };
 
 // Universal Dashboard Route: Dispatches to role-specific dashboard seamlessly
@@ -150,9 +139,9 @@ const DashboardDispatcher = () => {
       return <Navigate to="/supplier" replace />;
     case 'kitchen_staff':
       return <Navigate to="/kitchen" replace />;
-    case 'inventory_manager':
-      return <Navigate to="/goods-receiving" replace />;
     case 'restaurant_manager':
+      return <Navigate to="/workforce" replace />;
+    case 'inventory_manager':
     case 'restaurant_owner':
     default:
       return <RestaurantDashboard />;
@@ -405,7 +394,7 @@ function App() {
             path="/inventory"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <InventoryPage />
                 </RoleGuard>
               </AppLayout>
@@ -415,7 +404,7 @@ function App() {
             path="/expiry-tracking"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <ExpiryTrackingPage />
                 </RoleGuard>   
               </AppLayout>
@@ -425,6 +414,7 @@ function App() {
             path="/suppliers"
             element={
               <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SuppliersPage />
                 </RoleGuard>
@@ -435,6 +425,7 @@ function App() {
             path="/purchase-orders"
             element={
               <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <PurchaseOrdersPage />
                 </RoleGuard>
@@ -456,7 +447,7 @@ function App() {
             path="/goods-receiving"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <GoodsReceivingPage />
                 </RoleGuard>
               </AppLayout>
@@ -466,7 +457,7 @@ function App() {
             path="/batch-tracking"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <BatchTrackingPage />
                 </RoleGuard>
               </AppLayout>
@@ -484,6 +475,7 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierReturnsPage />
                 </RoleGuard>
@@ -494,6 +486,7 @@ function App() {
             path="/supplier-billing"
             element={
               <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierBillingPage />
                 </RoleGuard>
@@ -504,7 +497,7 @@ function App() {
             path="/stock-movements"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <StockMovementsPage />
                 </RoleGuard>
               </AppLayout>
@@ -644,6 +637,19 @@ function App() {
             path="/billing"
             element={<Navigate to="/plans-billing?tab=invoices" replace />}
           />
+
+          {/* Personal Staff Attendance & Shifts */}
+          <Route
+            path="/my-attendance"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['inventory_manager', 'kitchen_staff', 'restaurant_manager', 'restaurant_owner']}>
+                  <InventoryAttendancePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route path="/attendance" element={<Navigate to="/my-attendance" replace />} />
 
           {/* Kitchen Staff Module */}
           <Route

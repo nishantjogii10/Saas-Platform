@@ -47,7 +47,7 @@ export const SupplierProfilePage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 w-full pb-12">
       <PageHeader
         title="Supplier Vendor Profile"
         subtitle="Manage dispatch contact details, catalog categories, and payment agreements"

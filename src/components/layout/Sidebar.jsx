@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
+import { getRoleLandingRoute } from '../../utils/permissions';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
@@ -39,6 +40,7 @@ import {
   RotateCcw,
   FileCheck,
   Sliders,
+  Clock,
 } from 'lucide-react';
 
 export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
@@ -59,16 +61,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   } = useApp();
 
   const getHomeRoute = () => {
-    switch (currentUser?.role) {
-      case 'super_admin':
-        return '/admin/dashboard';
-      case 'supplier':
-        return '/supplier';
-      case 'kitchen_staff':
-        return '/kitchen';
-      default:
-        return '/dashboard';
-    }
+    return getRoleLandingRoute(currentUser?.role);
   };
 
   const unreadAlertsCount = restaurantAlerts.filter(a => {
@@ -204,15 +197,21 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
             ],
           },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
+              { to: '/profile', label: 'My Profile', icon: User },
+            ],
+          },
         ];
 
       case 'restaurant_manager':
         return [
           {
-            section: 'Restaurant Operations & Staff',
+            section: 'Staff Management',
             items: [
-              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-{ to: '/workforce', label: 'People & Workforce', icon: Users },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
@@ -227,6 +226,13 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 icon: Bell,
                 badge: unreadOwnerNotifs > 0 ? unreadOwnerNotifs : null,
               },
+            ],
+          },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
+              { to: '/profile', label: 'My Profile', icon: User },
             ],
           },
         ];
