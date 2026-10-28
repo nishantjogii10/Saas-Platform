@@ -55,6 +55,8 @@ export const RestaurantDashboard = () => {
     restaurantOrders,
     restaurantMovements,
     restaurantAlerts,
+    markAlertRead,
+    markAllAlertsRead,
     attendanceRecords,
     leaveRequests,
     reviewLeaveRequest,
@@ -82,6 +84,16 @@ export const RestaurantDashboard = () => {
   const outOfStockItems = restaurantIngredients.filter(i => i.status === 'out_of_stock').length;
   const expiringSoonItems = restaurantIngredients.filter(i => i.daysUntilExpiry <= 3 && i.daysUntilExpiry >= 0).length;
 
+  // Unread actionable stock alerts for inventory manager / owner
+  const unreadStockAlerts = React.useMemo(() => {
+    return (restaurantAlerts || []).filter(a => {
+      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return !a.read && (a.type === 'low_stock' || a.type === 'out_of_stock' || a.type === 'expiring_soon' || a.severity === 'critical' || a.severity === 'high');
+    });
+  }, [restaurantAlerts, currentUser]);
+
   const totalValuation = restaurantIngredients.reduce((sum, item) => {
     return sum + (item.quantity * item.costPerUnit);
   }, 0);
@@ -98,22 +110,9 @@ export const RestaurantDashboard = () => {
         badge={
           currentUser?.role === 'restaurant_owner' ? (
             <div className="flex items-center gap-2">
-              {currentBranch && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                  <Store className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{currentBranch.name.replace(/^Spice Garden\s*[-–—]\s*/i, '')}</span>
-                </span>
-              )}
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                 <span>{currentRestaurant?.logo || '🌿'}</span>
                 <span>{currentRestaurant?.planName} Tier</span>
-              </span>
-            </div>
-          ) : currentUser?.role === 'inventory_manager' && currentBranch ? (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                <Store className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{currentBranch.name.replace(/^Spice Garden\s*[-–—]\s*/i, '')}</span>
               </span>
             </div>
           ) : null
@@ -140,8 +139,8 @@ export const RestaurantDashboard = () => {
         }
       />
 
-      {/* Critical Stock Alert Banner if any out of stock or low stock items (hidden for restaurant manager) */}
-      {currentUser?.role !== 'restaurant_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (
+      {/* Critical Stock Alert Banner: only shows while actionable alerts remain unread */}
+      {currentUser?.role !== 'restaurant_manager' && unreadStockAlerts.length > 0 && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
@@ -152,6 +151,7 @@ export const RestaurantDashboard = () => {
                 Action Required: {outOfStockItems > 0 ? `${outOfStockItems} item(s) out of stock` : ''}
                 {outOfStockItems > 0 && lowStockItems > 0 ? ' and ' : ''}
                 {lowStockItems > 0 ? `${lowStockItems} ingredient(s) below reorder threshold` : ''}
+                {outOfStockItems === 0 && lowStockItems === 0 ? `${unreadStockAlerts.length} alert(s) require review` : ''}
               </h4>
               <p className="text-xs text-amber-800">
                 Inventory levels require attention to avoid kitchen stockouts during upcoming service.
@@ -163,7 +163,21 @@ export const RestaurantDashboard = () => {
               variant="outline"
               size="xs"
               className="bg-white border-amber-300 text-amber-900"
-              onClick={() => navigate('/alerts')}
+              onClick={() => {
+                unreadStockAlerts.forEach(a => markAlertRead(a.id));
+              }}
+              title="Acknowledge and mark alerts as read"
+            >
+              Mark as Read
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              className="bg-white border-amber-300 text-amber-900"
+              onClick={() => {
+                unreadStockAlerts.forEach(a => markAlertRead(a.id));
+                navigate('/alerts');
+              }}
             >
               View Alerts
             </Button>
@@ -171,7 +185,10 @@ export const RestaurantDashboard = () => {
               <Button
                 variant="primary"
                 size="xs"
-                onClick={() => navigate('/purchase-orders?action=create')}
+                onClick={() => {
+                  unreadStockAlerts.forEach(a => markAlertRead(a.id));
+                  navigate('/purchase-orders?action=create');
+                }}
               >
                 Reorder Stock (PO)
               </Button>

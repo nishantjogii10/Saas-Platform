@@ -88,7 +88,7 @@ export const InventoryAttendancePage = () => {
               </span>
               <span className="text-xs text-slate-400">•</span>
               <span className="text-xs text-teal-200 font-medium">
-                {currentRestaurant?.name} ({currentBranch?.name || 'Assigned Branch'})
+                {currentRestaurant?.name}
               </span>
             </div>
 

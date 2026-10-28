@@ -372,12 +372,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
       case 'kitchen_staff':
         return 'bg-amber-600 text-white shadow-xs font-semibold';
       case 'inventory_manager':
-        return 'bg-teal-700 text-white shadow-xs font-semibold';
+        return 'bg-[#087F8C] text-white shadow-xs font-semibold';
       case 'restaurant_manager':
         return 'bg-blue-600 text-white shadow-xs font-semibold';
       case 'restaurant_owner':
       default:
-        return 'bg-emerald-700 text-white shadow-xs font-semibold';
+        return 'bg-[#075E4B] text-white shadow-xs font-semibold';
     }
   };
 
@@ -404,7 +404,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             title="StockMate Workspace"
             className="h-16 flex items-center px-5 border-b border-slate-800 gap-3 hover:bg-slate-800/50 transition-colors group"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-900/40 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#075E4B] to-[#087F8C] flex items-center justify-center text-white shadow-md shadow-[#075E4B]/40 group-hover:scale-105 transition-transform">
               <Boxes className="w-5 h-5" />
             </div>
             <div>
@@ -412,7 +412,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 <span className="font-bold text-base tracking-tight text-white group-hover:text-emerald-300 transition-colors">
                   StockMate
                 </span>
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-[#075E4B]/40 text-emerald-300 border border-[#075E4B]/60">
                   SaaS
                 </span>
               </div>

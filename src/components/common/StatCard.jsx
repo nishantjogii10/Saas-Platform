@@ -14,33 +14,39 @@ export const StatCard = ({
 }) => {
   const COLOR_MAP = {
     emerald: {
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-700',
-      border: 'border-emerald-100',
-      glow: 'group-hover:border-emerald-300',
+      bg: 'bg-[#E6F3F0]',
+      text: 'text-[#075E4B]',
+      border: 'border-[#C2E5D9]',
+      glow: 'group-hover:border-[#075E4B]/40',
     },
     amber: {
       bg: 'bg-amber-50',
-      text: 'text-amber-700',
-      border: 'border-amber-100',
-      glow: 'group-hover:border-amber-300',
+      text: 'text-[#D97706]',
+      border: 'border-amber-200',
+      glow: 'group-hover:border-[#D97706]/40',
     },
     rose: {
-      bg: 'bg-rose-50',
-      text: 'text-rose-700',
-      border: 'border-rose-100',
-      glow: 'group-hover:border-rose-300',
+      bg: 'bg-red-50',
+      text: 'text-[#DC2626]',
+      border: 'border-red-200',
+      glow: 'group-hover:border-[#DC2626]/40',
+    },
+    teal: {
+      bg: 'bg-[#E6F8FA]',
+      text: 'text-[#087F8C]',
+      border: 'border-[#BCECF4]',
+      glow: 'group-hover:border-[#087F8C]/40',
     },
     blue: {
       bg: 'bg-blue-50',
       text: 'text-blue-700',
-      border: 'border-blue-100',
+      border: 'border-blue-200',
       glow: 'group-hover:border-blue-300',
     },
     purple: {
       bg: 'bg-purple-50',
       text: 'text-purple-700',
-      border: 'border-purple-100',
+      border: 'border-purple-200',
       glow: 'group-hover:border-purple-300',
     },
   };
@@ -50,7 +56,7 @@ export const StatCard = ({
   return (
     <div
       onClick={onClick}
-      className={`group bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs transition-all duration-200 ${
+      className={`group bg-white border border-[#DCE5EF] rounded-2xl p-5 shadow-xs transition-all duration-200 ${
         onClick ? 'cursor-pointer hover:shadow-md ' + style.glow : ''
       } ${className}`}
     >
@@ -63,9 +69,9 @@ export const StatCard = ({
               <span
                 className={`inline-flex items-center text-xs font-semibold px-1.5 py-0.5 rounded-md ${
                   trend === 'up'
-                    ? 'text-emerald-700 bg-emerald-50'
+                    ? 'text-[#15803D] bg-green-50'
                     : trend === 'down'
-                    ? 'text-rose-700 bg-rose-50'
+                    ? 'text-[#DC2626] bg-red-50'
                     : 'text-slate-600 bg-slate-100'
                 }`}
               >

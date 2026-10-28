@@ -55,16 +55,16 @@ export const DataTable = ({
   }
 
   return (
-    <div className={`w-full overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs ${className}`}>
+    <div className={`w-full overflow-hidden rounded-2xl border border-[#DCE5EF] bg-white shadow-xs ${className}`}>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-950/60 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <tr className="border-b border-[#DCE5EF] bg-[#F7F9FC] text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
               {columns.map((col, idx) => (
                 <th
                   key={idx}
                   className={`py-3.5 px-4 select-none ${col.className || ''} ${
-                    col.sortable ? 'cursor-pointer hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-colors' : ''
+                    col.sortable ? 'cursor-pointer hover:bg-slate-100/80 transition-colors' : ''
                   }`}
                   onClick={() => col.sortable && handleSort(col.accessor)}
                 >
@@ -74,9 +74,9 @@ export const DataTable = ({
                       <span className="text-slate-400">
                         {sortField === col.accessor ? (
                           sortDirection === 'asc' ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                            <ChevronUp className="w-3.5 h-3.5 text-[#075E4B]" />
                           ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#075E4B]" />
                           )
                         ) : (
                           <ChevronsUpDown className="w-3.5 h-3.5" />
@@ -88,14 +88,14 @@ export const DataTable = ({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm">
+          <tbody className="divide-y divide-[#DCE5EF] text-sm">
             {paginatedData.map((row, rowIdx) => (
               <tr
                 key={row[keyField] || rowIdx}
-                className="hover:bg-slate-50/80 dark:hover:bg-slate-850/60 transition-colors duration-100"
+                className="hover:bg-[#F7F9FC]/80 transition-colors duration-100"
               >
                 {columns.map((col, colIdx) => (
-                  <td key={colIdx} className={`py-3.5 px-4 text-slate-700 dark:text-slate-300 ${col.cellClassName || ''}`}>
+                  <td key={colIdx} className={`py-3.5 px-4 text-slate-700 ${col.cellClassName || ''}`}>
                     {col.render ? col.render(row) : row[col.accessor]}
                   </td>
                 ))}
@@ -107,29 +107,29 @@ export const DataTable = ({
 
       {/* Pagination Footer */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 px-4 py-3 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-500 dark:text-slate-400">
+        <div className="flex items-center justify-between border-t border-[#DCE5EF] px-4 py-3 bg-[#F7F9FC]/60 text-xs text-slate-500">
           <div>
-            Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</span> to{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
+            Showing <span className="font-semibold text-slate-700">{(currentPage - 1) * pageSize + 1}</span> to{' '}
+            <span className="font-semibold text-slate-700">
               {Math.min(currentPage * pageSize, sortedData.length)}
             </span>{' '}
-            of <span className="font-semibold text-slate-700 dark:text-slate-200">{sortedData.length}</span> records
+            of <span className="font-semibold text-slate-700">{sortedData.length}</span> records
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-[#DCE5EF] bg-white text-slate-600 hover:bg-[#F7F9FC] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="px-2 font-medium text-slate-700 dark:text-slate-200">
+            <span className="px-2 font-medium text-slate-700">
               Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 rounded-lg border border-[#DCE5EF] bg-white text-slate-600 hover:bg-[#F7F9FC] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

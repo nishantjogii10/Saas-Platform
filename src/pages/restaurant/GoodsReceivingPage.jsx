@@ -288,19 +288,7 @@ export const GoodsReceivingPage = () => {
       {/* Page Header */}
       <PageHeader
         title="Goods Receiving & Delivery Verification (GRN)"
-        subtitle={
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <span className="text-slate-500">
-              Verify incoming supplier deliveries, inspect damaged goods, generate Goods Received Notes (GRNs), and issue QR-tracked batches.
-            </span>
-            {currentBranch && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                <Store className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Active Dock: <strong>{currentBranch.name}</strong></span>
-              </span>
-            )}
-          </div>
-        }
+        subtitle="Verify incoming supplier deliveries, inspect damaged goods, generate Goods Received Notes (GRNs), and issue QR-tracked batches."
         action={
           <div className="flex items-center gap-2">
             <Button

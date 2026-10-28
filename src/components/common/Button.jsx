@@ -1,13 +1,15 @@
 import React from 'react';
 
 const VARIANTS = {
-  primary: 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-xs focus:ring-emerald-500/30',
-  secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 focus:ring-slate-300',
-  outline: 'border border-slate-300 hover:bg-slate-50 text-slate-700 focus:ring-slate-200',
-  danger: 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs focus:ring-rose-500/30',
+  primary: 'bg-[#075E4B] hover:bg-[#054638] text-white shadow-xs focus:ring-[#075E4B]/30',
+  secondary: 'bg-[#F7F9FC] hover:bg-slate-200 text-slate-800 border border-[#DCE5EF] focus:ring-[#087F8C]/30',
+  outline: 'border border-[#DCE5EF] hover:bg-[#F7F9FC] text-slate-700 focus:ring-[#075E4B]/20',
+  danger: 'bg-[#DC2626] hover:bg-red-700 text-white shadow-xs focus:ring-[#DC2626]/30',
   ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-200',
-  brand: 'bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white shadow-sm focus:ring-emerald-500/30',
-  success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs focus:ring-emerald-500/30',
+  brand: 'bg-[#075E4B] hover:bg-[#054638] text-white shadow-xs focus:ring-[#075E4B]/30',
+  teal: 'bg-[#087F8C] hover:bg-[#066772] text-white shadow-xs focus:ring-[#087F8C]/30',
+  success: 'bg-[#15803D] hover:bg-green-800 text-white shadow-xs focus:ring-[#15803D]/30',
+  warning: 'bg-[#D97706] hover:bg-amber-700 text-white shadow-xs focus:ring-[#D97706]/30',
 };
 
 const SIZES = {
