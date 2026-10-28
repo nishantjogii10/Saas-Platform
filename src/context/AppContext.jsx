@@ -66,6 +66,8 @@ import {
   LEAVE_POLICIES,
   KITCHEN_STATIONS,
   STAFF_SALARY_PROFILES,
+  INITIAL_PAYROLL_CONFIG,
+  initialMonthlyPayrollRuns,
 } from '../data/staffAttendanceData';
 
 import {
@@ -201,7 +203,29 @@ export const AppProvider = ({ children }) => {
   const [subscriptions, setSubscriptions] = useState(() => loadStored('subscriptions', initialSubscriptions));
   const [invoices, setInvoices] = useState(() => loadStored('invoices', initialInvoices));
   const [branches, setBranches] = useState(() => loadStored('branches', initialBranches));
-  const [currentBranchId, setCurrentBranchId] = useState(() => loadStored('currentBranchId', 'branch-pune-central'));
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = loadStored('currentUser', undefined);
+    if (savedUser !== undefined) return savedUser;
+    // Default to Restaurant Owner
+    return initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0];
+  });
+
+  const [currentRestaurantId, setCurrentRestaurantId] = useState(() => {
+    const savedUser = loadStored('currentUser', undefined);
+    if (savedUser?.restaurantId) return savedUser.restaurantId;
+    const savedRestId = loadStored('currentRestaurantId', null);
+    if (savedRestId) return savedRestId;
+    return savedUser ? null : 'rest-1'; // Spice Garden default only when no saved user
+  });
+
+  const [currentBranchId, setCurrentBranchId] = useState(() => {
+    const savedUser = loadStored('currentUser', undefined);
+    if (savedUser?.branchId) return savedUser.branchId;
+    const savedBranch = loadStored('currentBranchId', null);
+    if (savedBranch) return savedBranch;
+    return savedUser ? null : 'branch-pune-central';
+  });
+
   const [branchStaff, setBranchStaff] = useState(() => loadStored('branchStaff', initialBranchStaff));
   const [staffTransfers, setStaffTransfers] = useState(() => loadStored('staffTransfers', initialStaffTransfers));
   const [ownerNotifications, setOwnerNotifications] = useState(() => loadStored('ownerNotifications', initialOwnerNotifications));
@@ -223,6 +247,8 @@ export const AppProvider = ({ children }) => {
   const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
   const [holidays, setHolidays] = useState(() => loadStored('holidays', initialHolidays));
   const [staffLeaveBalances, setStaffLeaveBalances] = useState(() => loadStored('staffLeaveBalances', INITIAL_STAFF_LEAVE_BALANCES));
+  const [payrollConfig, setPayrollConfig] = useState(() => loadStored('payrollConfig', INITIAL_PAYROLL_CONFIG));
+  const [monthlyPayrollRuns, setMonthlyPayrollRuns] = useState(() => loadStored('monthlyPayrollRuns', initialMonthlyPayrollRuns));
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
@@ -264,20 +290,26 @@ export const AppProvider = ({ children }) => {
   ]));
   const [emailDeliveryLogs, setEmailDeliveryLogs] = useState(() => loadStored('emailDeliveryLogs', []));
 
-  // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
-  // or restore from localStorage
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = loadStored('currentUser', undefined);
-    if (savedUser !== undefined) return savedUser;
-    // Default to Restaurant Owner
-    return initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0];
-  });
+  // Keep tenant restaurant and branch strictly synchronized with authenticated user
+  useEffect(() => {
+    if (currentUser?.restaurantId && currentRestaurantId !== currentUser.restaurantId) {
+      setCurrentRestaurantId(currentUser.restaurantId);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_currentRestaurantId`, JSON.stringify(currentUser.restaurantId));
+      } catch (e) {}
+    }
+  }, [currentUser, currentRestaurantId]);
 
-  const [currentRestaurantId, setCurrentRestaurantId] = useState(() => {
-    const savedRestId = loadStored('currentRestaurantId', null);
-    if (savedRestId) return savedRestId;
-    return 'rest-1'; // Spice Garden default
-  });
+  useEffect(() => {
+    if (currentUser?.branchId && (currentUser.role === 'restaurant_manager' || currentUser.role === 'inventory_manager' || currentUser.role === 'kitchen_staff')) {
+      if (currentBranchId !== currentUser.branchId) {
+        setCurrentBranchId(currentUser.branchId);
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify(currentUser.branchId));
+        } catch (e) {}
+      }
+    }
+  }, [currentUser, currentBranchId]);
 
   // Toast notifications array
   const [toasts, setToasts] = useState([]);
@@ -418,6 +450,14 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_staffLeaveBalances`, JSON.stringify(staffLeaveBalances));
   }, [staffLeaveBalances]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_payrollConfig`, JSON.stringify(payrollConfig));
+  }, [payrollConfig]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_monthlyPayrollRuns`, JSON.stringify(monthlyPayrollRuns));
+  }, [monthlyPayrollRuns]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
@@ -637,17 +677,33 @@ export const AppProvider = ({ children }) => {
 
     // Login successful
     setCurrentUser(user);
-    if (user.restaurantId) {
-      setCurrentRestaurantId(user.restaurantId);
-      if (user.branchId) {
-        setCurrentBranchId(user.branchId);
-      } else {
-        const userBranches = branches.filter(b => b.restaurantId === user.restaurantId);
+    const resolvedRestId = user.restaurantId || null;
+    let resolvedBranchId = user.branchId || null;
+
+    if (resolvedRestId) {
+      setCurrentRestaurantId(resolvedRestId);
+      localStorage.setItem(`${STORAGE_KEY}_currentRestaurantId`, JSON.stringify(resolvedRestId));
+
+      if (!resolvedBranchId) {
+        const userBranches = branches.filter((b) => b.restaurantId === resolvedRestId);
         if (userBranches.length > 0) {
-          setCurrentBranchId(userBranches[0].id);
+          resolvedBranchId = userBranches[0].id;
         }
       }
+      if (resolvedBranchId) {
+        setCurrentBranchId(resolvedBranchId);
+        localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify(resolvedBranchId));
+      } else {
+        setCurrentBranchId(null);
+        localStorage.removeItem(`${STORAGE_KEY}_currentBranchId`);
+      }
+    } else {
+      setCurrentRestaurantId(null);
+      setCurrentBranchId(null);
+      localStorage.removeItem(`${STORAGE_KEY}_currentRestaurantId`);
+      localStorage.removeItem(`${STORAGE_KEY}_currentBranchId`);
     }
+
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(user));
     addToast(`Welcome back, ${user.name}! Authenticated as ${user.role.replace('_', ' ').toUpperCase()}.`, 'success');
 
@@ -685,6 +741,11 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(matchedUser);
     if (matchedUser.restaurantId) {
       setCurrentRestaurantId(matchedUser.restaurantId);
+      localStorage.setItem(`${STORAGE_KEY}_currentRestaurantId`, JSON.stringify(matchedUser.restaurantId));
+      if (matchedUser.branchId) {
+        setCurrentBranchId(matchedUser.branchId);
+        localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify(matchedUser.branchId));
+      }
     }
     localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(matchedUser));
     addToast(`Kitchen Station unlocked for ${matchedUser.name}.`, 'success');
@@ -695,10 +756,14 @@ export const AppProvider = ({ children }) => {
     };
   };
 
-  // Terminate session and clear authenticated user
+  // Terminate session and clear authenticated user & tenant context
   const logout = () => {
     setCurrentUser(null);
+    setCurrentRestaurantId(null);
+    setCurrentBranchId(null);
     localStorage.removeItem(`${STORAGE_KEY}_currentUser`);
+    localStorage.removeItem(`${STORAGE_KEY}_currentRestaurantId`);
+    localStorage.removeItem(`${STORAGE_KEY}_currentBranchId`);
     addToast('You have been securely logged out.', 'info');
   };
 
@@ -2635,22 +2700,43 @@ export const AppProvider = ({ children }) => {
 
   // Staff Management (Owner / Admin)
   const addStaff = (staffData) => {
+    const targetRestId = currentUser?.restaurantId || currentRestaurantId;
+    const targetRest = restaurants.find(r => r.id === targetRestId);
+    const tenantBranches = branches.filter(b => b.restaurantId === targetRestId);
+    const targetBranch = tenantBranches.find(b => b.id === staffData.branchId) || tenantBranches[0] || branches[0];
+    const targetBranchId = targetBranch?.id || staffData.branchId || currentBranchId;
+
     const newStaff = {
       id: `usr-${Date.now()}`,
+      employeeId: staffData.employeeId || `EMP-${String(branchStaff.length + 1).padStart(4, '0')}`,
       name: staffData.name,
       email: staffData.email,
-      role: staffData.role, // inventory_manager | kitchen_staff
-      restaurantId: currentRestaurantId,
-      restaurantName: currentRestaurant?.name || 'Active Restaurant',
-      branchId: staffData.branchId || currentBranchId,
-      status: 'active',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-      joinedDate: new Date().toISOString().split('T')[0],
+      phone: staffData.phone || '+91 98220 00000',
+      role: staffData.role || 'kitchen_staff',
+      roleLabel:
+        staffData.roleLabel ||
+        (staffData.role === 'restaurant_manager'
+          ? 'Restaurant Manager'
+          : staffData.role === 'inventory_manager'
+          ? 'Inventory Manager'
+          : 'Kitchen Staff'),
+      isManager: staffData.role === 'restaurant_manager' || staffData.role === 'inventory_manager',
+      restaurantId: targetRestId,
+      restaurantName: targetRest?.name || 'Active Restaurant',
+      branchId: targetBranchId,
+      branchName: targetBranch?.name || 'Primary Branch',
+      status: staffData.status || 'active',
+      password: staffData.password || 'password123',
+      passwordHash: hashPassword(staffData.password || 'password123'),
+      avatar: staffData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
       lastActive: 'Never',
     };
 
-    setUsers(prev => [newStaff, ...prev]);
+    setUsers(prev => [newStaff, ...prev.filter(u => (u.email || '').toLowerCase() !== newStaff.email.toLowerCase())]);
+    setBranchStaff(prev => [newStaff, ...prev.filter(s => (s.email || '').toLowerCase() !== newStaff.email.toLowerCase())]);
     addToast(`Added staff member "${newStaff.name}" (${newStaff.role.replace('_', ' ')}).`, 'success');
+    return newStaff;
   };
 
   const updateUserStatus = (userId, newStatus) => {
@@ -3548,11 +3634,27 @@ export const AppProvider = ({ children }) => {
       return null;
     }
 
-    // 2. Hash temporary password - NEVER store in plain text!
-    const tempPass = staffData.tempPassword || '';
-    const passwordHash = tempPass ? hashPassword(tempPass) : null;
+    // 2. Hash temporary password or fallback password
+    const tempPass = staffData.tempPassword || 'password123';
+    const passwordHash = hashPassword(tempPass);
 
-    const branch = branches.find((b) => b.id === staffData.branchId) || branches[0];
+    const resolvedRestaurantId =
+      staffData.restaurantId ||
+      currentUser?.restaurantId ||
+      currentRestaurantId;
+
+    const tenantBranches = (branches || []).filter(
+      (b) => b.restaurantId === resolvedRestaurantId
+    );
+
+    const branch =
+      tenantBranches.find((b) => b.id === staffData.branchId) ||
+      (branches || []).find((b) => b.id === staffData.branchId) ||
+      tenantBranches[0] ||
+      (branches || [])[0];
+
+    const resolvedBranchId = branch?.id || staffData.branchId || null;
+    const resolvedBranchName = branch?.name || staffData.branchName || 'Primary Branch';
 
     const newStaff = {
       id: `usr-br-${Date.now().toString().slice(-4)}`,
@@ -3569,16 +3671,16 @@ export const AppProvider = ({ children }) => {
           ? 'Inventory Manager'
           : 'Kitchen Staff'),
       isManager: staffData.role === 'restaurant_manager' || staffData.role === 'inventory_manager',
-      branchId: branch?.id || 'branch-pune-central',
-      branchName: branch?.name || 'Spice Garden — Pune Central',
-      restaurantId: currentRestaurantId || 'rest-1',
-      status: staffData.status || 'Invited',
-      mustChangePassword: staffData.mustChangePassword !== undefined ? staffData.mustChangePassword : true,
+      branchId: resolvedBranchId,
+      branchName: resolvedBranchName,
+      restaurantId: resolvedRestaurantId,
+      status: staffData.status || 'active',
+      mustChangePassword: staffData.mustChangePassword !== undefined ? staffData.mustChangePassword : false,
       joinedDate: staffData.joinedDate || new Date().toISOString().split('T')[0],
       shift: staffData.shift || 'Morning Shift (07:00 AM - 03:30 PM)',
       baseSalary: Number(staffData.baseSalary) || 25000,
+      password: tempPass,
       passwordHash: passwordHash, // Stored as SHA-256 hash!
-      // Plain text password is NEVER stored!
       avatar: staffData.avatar || `https://images.unsplash.com/photo-${1507003211169 + Math.floor(Math.random() * 1000)}?w=150&auto=format&fit=crop&q=80`,
       assignedModules: staffData.assignedModules || (
         staffData.role === 'restaurant_manager'
@@ -3608,6 +3710,21 @@ export const AppProvider = ({ children }) => {
         b.id === newStaff.branchId ? { ...b, staffCount: (b.staffCount || 0) + 1 } : b
       )
     );
+
+    const notif = {
+      id: `notif-${Date.now()}`,
+      restaurantId: resolvedRestaurantId,
+      branchId: resolvedBranchId,
+      type: 'staff_onboarded',
+      title: `New Staff Onboarded: ${newStaff.name}`,
+      message: `${newStaff.name} has been added as ${newStaff.roleLabel} at ${newStaff.branchName}.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/workforce?tab=roster',
+      actionLabel: 'View Roster',
+      badge: 'Workforce',
+    };
+    setOwnerNotifications((prev) => [notif, ...prev]);
 
     const notif = {
       id: `notif-${Date.now()}`,
@@ -3669,11 +3786,12 @@ export const AppProvider = ({ children }) => {
 
     const notif = {
       id: `notif-${Date.now()}`,
+      restaurantId: mgr.restaurantId || currentUser?.restaurantId || currentRestaurantId,
+      branchId,
+      branchName: targetBranch?.name || 'Branch',
       type: 'manager_assigned',
       title: 'Manager Assigned to Branch',
       message: `${mgr.name} appointed as Branch Manager for ${targetBranch?.name}.`,
-      branchId,
-      branchName: targetBranch?.name || 'Branch',
       read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
@@ -3696,9 +3814,12 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
+    const transferRestId = emp.restaurantId || currentUser?.restaurantId || currentRestaurantId;
+
     const transferId = `TR-${Math.floor(100 + Math.random() * 900)}`;
     const newTransfer = {
       id: transferId,
+      restaurantId: transferRestId,
       employeeId: emp.id,
       employeeName: emp.name,
       employeeAvatar: emp.avatar,
@@ -3709,8 +3830,8 @@ export const AppProvider = ({ children }) => {
       toBranchId: toB.id,
       toBranchName: toB.name,
       reason,
-      requestedBy: `${currentUser?.name || 'Priya Sharma'} (${currentUser?.role?.replace('_', ' ') || 'Owner'})`,
-      requestedById: currentUser?.id || 'usr-sg-1',
+      requestedBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      requestedById: currentUser?.id || 'usr-1',
       requestDate: new Date().toISOString().split('T')[0],
       status: 'Pending',
       comments: 'Pending Restaurant Owner / Branch Manager authorization.',
@@ -3718,7 +3839,7 @@ export const AppProvider = ({ children }) => {
         {
           date: new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
           action: 'Transfer Request Submitted',
-          by: currentUser?.name || 'Owner',
+          by: currentUser?.name || 'Manager',
         },
       ],
     };
@@ -3727,11 +3848,12 @@ export const AppProvider = ({ children }) => {
 
     const notif = {
       id: `notif-${Date.now()}`,
+      restaurantId: transferRestId,
+      branchId: toB.id,
+      branchName: toB.name,
       type: 'transfer_request',
       title: `Transfer Request: ${emp.name}`,
       message: `Transfer requested from ${fromB.name} to ${toB.name}. Reason: "${reason}".`,
-      branchId: toB.id,
-      branchName: toB.name,
       transferId: newTransfer.id,
       read: true,
       timestamp: 'Just now',
@@ -3885,16 +4007,41 @@ export const AppProvider = ({ children }) => {
     addToast(`Staff transfer request for ${transfer.employeeName} rejected.`, 'info');
   };
 
-  // Notification actions
+  // Notification actions with tenant authorization
   const markOwnerNotificationRead = (notifId) => {
+    if (!currentUser) return;
+    const userRestId = currentUser.restaurantId || currentRestaurantId;
+
     setOwnerNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, read: true } : n))
+      prev.map((n) => {
+        if (n.id === notifId) {
+          if (n.restaurantId && n.restaurantId !== userRestId && currentUser.role !== 'super_admin') {
+            return n;
+          }
+          if (n.targetUserId && n.targetUserId !== currentUser.id && currentUser.role !== 'super_admin') {
+            return n;
+          }
+          return { ...n, read: true };
+        }
+        return n;
+      })
     );
   };
 
   const markAllOwnerNotificationsRead = () => {
-    setOwnerNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    addToast('All notifications marked as read.', 'info');
+    if (!currentUser) return;
+    const userRestId = currentUser.restaurantId || currentRestaurantId;
+    const userBranchId = currentUser.branchId || currentBranchId;
+
+    setOwnerNotifications((prev) =>
+      prev.map((n) => {
+        if (n.restaurantId && n.restaurantId !== userRestId && currentUser.role !== 'super_admin') return n;
+        if (n.targetUserId && n.targetUserId !== currentUser.id && currentUser.role !== 'super_admin') return n;
+        if (currentUser.role === 'restaurant_manager' && n.branchId && userBranchId && n.branchId !== userBranchId && n.branchId !== 'all') return n;
+        return { ...n, read: true };
+      })
+    );
+    addToast('All notifications for your authorized branch marked as read.', 'info');
   };
 
   // Suppliers CRUD
@@ -3968,12 +4115,18 @@ export const AppProvider = ({ children }) => {
 
   // --- KITCHEN & EMPLOYEE ATTENDANCE (PUNCH-IN / PUNCH-OUT / BREAKS) ---
   const punchInStaff = ({ staffId, staffName, staffRole, branchId, branchName, station, notes }) => {
-    const user = currentUser;
-    const targetId = staffId || user?.id || 'usr-sg-3';
-    const targetName = staffName || user?.name || 'Chef Anita Rao';
-    const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
-    const targetBranch = branches.find(b => b.id === targetBranchId);
+    const user = (staffId ? branchStaff.find(s => s.id === staffId) : null) || currentUser;
+    if (!user) {
+      addToast('No authenticated employee for punch in.', 'error');
+      return null;
+    }
+    const targetId = user.id;
+    const targetName = staffName || user.name;
+    const targetRole = staffRole || user.roleLabel || user.role;
+    const targetRestId = user.restaurantId || currentUser?.restaurantId || currentRestaurantId;
+    const tenantBranches = branches.filter(b => b.restaurantId === targetRestId);
+    const targetBranchId = branchId || user.branchId || currentBranchId || tenantBranches[0]?.id;
+    const targetBranch = tenantBranches.find(b => b.id === targetBranchId) || branches.find(b => b.id === targetBranchId);
 
     // Prevent duplicate active session
     const existingActive = attendanceRecords.find(r => r.staffId === targetId && r.status === 'active');
@@ -3996,8 +4149,8 @@ export const AppProvider = ({ children }) => {
       staffRole: targetRole,
       staffAvatar: user?.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
       branchId: targetBranchId,
-      branchName: targetBranch?.name || branchName || 'Spice Garden — Pune Central',
-      restaurantId: currentRestaurantId,
+      branchName: targetBranch?.name || branchName || 'Primary Branch',
+      restaurantId: targetRestId,
       date: now.toISOString().split('T')[0],
       punchInTime: now.toISOString(),
       punchOutTime: null,
@@ -4018,11 +4171,12 @@ export const AppProvider = ({ children }) => {
     // Live notification for Manager/Owner
     const notif = {
       id: `notif-punch-${Date.now()}`,
+      restaurantId: targetRestId,
+      branchId: targetBranchId,
+      branchName: newRecord.branchName,
       type: 'staff_punch_in',
       title: `Staff Punched In: ${targetName}`,
       message: `${targetName} (${targetRole}) clocked in at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Station: ${newRecord.station}.`,
-      branchId: targetBranchId,
-      branchName: newRecord.branchName,
       read: false,
       timestamp: 'Just now',
       actionLink: '/workforce?tab=attendance',
@@ -4186,12 +4340,18 @@ export const AppProvider = ({ children }) => {
 
   // --- STAFF LEAVE WORKFLOW ---
   const submitLeaveRequest = ({ staffId, staffName, staffRole, branchId, leaveType, reason, startDate, endDate }) => {
-    const user = currentUser;
-    const targetId = staffId || user?.id || 'usr-sg-3';
-    const targetName = staffName || user?.name || 'Chef Anita Rao';
-    const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
-    const targetBranch = branches.find(b => b.id === targetBranchId);
+    const user = (staffId ? branchStaff.find(s => s.id === staffId) : null) || currentUser;
+    if (!user) {
+      addToast('No authenticated employee to submit leave request.', 'error');
+      return null;
+    }
+    const targetId = user.id;
+    const targetName = staffName || user.name;
+    const targetRole = staffRole || user.roleLabel || user.role;
+    const targetRestId = user.restaurantId || currentUser?.restaurantId || currentRestaurantId;
+    const tenantBranches = branches.filter(b => b.restaurantId === targetRestId);
+    const targetBranchId = branchId || user.branchId || currentBranchId || tenantBranches[0]?.id;
+    const targetBranch = tenantBranches.find(b => b.id === targetBranchId) || branches.find(b => b.id === targetBranchId);
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -4229,8 +4389,8 @@ export const AppProvider = ({ children }) => {
       staffRole: targetRole,
       staffAvatar: user?.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
       branchId: targetBranchId,
-      branchName: targetBranch?.name || 'Spice Garden — Pune Central',
-      restaurantId: currentRestaurantId,
+      branchName: targetBranch?.name || 'Primary Branch',
+      restaurantId: targetRestId,
       leaveType: leaveType || 'Casual Leave',
       reason: reason || 'Personal urgent leave',
       startDate,
@@ -4248,6 +4408,7 @@ export const AppProvider = ({ children }) => {
     // In-App Manager Notification
     const managerNotif = {
       id: `notif-leave-${Date.now()}`,
+      restaurantId: targetRestId,
       type: 'leave_request',
       title: `New Leave Request: ${targetName}`,
       message: `${targetName} (${targetRole}) requested ${durationDays} days leave (${startDate} to ${endDate}) for: "${reason}".`,
@@ -4265,7 +4426,9 @@ export const AppProvider = ({ children }) => {
     // Staff in-app notification (marked read for applicant)
     const staffNotif = {
       id: `snotif-${Date.now()}`,
+      restaurantId: targetRestId,
       targetStaffId: targetId,
+      targetUserId: targetId,
       type: 'leave_status',
       title: 'Leave Request Submitted',
       message: `Your leave request for ${startDate} – ${endDate} (${durationDays} days) has been dispatched to the Manager for approval.`,
@@ -4426,45 +4589,545 @@ export const AppProvider = ({ children }) => {
   // --- HOLIDAY MANAGEMENT ---
   const addHoliday = (holidayData) => {
     if (!holidayData.name || !holidayData.date) {
-      addToast('Holiday name and date are required.', 'error');
+      addToast('Holiday name and scheduled date are required.', 'error');
       return null;
     }
-    // Check duplicate date for same scope
-    const existing = holidays.find(h => 
+
+    const targetBranchId = holidayData.branchId || currentBranchId;
+    const targetScope = holidayData.scope || 'all'; // 'all' | 'department' | 'employees'
+    const targetDept = holidayData.department || '';
+    const selectedEmpIds = Array.isArray(holidayData.selectedEmployeeIds) ? holidayData.selectedEmployeeIds : [];
+
+    // Duplicate check on date
+    const existing = (holidays || []).find(h => 
       h.date === holidayData.date && 
       h.restaurantId === currentRestaurantId &&
-      (h.scope === 'all' || holidayData.scope === 'all' || h.branchId === holidayData.branchId)
+      (h.scope === 'all' || targetScope === 'all' || h.branchId === targetBranchId) &&
+      (!h.department || !targetDept || h.department.toLowerCase() === targetDept.toLowerCase())
     );
     if (existing) {
-      addToast(`A holiday ("${existing.name}") is already scheduled for ${holidayData.date}.`, 'warning');
+      addToast(`Conflict: Holiday "${existing.name}" is already scheduled for ${holidayData.date}.`, 'warning');
       return null;
     }
+
+    // Determine affected staff members
+    const eligibleBranchStaff = (branchStaff || []).filter(s => {
+      if (s.status === 'Terminated') return false;
+      if (targetScope === 'all') return true;
+      if (targetScope === 'department') {
+        const dept = (s.department || s.roleLabel || s.role || '').toLowerCase();
+        return dept.includes(targetDept.toLowerCase());
+      }
+      if (targetScope === 'employees') {
+        return selectedEmpIds.includes(s.id);
+      }
+      return true;
+    });
 
     const newHol = {
       id: `hol-${Date.now()}`,
       name: holidayData.name.trim(),
       date: holidayData.date,
-      type: holidayData.type || 'Festival',
-      scope: holidayData.scope || 'all',
-      branchId: holidayData.scope === 'all' ? null : (holidayData.branchId || currentBranchId),
+      endDate: holidayData.endDate || holidayData.date,
+      type: holidayData.type || 'Public Holiday', // 'Public Holiday' | 'Festival Holiday' | 'Weekly Off' | 'Restaurant Closure' | 'Special Holiday'
+      scope: targetScope,
+      department: targetDept,
+      selectedEmployeeIds: selectedEmpIds,
+      payType: holidayData.payType || 'paid', // 'paid' | 'unpaid'
+      branchId: targetScope === 'all' ? (holidayData.branchId || null) : targetBranchId,
       restaurantId: currentRestaurantId,
       description: holidayData.description || 'Official restaurant holiday',
+      notifyOption: holidayData.notifyOption || 'immediate', // 'immediate' | 'scheduled_eve' | 'none'
+      affectedEmployeesCount: eligibleBranchStaff.length,
       createdBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
       createdAt: new Date().toISOString(),
     };
+
     setHolidays(prev => [...prev, newHol]);
-    addToast(`Holiday "${newHol.name}" scheduled for ${newHol.date}.`, 'success');
+
+    // Dispatch automatic in-app staff notifications if notifyOption !== 'none'
+    if (holidayData.notifyOption !== 'none' && eligibleBranchStaff.length > 0) {
+      const holidayDateObj = new Date(holidayData.date);
+      const todayObj = new Date('2026-10-28T00:00:00Z'); // baseline demo date
+      const diffDays = Math.round((holidayDateObj - todayObj) / (1000 * 60 * 60 * 24));
+      const isTomorrow = diffDays === 1;
+
+      const restName = currentRestaurant?.name || 'Spice Garden';
+      const formattedDate = new Date(holidayData.date).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const newNotifs = eligibleBranchStaff.map(emp => ({
+        id: `snotif-hol-${Date.now()}-${emp.id}`,
+        targetStaffId: emp.id,
+        type: 'holiday_notice',
+        holidayId: newHol.id,
+        title: isTomorrow
+          ? `🎉 Tomorrow is a Holiday: ${newHol.name}!`
+          : `🎉 Upcoming Holiday: ${newHol.name}`,
+        message: `${restName} will observe ${newHol.name} on ${formattedDate}. Classification: ${newHol.payType === 'paid' ? 'Paid Holiday' : 'Unpaid Restaurant Closure'}. ${newHol.description || 'Please check the holiday calendar for details.'}`,
+        holidayDate: newHol.date,
+        holidayName: newHol.name,
+        payType: newHol.payType,
+        restaurantName: restName,
+        timestamp: 'Just now',
+        read: false,
+      }));
+
+      setStaffNotifications(prev => [...newNotifs, ...prev]);
+
+      // Owner notification record
+      const ownerNotif = {
+        id: `notif-hol-dispatch-${Date.now()}`,
+        type: 'holiday_notice',
+        title: `Holiday Scheduled: ${newHol.name}`,
+        message: `${newHol.name} scheduled for ${formattedDate}. Automatic notification dispatched to ${eligibleBranchStaff.length} affected staff member(s).`,
+        branchId: targetBranchId,
+        read: false,
+        timestamp: 'Just now',
+        actionLink: '/workforce?tab=calendar',
+        actionLabel: 'View Calendar',
+        badge: 'Holiday',
+      };
+      setOwnerNotifications(prev => [ownerNotif, ...prev]);
+    }
+
+    addToast(`Holiday "${newHol.name}" scheduled! ${eligibleBranchStaff.length} employee(s) notified.`, 'success');
     return newHol;
   };
 
   const updateHoliday = (holidayId, updatedData) => {
-    setHolidays(prev => prev.map(h => h.id === holidayId ? { ...h, ...updatedData, modifiedBy: currentUser?.name, modifiedAt: new Date().toISOString() } : h));
-    addToast('Holiday details updated successfully.', 'success');
+    const existing = (holidays || []).find(h => h.id === holidayId);
+    if (!existing) return false;
+
+    // Payroll lock guard: Check if holiday's month has an approved & locked payroll run
+    const holMonthKey = existing.date ? existing.date.slice(0, 7) : '';
+    const isLocked = (monthlyPayrollRuns || []).some(run => run.locked && run.monthKey === holMonthKey);
+    if (isLocked) {
+      addToast(`Cannot modify holiday: Payroll period for ${holMonthKey} is Approved & Locked against alterations.`, 'error');
+      return false;
+    }
+
+    setHolidays(prev => prev.map(h => h.id === holidayId ? {
+      ...h,
+      ...updatedData,
+      modifiedBy: currentUser?.name || 'Manager',
+      modifiedAt: new Date().toISOString(),
+    } : h));
+
+    // Notify affected staff of updated date/schedule
+    const eligibleStaff = (branchStaff || []).filter(s => {
+      if (existing.scope === 'all') return true;
+      if (existing.scope === 'department') return (s.department || '').toLowerCase().includes((existing.department || '').toLowerCase());
+      if (existing.scope === 'employees') return (existing.selectedEmployeeIds || []).includes(s.id);
+      return true;
+    });
+
+    if (eligibleStaff.length > 0) {
+      const updateNotifs = eligibleStaff.map(emp => ({
+        id: `snotif-hol-update-${Date.now()}-${emp.id}`,
+        targetStaffId: emp.id,
+        type: 'holiday_notice',
+        holidayId: existing.id,
+        title: `📢 Holiday Schedule Updated: ${updatedData.name || existing.name}`,
+        message: `Schedule for ${updatedData.name || existing.name} was updated to ${updatedData.date || existing.date}. Please check the updated calendar.`,
+        timestamp: 'Just now',
+        read: false,
+      }));
+      setStaffNotifications(prev => [...updateNotifs, ...prev]);
+    }
+
+    addToast('Holiday details updated and affected staff notified.', 'success');
+    return true;
   };
 
   const deleteHoliday = (holidayId) => {
+    const existing = (holidays || []).find(h => h.id === holidayId);
+    if (!existing) return false;
+
+    // Payroll lock guard
+    const holMonthKey = existing.date ? existing.date.slice(0, 7) : '';
+    const isLocked = (monthlyPayrollRuns || []).some(run => run.locked && run.monthKey === holMonthKey);
+    if (isLocked) {
+      addToast(`Cannot cancel holiday: Payroll period for ${holMonthKey} is Approved & Locked.`, 'error');
+      return false;
+    }
+
     setHolidays(prev => prev.filter(h => h.id !== holidayId));
-    addToast('Holiday removed from calendar.', 'info');
+
+    // Send cancellation notice to affected staff
+    const eligibleStaff = (branchStaff || []).filter(s => {
+      if (existing.scope === 'all') return true;
+      if (existing.scope === 'department') return (s.department || '').toLowerCase().includes((existing.department || '').toLowerCase());
+      if (existing.scope === 'employees') return (existing.selectedEmployeeIds || []).includes(s.id);
+      return true;
+    });
+
+    if (eligibleStaff.length > 0) {
+      const cancelNotifs = eligibleStaff.map(emp => ({
+        id: `snotif-hol-cancel-${Date.now()}-${emp.id}`,
+        targetStaffId: emp.id,
+        type: 'holiday_cancelled',
+        holidayId: existing.id,
+        title: `📢 Holiday Cancelled: ${existing.name}`,
+        message: `The scheduled holiday on ${existing.date} (${existing.name}) was cancelled by ${currentUser?.name || 'Manager'}. Regular shifts and duties resume.`,
+        timestamp: 'Just now',
+        read: false,
+      }));
+      setStaffNotifications(prev => [...cancelNotifs, ...prev]);
+    }
+
+    addToast(`Holiday "${existing.name}" cancelled. Affected staff notified.`, 'info');
+    return true;
+  };
+
+  // --- AUTOMATIC ATTENDANCE-BASED SALARY CALCULATOR ---
+  const updatePayrollConfig = (newConfig) => {
+    setPayrollConfig(prev => ({ ...prev, ...newConfig }));
+    addToast('Payroll calculation policy updated successfully.', 'success');
+  };
+
+  const calculateMonthlyPayroll = (payPeriod = 'October 2026', configOverride = null) => {
+    const config = { ...payrollConfig, ...(configOverride || {}) };
+    
+    // Parse month & year from payPeriod (e.g., 'October 2026')
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const parts = payPeriod.split(' ');
+    const monthIndex = monthNames.findIndex(m => m === (parts[0] || '').toLowerCase());
+    const year = Number(parts[1]) || 2026;
+    const validMonth = monthIndex >= 0 ? monthIndex : 9; // default 9 (Oct)
+    const monthKey = `${year}-${(validMonth + 1).toString().padStart(2, '0')}`;
+    const daysInMonth = new Date(year, validMonth + 1, 0).getDate();
+
+    const divisor = config.payrollDivisor === 'actual_days' ? daysInMonth : Number(config.payrollDivisor || 30);
+
+    // Active branch staff
+    const activeStaff = (branchStaff || []).filter(s => s.status !== 'Terminated');
+
+    // Applicable holidays in this month
+    const monthHolidays = (holidays || []).filter(h => {
+      if (!h.date) return false;
+      const hDate = new Date(h.date);
+      return hDate.getFullYear() === year && hDate.getMonth() === validMonth;
+    });
+
+    // Approved leaves in this month
+    const monthApprovedLeaves = (leaveRequests || []).filter(l => {
+      if (l.status !== 'approved') return false;
+      const lStart = new Date(l.startDate);
+      const lEnd = new Date(l.endDate);
+      const mStart = new Date(year, validMonth, 1);
+      const mEnd = new Date(year, validMonth, daysInMonth);
+      return lStart <= mEnd && lEnd >= mStart;
+    });
+
+    const entries = activeStaff.map(staff => {
+      const salaryProfile = STAFF_SALARY_PROFILES?.[staff.id] || {};
+      const baseSalary = Number(salaryProfile.baseSalary || staff.baseSalary || 32000);
+      const dailyRate = Math.round(baseSalary / divisor);
+
+      // Staff specific records
+      const staffRecords = (attendanceRecords || []).filter(r => r.staffId === staff.id);
+      const staffApprovedLeaves = monthApprovedLeaves.filter(l => l.staffId === staff.id);
+
+      let attendedFullDays = 0;
+      let attendedHalfDays = 0;
+      let paidHolidayDays = 0;
+      let paidLeaveDays = 0;
+      let unpaidLeaveDays = 0;
+      let weeklyOffDays = 0;
+      let absentDays = 0;
+      let totalOvertimeHours = 0;
+
+      // Day-by-day non-double-counting evaluation
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${(validMonth + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+        const dateObj = new Date(year, validMonth, d);
+        const dayOfWeek = dateObj.getDay(); // 0 = Sun
+        const isSunday = dayOfWeek === 0;
+
+        // 1. Check Attendance Record
+        const record = staffRecords.find(r => r.date === dateStr);
+        if (record && (record.attendanceStatus === 'present' || record.totalHours >= 6)) {
+          attendedFullDays++;
+          if (record.totalHours > 8) {
+            totalOvertimeHours += Math.min(4, Math.round(record.totalHours - 8));
+          }
+          continue;
+        }
+        if (record && (record.attendanceStatus === 'half_day' || (record.totalHours >= 3 && record.totalHours < 6))) {
+          attendedHalfDays++;
+          continue;
+        }
+
+        // 2. Check Holiday (Applicable to staff scope & paid)
+        const holiday = monthHolidays.find(h => {
+          if (h.date !== dateStr) return false;
+          if (h.scope === 'all') return true;
+          if (h.scope === 'department' && h.department) {
+            const sDept = (staff.department || staff.roleLabel || '').toLowerCase();
+            return sDept.includes(h.department.toLowerCase());
+          }
+          if (h.scope === 'employees' && Array.isArray(h.selectedEmployeeIds)) {
+            return h.selectedEmployeeIds.includes(staff.id);
+          }
+          return false;
+        });
+
+        if (holiday) {
+          if (holiday.payType !== 'unpaid') {
+            paidHolidayDays++;
+          }
+          continue;
+        }
+
+        // 3. Check Approved Leave
+        const leave = staffApprovedLeaves.find(l => dateStr >= l.startDate && dateStr <= l.endDate);
+        if (leave) {
+          if (leave.leaveType === 'Unpaid Leave') {
+            unpaidLeaveDays++;
+          } else {
+            paidLeaveDays++;
+          }
+          continue;
+        }
+
+        // 4. Check Weekly Off (Sunday)
+        if (isSunday) {
+          if (config.countWeeklyOffs) {
+            weeklyOffDays++;
+          }
+          continue;
+        }
+
+        // 5. If date is past demo active date (e.g. 2026-10-24) or unrecorded, treat as absent / unpaid
+        if (dateStr <= '2026-10-24') {
+          absentDays++;
+        }
+      }
+
+      const attendedDaysEquivalent = attendedFullDays + (attendedHalfDays * (config.halfDayPayRate || 0.5));
+      const rawPayable = attendedDaysEquivalent + 
+        (config.countPaidHolidays ? paidHolidayDays : 0) + 
+        (config.countWeeklyOffs ? weeklyOffDays : 0) + 
+        (config.countApprovedPaidLeave ? paidLeaveDays : 0);
+
+      // Capped payable days
+      const payableDays = Math.min(divisor, Math.round(rawPayable * 10) / 10);
+      const attendanceBasePay = Math.round(dailyRate * payableDays);
+      const overtimePay = Math.round(totalOvertimeHours * (config.overtimeHourlyRate || 150));
+      const allowances = 0;
+      const otherDeductions = 0;
+      const netPayableSalary = Math.max(0, attendanceBasePay + overtimePay + allowances - otherDeductions);
+
+      return {
+        staffId: staff.id,
+        staffName: staff.name,
+        staffRole: staff.roleLabel || staff.role,
+        department: salaryProfile.department || staff.department || 'Kitchen',
+        avatar: staff.avatar,
+        baseSalary,
+        dailyRate,
+        divisor,
+        daysInMonth,
+        attendedFullDays,
+        attendedHalfDays,
+        attendedDaysEquivalent,
+        paidHolidayDays,
+        paidLeaveDays,
+        weeklyOffDays,
+        payableDays,
+        unpaidLeaveDays,
+        absentDays,
+        overtimeHours: totalOvertimeHours,
+        overtimePay,
+        allowances,
+        deductions: otherDeductions,
+        netPayableSalary,
+        status: 'Calculated', // 'Calculated' | 'Approved' | 'Disbursed'
+        bankAccount: salaryProfile.bankAccount || staff.bankAccount || 'HDFC Bank •••• 4421',
+        ifsc: salaryProfile.ifsc || staff.ifsc || 'HDFC0001244',
+        pan: salaryProfile.pan || 'ABCPA1234D',
+        bankStatus: staff.bankStatus || 'Verified',
+        calculatedAt: new Date().toISOString(),
+      };
+    });
+
+    const totalBaseSalary = entries.reduce((sum, e) => sum + e.baseSalary, 0);
+    const totalPayable = entries.reduce((sum, e) => sum + e.netPayableSalary, 0);
+
+    const newRun = {
+      id: `payroll-${monthKey}`,
+      payPeriod,
+      monthKey,
+      restaurantId: currentRestaurantId,
+      branchId: currentBranchId,
+      status: 'Calculated',
+      locked: false,
+      calculatedAt: new Date().toISOString(),
+      approvedAt: null,
+      approvedBy: null,
+      disbursedAt: null,
+      totalBaseSalary,
+      totalPayable,
+      totalEmployees: entries.length,
+      divisorUsed: divisor,
+      entries,
+    };
+
+    setMonthlyPayrollRuns(prev => {
+      const idx = prev.findIndex(r => r.monthKey === monthKey);
+      if (idx !== -1) {
+        const updated = [...prev];
+        updated[idx] = newRun;
+        return updated;
+      }
+      return [newRun, ...prev];
+    });
+
+    addToast(`Automated salary calculation complete for ${payPeriod} (${entries.length} staff processed).`, 'success');
+    return newRun;
+  };
+
+  const approveMonthlyPayroll = (monthKey) => {
+    const run = (monthlyPayrollRuns || []).find(r => r.monthKey === monthKey);
+    if (!run) return false;
+
+    // Bank verification check
+    const unverifiedStaff = run.entries.filter(e => (e.bankStatus || '').toLowerCase() !== 'verified');
+    if (unverifiedStaff.length > 0) {
+      addToast(`Notice: ${unverifiedStaff.length} employee(s) have unverified bank details. Please verify their accounts before disbursement.`, 'warning');
+    }
+
+    const now = new Date().toISOString();
+    setMonthlyPayrollRuns(prev => prev.map(r => {
+      if (r.monthKey === monthKey) {
+        return {
+          ...r,
+          status: 'Approved',
+          locked: true,
+          approvedAt: now,
+          approvedBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+          entries: r.entries.map(e => ({ ...e, status: e.status === 'Disbursed' ? 'Disbursed' : 'Approved' })),
+        };
+      }
+      return r;
+    }));
+
+    addToast(`Payroll for ${run.payPeriod} approved and locked against alterations.`, 'success');
+    return true;
+  };
+
+  const disburseMonthlyPayroll = (monthKey, targetStaffId = null, paymentNotes = '') => {
+    const run = (monthlyPayrollRuns || []).find(r => r.monthKey === monthKey);
+    if (!run) return false;
+
+    const entriesToDisburse = targetStaffId
+      ? run.entries.filter(e => e.staffId === targetStaffId && e.status !== 'Disbursed')
+      : run.entries.filter(e => e.status !== 'Disbursed');
+
+    if (entriesToDisburse.length === 0) {
+      addToast('No eligible entries to disburse (all already disbursed or none found).', 'info');
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const newPayments = [];
+    const newStaffNotifs = [];
+
+    entriesToDisburse.forEach(entry => {
+      const refNum = `UTR-SAL-${entry.monthKey ? entry.monthKey.replace('-', '') : '202610'}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const paymentRecord = {
+        id: `sal-${Date.now()}-${entry.staffId}`,
+        staffId: entry.staffId,
+        staffName: entry.staffName,
+        staffRole: entry.staffRole,
+        staffAvatar: entry.avatar || 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150',
+        branchId: run.branchId || currentBranchId,
+        branchName: currentBranch?.name || 'Spice Garden — Pune Central',
+        restaurantId: currentRestaurantId,
+        payPeriod: run.payPeriod,
+        amount: entry.netPayableSalary,
+        baseSalary: entry.baseSalary,
+        bonus: entry.overtimePay || 0,
+        deductions: entry.deductions || 0,
+        paymentMethod: 'Direct Bank Transfer (IMPS/NEFT)',
+        referenceNumber: refNum,
+        status: 'Credited',
+        processedBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+        processedAt: now,
+        notes: paymentNotes || `Attendance-based salary for ${run.payPeriod} credited to ${entry.bankAccount}. Payable days: ${entry.payableDays}d.`,
+        viewed: false,
+      };
+      newPayments.push(paymentRecord);
+
+      // In-app employee notification
+      newStaffNotifs.push({
+        id: `snotif-sal-${Date.now()}-${entry.staffId}`,
+        targetStaffId: entry.staffId,
+        type: 'salary_credit',
+        title: `🎉 ${run.payPeriod} Salary Credited: ₹${entry.netPayableSalary.toLocaleString('en-IN')}`,
+        message: `Your attendance-based salary of ₹${entry.netPayableSalary.toLocaleString('en-IN')} for ${run.payPeriod} has been credited to your account (${entry.bankAccount}). UTR: ${refNum}. Attended & payable days: ${entry.payableDays}/${entry.divisor} days.`,
+        amount: entry.netPayableSalary,
+        payPeriod: run.payPeriod,
+        referenceNumber: refNum,
+        timestamp: 'Just now',
+        read: false,
+        paymentId: paymentRecord.id,
+      });
+    });
+
+    setSalaryPayments(prev => [...newPayments, ...prev]);
+    setStaffNotifications(prev => [...newStaffNotifs, ...prev]);
+
+    // Update run entries to Disbursed
+    setMonthlyPayrollRuns(prev => prev.map(r => {
+      if (r.monthKey === monthKey) {
+        const updatedEntries = r.entries.map(e => {
+          if (!targetStaffId || e.staffId === targetStaffId) {
+            return {
+              ...e,
+              status: 'Disbursed',
+              referenceNumber: newPayments.find(p => p.staffId === e.staffId)?.referenceNumber || `UTR-${Date.now()}`,
+              disbursedAt: now,
+            };
+          }
+          return e;
+        });
+        const allDisbursed = updatedEntries.every(e => e.status === 'Disbursed');
+        return {
+          ...r,
+          status: allDisbursed ? 'Disbursed' : r.status,
+          disbursedAt: allDisbursed ? now : r.disbursedAt,
+          entries: updatedEntries,
+        };
+      }
+      return r;
+    }));
+
+    addToast(`Successfully disbursed remuneration for ${entriesToDisburse.length} employee(s)! Slips and notifications dispatched.`, 'success');
+    return true;
+  };
+
+  const reopenPayrollRun = (monthKey, reason = '') => {
+    setMonthlyPayrollRuns(prev => prev.map(r => {
+      if (r.monthKey === monthKey) {
+        return {
+          ...r,
+          status: 'Calculated',
+          locked: false,
+          reopenedBy: currentUser?.name || 'Manager',
+          reopenedAt: new Date().toISOString(),
+          reopenReason: reason || 'Adjustment of attendance records or holiday schedule',
+        };
+      }
+      return r;
+    }));
+    addToast(`Payroll for ${monthKey} reopened for adjustments.`, 'info');
+    return true;
   };
 
   // --- SALARY & PAYROLL NOTIFICATIONS ---
@@ -5719,6 +6382,15 @@ export const AppProvider = ({ children }) => {
         processSalaryPayment,
         markStaffNotificationRead,
         markAllStaffNotificationsRead,
+
+        // Automatic Attendance-Based Salary Calculator & Payroll
+        payrollConfig,
+        updatePayrollConfig,
+        monthlyPayrollRuns,
+        calculateMonthlyPayroll,
+        approveMonthlyPayroll,
+        disburseMonthlyPayroll,
+        reopenPayrollRun,
 
         // Custom Subscription Plan & Rule-Based Approval Engine
         customPlanRequests,

@@ -652,6 +652,7 @@ export const initialBranchStaff = [
 export const initialStaffTransfers = [
   {
     id: 'TR-101',
+    restaurantId: 'rest-1',
     employeeId: 'usr-sg-3',
     employeeName: 'Chef Anita Rao',
     employeeAvatar: 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150&auto=format&fit=crop&q=80',
@@ -673,6 +674,7 @@ export const initialStaffTransfers = [
   },
   {
     id: 'TR-102',
+    restaurantId: 'rest-1',
     employeeId: 'usr-hinj-cook',
     employeeName: 'Chef Rohan Jadhav',
     employeeAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
@@ -697,6 +699,7 @@ export const initialStaffTransfers = [
   },
   {
     id: 'TR-103',
+    restaurantId: 'rest-1',
     employeeId: 'usr-wakad-cook',
     employeeName: 'Chef Sameer More',
     employeeAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
@@ -725,6 +728,7 @@ export const initialStaffTransfers = [
 export const initialOwnerNotifications = [
   {
     id: 'notif-1',
+    restaurantId: 'rest-1',
     type: 'renewal_upcoming',
     title: 'Subscription Renewal in 7 Days',
     message: 'Upcoming subscription renewal for Spice Garden — Pune Central.',
@@ -741,6 +745,7 @@ export const initialOwnerNotifications = [
   },
   {
     id: 'notif-2',
+    restaurantId: 'rest-1',
     type: 'transfer_request',
     title: 'Staff Transfer Request: Chef Anita Rao',
     message: 'Deepak Shinde requested transfer of Chef Anita Rao from Pune Central to Hinjawadi.',
@@ -755,6 +760,7 @@ export const initialOwnerNotifications = [
   },
   {
     id: 'notif-3',
+    restaurantId: 'rest-1',
     type: 'payment_success',
     title: 'Subscription Payment Cleared',
     message: 'Annual subscription fee of ₹24,999 successfully settled for Spice Garden — Baner.',
@@ -771,6 +777,7 @@ export const initialOwnerNotifications = [
   },
   {
     id: 'notif-4',
+    restaurantId: 'rest-1',
     type: 'plan_upgrade',
     title: 'Branch Plan Upgraded to Enterprise',
     message: 'Spice Garden — Mumbai Seaface successfully activated the Enterprise Annual Plan.',
@@ -785,6 +792,7 @@ export const initialOwnerNotifications = [
   },
   {
     id: 'notif-5',
+    restaurantId: 'rest-1',
     type: 'payment_pending',
     title: 'Payment Mandate Pending',
     message: 'Monthly UPI AutoPay mandate pending for Spice Garden — Hinjawadi renewal.',

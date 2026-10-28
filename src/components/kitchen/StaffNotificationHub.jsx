@@ -26,7 +26,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
     markAllStaffNotificationsRead,
   } = useApp();
 
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'salary' | 'leave'
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'salary' | 'leave' | 'holiday'
 
   // Notifications targeted at this staff member
   const myNotifications = staffNotifications.filter(
@@ -38,6 +38,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
   const filteredNotifs = myNotifications.filter((n) => {
     if (filterType === 'salary') return n.type === 'salary_credit';
     if (filterType === 'leave') return n.type === 'leave_status';
+    if (filterType === 'holiday') return n.type === 'holiday_notice' || n.type === 'holiday_cancelled';
     return true;
   });
 
@@ -121,6 +122,19 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
           <Calendar className="w-3.5 h-3.5" />
           <span>Leave Updates</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterType('holiday')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            filterType === 'holiday'
+              ? 'bg-[#075E4B] text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Holidays &amp; Offs</span>
+        </button>
       </div>
 
       {/* Notifications List */}
@@ -137,6 +151,8 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
           filteredNotifs.map((notif) => {
             const isSalary = notif.type === 'salary_credit';
             const isLeave = notif.type === 'leave_status';
+            const isHoliday = notif.type === 'holiday_notice';
+            const isHolidayCancel = notif.type === 'holiday_cancelled';
 
             return (
               <div
@@ -145,7 +161,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                 title={!notif.read ? 'Click anywhere on this notice to mark as read' : undefined}
                 className={`p-4 sm:p-5 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                   !notif.read
-                    ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-l-4 border-l-emerald-600'
+                    ? 'bg-emerald-50/40 hover:bg-emerald-50/70 border-l-4 border-l-[#075E4B]'
                     : 'hover:bg-slate-50/80'
                 }`}
               >
@@ -154,6 +170,10 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                     className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${
                       isSalary
                         ? 'bg-emerald-600 text-white'
+                        : isHoliday
+                        ? 'bg-[#075E4B] text-white shadow-xs'
+                        : isHolidayCancel
+                        ? 'bg-[#DC2626] text-white'
                         : notif.status === 'approved'
                         ? 'bg-teal-600 text-white'
                         : notif.status === 'rejected'
@@ -165,6 +185,8 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                       <IndianRupee className="w-5 h-5" />
                     ) : isLeave ? (
                       <Calendar className="w-5 h-5" />
+                    ) : isHoliday ? (
+                      <Sparkles className="w-5 h-5" />
                     ) : (
                       <Megaphone className="w-5 h-5" />
                     )}

@@ -161,7 +161,7 @@ export const MonthlyAttendanceCalendar = ({
       // Determine final status
       let status = 'absent';
       if (holiday) {
-        status = 'holiday';
+        status = holiday.payType === 'unpaid' ? 'unpaid_holiday' : 'holiday';
       } else if (approvedLeave) {
         status = 'on_leave';
       } else if (record) {
@@ -270,7 +270,12 @@ export const MonthlyAttendanceCalendar = ({
     holiday: {
       bg: 'bg-purple-50 text-purple-900 border-purple-200/90 hover:bg-purple-100',
       pill: 'bg-purple-600 text-white',
-      label: 'Holiday',
+      label: 'Paid Holiday',
+    },
+    unpaid_holiday: {
+      bg: 'bg-amber-50 text-amber-900 border-amber-200/90 hover:bg-amber-100',
+      pill: 'bg-amber-600 text-white',
+      label: 'Unpaid Closure',
     },
     weekly_off: {
       bg: 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100',
@@ -478,8 +483,15 @@ export const MonthlyAttendanceCalendar = ({
                 {/* Body Content */}
                 <div className="space-y-1 w-full my-auto">
                   {day.holiday ? (
-                    <div className="text-[10px] font-bold text-purple-900 truncate bg-purple-100/90 px-1.5 py-0.5 rounded-md" title={day.holiday.name}>
-                      🎉 {day.holiday.name}
+                    <div
+                      className={`text-[10px] font-bold truncate px-1.5 py-0.5 rounded-md ${
+                        day.holiday.payType === 'unpaid'
+                          ? 'text-amber-950 bg-amber-100 border border-amber-200'
+                          : 'text-purple-900 bg-purple-100/90'
+                      }`}
+                      title={`${day.holiday.name} (${day.holiday.payType === 'unpaid' ? 'Unpaid Closure' : 'Paid Holiday'})`}
+                    >
+                      🎉 {day.holiday.name} {day.holiday.payType === 'unpaid' ? '(Unpaid)' : ''}
                     </div>
                   ) : day.approvedLeave ? (
                     <div className="text-[10px] font-bold text-blue-900 truncate bg-blue-100/90 px-1.5 py-0.5 rounded-md" title={day.approvedLeave.reason}>
