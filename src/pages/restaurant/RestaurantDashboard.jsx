@@ -10,7 +10,6 @@ import {
   XCircle,
   IndianRupee,
   TrendingUp,
-  Plus,
   Scale,
   ShoppingBag,
   ArrowRight,
@@ -123,14 +122,6 @@ export const RestaurantDashboard = () => {
             >
               Purchase Orders ({activePendingOrders.length})
             </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
-              onClick={() => navigate('/inventory?action=add')}
-            >
-              Add Ingredient
-            </Button>
           </div>
         }
       />
@@ -162,7 +153,7 @@ export const RestaurantDashboard = () => {
             >
               View Alerts
             </Button>
-            {currentUser?.role !== 'restaurant_manager' && (
+            {currentUser?.role !== 'restaurant_manager' && currentUser?.role !== 'restaurant_owner' && (
               <Button
                 variant="primary"
                 size="xs"
@@ -433,7 +424,7 @@ export const RestaurantDashboard = () => {
                         Current: <span className="font-bold text-slate-800">{ing.quantity} {ing.unit}</span> (Min: {ing.minThreshold} {ing.unit}) • {ing.supplierName}
                       </div>
                     </div>
-                    {currentUser?.role !== 'restaurant_manager' && (
+                    {currentUser?.role !== 'restaurant_manager' && currentUser?.role !== 'restaurant_owner' && (
                       <Button
                         variant="primary"
                         size="xs"
