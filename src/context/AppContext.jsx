@@ -4921,6 +4921,20 @@ export const AppProvider = ({ children }) => {
       if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
+  }, [supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
+
+  const branchSupplierPayments = useMemo(() => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierPayments || []).filter((pay) => {
+        return (activeSupId && pay.supplierId === activeSupId) || (activeSupName && pay.supplierName === activeSupName);
+      });
+    }
+    return (supplierPayments || []).filter((pay) => {
+      if (pay.restaurantId && pay.restaurantId !== currentRestaurantId) return false;
+      return true;
+    });
   }, [supplierPayments, currentRestaurantId, currentUser]);
 
   const branchOwnerNotifications = useMemo(() => {
