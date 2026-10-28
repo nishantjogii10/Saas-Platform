@@ -4921,7 +4921,22 @@ export const AppProvider = ({ children }) => {
       if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
-  }, [supplierPayments, currentRestaurantId, currentUser]);
+  }, [supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
+
+  const branchSupplierPayments = useMemo(() => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierPayments || []).filter((p) => {
+        return (activeSupId && p.supplierId === activeSupId) || (activeSupName && p.supplierName === activeSupName);
+      });
+    }
+    return (supplierPayments || []).filter((p) => {
+      if (p.restaurantId && p.restaurantId !== currentRestaurantId) return false;
+      if (currentBranchId && currentBranchId !== 'all' && p.branchId) return p.branchId === currentBranchId;
+      return true;
+    });
+  }, [supplierPayments, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchOwnerNotifications = useMemo(() => {
     return (ownerNotifications || []).filter((n) => {
