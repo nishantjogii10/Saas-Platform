@@ -414,7 +414,6 @@ function App() {
             path="/suppliers"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SuppliersPage />
                 </RoleGuard>
@@ -425,7 +424,6 @@ function App() {
             path="/purchase-orders"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <PurchaseOrdersPage />
                 </RoleGuard>
@@ -475,7 +473,6 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierReturnsPage />
                 </RoleGuard>
@@ -486,7 +483,6 @@ function App() {
             path="/supplier-billing"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierBillingPage />
                 </RoleGuard>

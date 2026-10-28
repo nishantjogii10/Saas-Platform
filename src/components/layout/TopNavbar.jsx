@@ -80,7 +80,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-const roleFilteredAlerts = React.useMemo(() => {
+  const isKitchenStaff = currentUser?.role === 'kitchen_staff';
+
+  const roleFilteredAlerts = React.useMemo(() => {
     return (restaurantAlerts || []).filter(a => {
       if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
         return false;
@@ -89,47 +91,62 @@ const roleFilteredAlerts = React.useMemo(() => {
     });
   }, [restaurantAlerts, currentUser]);
 
-  // Combined notifications for popover
-  const combinedNotifications = useMemo(() => {
-    const alerts = (restaurantAlerts || []).map(a => ({
-      id: a.id,
-      title: a.title,
-      message: a.message,
-      timestamp: a.timestamp,
-      read: a.read,
+  const unreadAlerts = useMemo(() => {
+    return (roleFilteredAlerts || []).filter(a => !a.read);
+  }, [roleFilteredAlerts]);
+
+  const relevantNotifs = useMemo(() => {
+    if (isKitchenStaff) {
+      return (staffNotifications || []).filter(n => !n.targetStaffId || n.targetStaffId === currentUser?.id);
+    }
+    return ownerNotifications || [];
+  }, [isKitchenStaff, staffNotifications, ownerNotifications, currentUser]);
+
+  const relevantUnreadNotifs = useMemo(() => {
+    return relevantNotifs.filter(n => !n.read);
+  }, [relevantNotifs]);
+
+  const totalUnreadCount = unreadAlerts.length + relevantUnreadNotifs.length;
+
+  const combinedItems = useMemo(() => {
+    const alertItems = (roleFilteredAlerts || []).map(a => ({
+      ...a,
+      sourceType: 'alert',
       type: a.type || 'alert',
-      severity: a.severity,
-      actionLink: a.actionLink,
-      action: () => {
-        markAlertRead(a.id);
-        if (a.actionLink) {
-          if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => a.actionLink.startsWith(p))) {
-            navigate('/alerts');
-          } else {
-            navigate(a.actionLink);
-          }
-          setShowNotifications(false);
-        }
-      },
-      link: a.actionLink || '/alerts'
+    }));
+    const noticeItems = (relevantNotifs || []).map(n => ({
+      ...n,
+      sourceType: 'notification',
+      type: n.type || 'notification',
     }));
 
-    const annNotifs = (currentUser?.role === 'restaurant_owner' ? (ownerNotifications || []) : []).filter(n => n.actionLink === '/inbox').map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      timestamp: n.timestamp,
-      read: n.read,
-      type: 'announcement',
-      severity: n.priority === 'urgent' ? 'critical' : 'normal',
-      action: () => {
-        if (n.announcementId && currentRestaurant) {
-          markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
-        }
-        setShowNotifications(false);
-      }
+    let items = [];
+    if (notifTab === 'alerts') {
+      items = alertItems;
+    } else if (notifTab === 'notifications') {
+      items = noticeItems;
     } else {
-      if (isKitchenStaff) {
+      items = [...alertItems, ...noticeItems];
+    }
+
+    return items.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+  }, [roleFilteredAlerts, relevantNotifs, notifTab]);
+
+  const handleItemClick = (item) => {
+    if (item.sourceType === 'alert') {
+      markAlertRead(item.id);
+      if (item.actionLink) {
+        if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => item.actionLink.startsWith(p))) {
+          navigate('/alerts');
+        } else {
+          navigate(item.actionLink);
+        }
+      }
+      setShowNotifications(false);
+    } else {
+      if (item.actionLink === '/inbox' && item.announcementId && currentRestaurant) {
+        markAnnouncementAsRead(item.announcementId, currentRestaurant.id);
+      } else if (isKitchenStaff) {
         markStaffNotificationRead(item.id);
       } else {
         markOwnerNotificationRead(item.id);
@@ -140,8 +157,8 @@ const roleFilteredAlerts = React.useMemo(() => {
         } else {
           navigate(item.actionLink);
         }
-        setShowNotifications(false);
       }
+      setShowNotifications(false);
     }
   };
 
