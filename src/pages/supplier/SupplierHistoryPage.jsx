@@ -19,7 +19,8 @@ export const SupplierHistoryPage = () => {
 
   const completedOrders = purchaseOrders.filter(
     (po) =>
-      po.supplierId === (currentUser.supplierId || 'sup-1') &&
+      ((currentUser?.supplierId && po.supplierId === currentUser.supplierId) ||
+       (currentUser?.supplierName && po.supplierName === currentUser.supplierName)) &&
       (po.status === 'delivered' || po.status === 'cancelled' || po.status === 'rejected')
   );
 
@@ -140,4 +141,5 @@ export const SupplierHistoryPage = () => {
     </div>
   );
 };
+
 

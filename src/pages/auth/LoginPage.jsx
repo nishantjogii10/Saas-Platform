@@ -44,16 +44,16 @@ const ROLE_OPTIONS = [
     label: 'Manager',
     icon: UserCheck,
     placeholder: 'manager@restaurant.com',
-    description: 'Branch Operations, Staff Shifts & Leaves',
-    dashboard: '/dashboard',
+    description: 'Staff Roster, Station Shifts & Leave Management',
+    dashboard: '/workforce',
   },
   {
     id: 'inventory_manager',
     label: 'Inventory Manager',
     icon: Boxes,
     placeholder: 'inventory@restaurant.com',
-    description: 'Physical Goods Receiving, QR Batches & Dock',
-    dashboard: '/goods-receiving',
+    description: 'Inventory Valuation, Stock Alerts & Purchase Orders',
+    dashboard: '/dashboard',
   },
   {
     id: 'kitchen_staff',
@@ -81,8 +81,27 @@ export const LoginPage = () => {
   // Redirect destination after authentication
   const redirectDestination = location.state?.from;
 
-  // Selected Role Hint (Default: Restaurant Owner)
-  const [selectedRole, setSelectedRole] = useState('restaurant_owner');
+  // Selected Role Hint (Default: Restaurant Owner, auto-detects from query/state/from)
+  const [selectedRole, setSelectedRole] = useState(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryRole = searchParams.get('role');
+    if (queryRole && ROLE_OPTIONS.some((r) => r.id === queryRole)) {
+      return queryRole;
+    }
+    if (location.state?.role && ROLE_OPTIONS.some((r) => r.id === location.state.role)) {
+      return location.state.role;
+    }
+    if (location.state?.from && location.state.from.startsWith('/supplier')) {
+      return 'supplier';
+    }
+    if (location.state?.from && location.state.from.startsWith('/kitchen')) {
+      return 'kitchen_staff';
+    }
+    if (location.state?.from && location.state.from.startsWith('/admin')) {
+      return 'super_admin';
+    }
+    return 'restaurant_owner';
+  });
 
   // Form states - empty defaults for security and privacy
   const [email, setEmail] = useState('');
@@ -97,8 +116,40 @@ export const LoginPage = () => {
 
   // Route directly to the authenticated role's dashboard
   const routeToUserDashboard = (role) => {
-    if (redirectDestination && redirectDestination !== '/dashboard') {
-      navigate(redirectDestination);
+    const getRoleDashboard = (r) => {
+      switch (r) {
+        case 'super_admin':
+          return '/admin/dashboard';
+        case 'restaurant_owner':
+        case 'restaurant_manager':
+          return '/dashboard';
+        case 'inventory_manager':
+          return '/goods-receiving';
+        case 'supplier':
+          return '/supplier';
+        case 'kitchen_staff':
+          return '/kitchen';
+        default:
+          return '/dashboard';
+      }
+    };
+
+    const targetDashboard = getRoleDashboard(role);
+
+    // If logging in as manager, staff, or operational roles, ALWAYS redirect directly to their dashboard.
+    // Also prevent redirecting to /notifications, /login, or invalid paths to avoid Access Denied loops.
+    if (
+      role === 'restaurant_manager' ||
+      role === 'kitchen_staff' ||
+      role === 'inventory_manager' ||
+      role === 'supplier' ||
+      !redirectDestination ||
+      redirectDestination === '/notifications' ||
+      redirectDestination === '/dashboard' ||
+      redirectDestination === '/login' ||
+      redirectDestination === '/'
+    ) {
+      navigate(targetDashboard, { replace: true });
       return;
     }
     switch (role) {
@@ -109,10 +160,10 @@ export const LoginPage = () => {
         navigate('/dashboard');
         break;
       case 'restaurant_manager':
-        navigate('/dashboard');
+        navigate('/workforce');
         break;
       case 'inventory_manager':
-        navigate('/goods-receiving');
+        navigate('/dashboard');
         break;
       case 'supplier':
         navigate('/supplier');
@@ -383,14 +434,25 @@ export const LoginPage = () => {
           </form>
 
           {/* Registration CTA (Strictly for Restaurant Owners) */}
-          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400">
-            <span>New restaurant owner? </span>
-            <Link
-              to="/signup"
-              className="font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
-            >
-              Register &amp; Start Free Trial →
-            </Link>
+          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400 space-y-2">
+            <div>
+              <span>New restaurant owner? </span>
+              <Link
+                to="/signup"
+                className="font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Register &amp; Start Free Trial →
+              </Link>
+            </div>
+            <div>
+              <span>Wholesale supplier or producer? </span>
+              <Link
+                to="/supplier-portal"
+                className="font-bold text-teal-400 hover:text-teal-300 transition-colors"
+              >
+                Supplier Portal Login →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

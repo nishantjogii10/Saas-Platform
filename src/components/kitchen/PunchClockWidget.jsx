@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   Check,
   RotateCcw,
+  Coffee,
+  PlayCircle,
+  PauseCircle,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
@@ -31,24 +34,41 @@ export const PunchClockWidget = () => {
     attendanceRecords,
     punchInStaff,
     punchOutStaff,
+    startStaffBreak,
+    endStaffBreak,
     KITCHEN_STATIONS,
   } = useApp();
 
   // Wall clock state
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Determine stations based on role
+  const availableStations =
+    currentUser?.role === 'inventory_manager'
+      ? ['Receiving Dock', 'Cold Storage Ledger', 'Dry Stores Inventory', 'Procurement Desk', 'Quality Audit']
+      : currentUser?.role === 'restaurant_manager'
+      ? ['Floor Operations', 'Staff Briefing & Admin', 'Billing & Dispatch', 'General Management']
+      : (KITCHEN_STATIONS || ['Main Prep Line', 'Curries & Gravies', 'Tandoor & Grill', 'Bakery & Sweets', 'Salads & Cold Prep', 'Sanitation']);
+
   // Form states
-  const [selectedStation, setSelectedStation] = useState(KITCHEN_STATIONS?.[0] || 'Main Prep Line');
+  const [selectedStation, setSelectedStation] = useState(availableStations[0]);
   const [punchNote, setPunchNote] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [punchSuccessFeedback, setPunchSuccessFeedback] = useState(null); // 'in' | 'out' | null
+  const [punchSuccessFeedback, setPunchSuccessFeedback] = useState(null); // 'in' | 'out' | 'break_start' | 'break_end' | null
 
   // Update wall clock every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Update default station if role changes
+  useEffect(() => {
+    if (!selectedStation || !availableStations.includes(selectedStation)) {
+      setSelectedStation(availableStations[0]);
+    }
+  }, [currentUser?.role]);
 
   // Find active punch-in session for current user
   const activeRecord = attendanceRecords.find(
@@ -109,16 +129,16 @@ export const PunchClockWidget = () => {
       punchInStaff({
         staffId: currentUser?.id,
         staffName: currentUser?.name,
-        staffRole: currentUser?.roleLabel || 'Head Chef',
+        staffRole: currentUser?.roleLabel || 'Staff Member',
         branchId: currentBranch?.id,
         station: selectedStation,
-        notes: punchNote || 'Shift clocked in via Kitchen Station',
+        notes: punchNote || 'Shift clocked in via Terminal',
       });
       setIsSubmitting(false);
       setPunchNote('');
       setPunchSuccessFeedback('in');
-      setTimeout(() => setPunchSuccessFeedback(null), 3000);
-    }, 400);
+      setTimeout(() => setPunchSuccessFeedback(null), 3500);
+    }, 300);
   };
 
   const handlePunchOut = () => {
@@ -130,18 +150,49 @@ export const PunchClockWidget = () => {
       setIsSubmitting(false);
       setPunchNote('');
       setPunchSuccessFeedback('out');
-      setTimeout(() => setPunchSuccessFeedback(null), 3000);
-    }, 400);
+      setTimeout(() => setPunchSuccessFeedback(null), 3500);
+    }, 300);
+  };
+
+  const handleTakeBreak = () => {
+    if (!activeRecord) return;
+    setIsSubmitting(true);
+    setTimeout(() => {
+      startStaffBreak(activeRecord.id);
+      setIsSubmitting(false);
+      setPunchSuccessFeedback('break_start');
+      setTimeout(() => setPunchSuccessFeedback(null), 3500);
+    }, 200);
+  };
+
+  const handleResumeShift = () => {
+    if (!activeRecord) return;
+    setIsSubmitting(true);
+    setTimeout(() => {
+      endStaffBreak(activeRecord.id);
+      setIsSubmitting(false);
+      setPunchSuccessFeedback('break_end');
+      setTimeout(() => setPunchSuccessFeedback(null), 3500);
+    }, 200);
   };
 
   // Station Icons / Emojis
   const getStationIcon = (stationName) => {
+    if (!stationName) return '📍';
     if (stationName.includes('Grill') || stationName.includes('Tandoor')) return '🔥';
     if (stationName.includes('Curries') || stationName.includes('Sauté')) return '🍲';
     if (stationName.includes('Bakery') || stationName.includes('Dessert')) return '🍰';
     if (stationName.includes('Pantry') || stationName.includes('Salads')) return '🥗';
     if (stationName.includes('Sanitation')) return '🧼';
-    return '🍳';
+    if (stationName.includes('Receiving') || stationName.includes('Dock')) return '📦';
+    if (stationName.includes('Cold') || stationName.includes('Freeze')) return '❄️';
+    if (stationName.includes('Dry') || stationName.includes('Inventory')) return '📊';
+    if (stationName.includes('Procurement') || stationName.includes('Desk')) return '📋';
+    if (stationName.includes('Floor')) return '🏢';
+    if (stationName.includes('Billing')) return '🧾';
+    if (stationName.includes('Briefing') || stationName.includes('Admin')) return '👔';
+    if (stationName.includes('Management')) return '💼';
+    return '⏱️';
   };
 
   return (
@@ -162,7 +213,9 @@ export const PunchClockWidget = () => {
               }
               alt={currentUser?.name}
               className={`w-13 h-13 rounded-2xl object-cover ring-3 transition-all duration-300 ${
-                activeRecord
+                activeRecord?.isOnBreak
+                  ? 'ring-amber-500 shadow-md shadow-amber-500/30 animate-pulse'
+                  : activeRecord
                   ? 'ring-emerald-500 shadow-md shadow-emerald-500/30 animate-pulse-glow'
                   : 'ring-slate-200'
               }`}
@@ -170,11 +223,15 @@ export const PunchClockWidget = () => {
             {/* Status Indicator Dot */}
             <span
               className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
-                activeRecord ? 'bg-emerald-500' : 'bg-slate-400'
+                activeRecord?.isOnBreak ? 'bg-amber-500' : activeRecord ? 'bg-emerald-500' : 'bg-slate-400'
               }`}
             >
               {activeRecord && (
-                <span className="w-full h-full rounded-full bg-emerald-400 animate-radar" />
+                <span
+                  className={`w-full h-full rounded-full ${
+                    activeRecord.isOnBreak ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 animate-radar'
+                  }`}
+                />
               )}
             </span>
           </div>
@@ -184,7 +241,12 @@ export const PunchClockWidget = () => {
               <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                 {currentUser?.name}
               </h2>
-              {activeRecord ? (
+              {activeRecord?.isOnBreak ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-white shadow-xs shadow-amber-500/40 animate-pulse">
+                  <Coffee className="w-3.5 h-3.5" />
+                  ON BREAK (PAUSED)
+                </span>
+              ) : activeRecord ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-xs shadow-emerald-500/40 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                   ON DUTY (ACTIVE)
@@ -192,12 +254,12 @@ export const PunchClockWidget = () => {
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
                   <span className="w-2 h-2 rounded-full bg-slate-400" />
-                  OFF DUTY (NOT CLOCKED IN)
+                  NOT CLOCKED IN
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-              <span className="font-semibold text-slate-700">{currentUser?.roleLabel || 'Head Chef'}</span>
+              <span className="font-semibold text-slate-700">{currentUser?.roleLabel || 'Staff Member'}</span>
               <span>•</span>
               <span className="text-emerald-800 font-medium">{currentBranch?.name || 'Spice Garden — Pune Central'}</span>
             </p>
@@ -220,13 +282,24 @@ export const PunchClockWidget = () => {
 
       {/* Success Feedback Flash */}
       {punchSuccessFeedback && (
-        <div className="mx-5 sm:mx-6 mt-4 p-3.5 rounded-2xl bg-emerald-500 text-white font-semibold text-xs flex items-center justify-between shadow-lg shadow-emerald-500/30 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div
+          className={`mx-5 sm:mx-6 mt-4 p-3.5 rounded-2xl font-semibold text-xs flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2 duration-300 ${
+            punchSuccessFeedback === 'break_start'
+              ? 'bg-amber-500 text-white shadow-amber-500/30'
+              : punchSuccessFeedback === 'break_end'
+              ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+              : punchSuccessFeedback === 'in'
+              ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+              : 'bg-slate-800 text-white shadow-slate-900/30'
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-100" />
+            <CheckCircle2 className="w-5 h-5 text-white/90" />
             <span>
-              {punchSuccessFeedback === 'in'
-                ? '🎉 Successfully clocked in! Your shift timer is now active.'
-                : '✅ Shift completed and clocked out. Rest up and have a great rest of your day!'}
+              {punchSuccessFeedback === 'in' && '🎉 Successfully clocked in! Your shift timer is now active.'}
+              {punchSuccessFeedback === 'out' && '✅ Shift completed and clocked out. Total working hours recorded.'}
+              {punchSuccessFeedback === 'break_start' && '☕ Break session started. Shift timer paused.'}
+              {punchSuccessFeedback === 'break_end' && '⚡ Shift resumed! Welcome back to active duty.'}
             </span>
           </div>
           <span className="text-[10px] opacity-80 uppercase tracking-wider font-mono">Live Sync</span>
@@ -236,17 +309,36 @@ export const PunchClockWidget = () => {
       {/* Main Interactive Work Panel */}
       <div className="p-5 sm:p-6">
         {activeRecord ? (
-          /* ================= ON DUTY ACTIVE VIEW ================= */
-          <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white shadow-xl relative overflow-hidden border border-emerald-500/20">
+          /* ================= ON DUTY ACTIVE / ON BREAK VIEW ================= */
+          <div
+            className={`rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border transition-all duration-300 ${
+              activeRecord.isOnBreak
+                ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 border-amber-500/30'
+                : 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border-emerald-500/20'
+            }`}
+          >
             {/* Background pattern */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div
+              className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none ${
+                activeRecord.isOnBreak ? 'bg-amber-500/10' : 'bg-emerald-500/10'
+              }`}
+            />
 
             <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               {/* Left Column: Live Time Counter */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                  Live Shift Duration Counter
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                  {activeRecord.isOnBreak ? (
+                    <span className="text-amber-400 flex items-center gap-1.5">
+                      <Coffee className="w-4 h-4 animate-bounce" />
+                      Shift Paused • Break in Progress
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                      Live Shift Duration Counter
+                    </span>
+                  )}
                 </div>
 
                 {/* Big Digital Monospace Display */}
@@ -257,16 +349,36 @@ export const PunchClockWidget = () => {
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mt-1">Hours</span>
                   </div>
-                  <span className="text-2xl font-black text-emerald-400 animate-pulse">:</span>
+                  <span
+                    className={`text-2xl font-black ${
+                      activeRecord.isOnBreak ? 'text-amber-400' : 'text-emerald-400 animate-pulse'
+                    }`}
+                  >
+                    :
+                  </span>
                   <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-2xl px-4 py-3 min-w-[72px]">
-                    <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-emerald-400">
+                    <span
+                      className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${
+                        activeRecord.isOnBreak ? 'text-amber-400' : 'text-emerald-400'
+                      }`}
+                    >
                       {elapsed.mins}
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mt-1">Mins</span>
                   </div>
-                  <span className="text-2xl font-black text-emerald-400 animate-pulse">:</span>
+                  <span
+                    className={`text-2xl font-black ${
+                      activeRecord.isOnBreak ? 'text-amber-400' : 'text-emerald-400 animate-pulse'
+                    }`}
+                  >
+                    :
+                  </span>
                   <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-2xl px-4 py-3 min-w-[72px]">
-                    <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-emerald-300">
+                    <span
+                      className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${
+                        activeRecord.isOnBreak ? 'text-amber-300' : 'text-emerald-300'
+                      }`}
+                    >
                       {elapsed.secs}
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mt-1">Secs</span>
@@ -289,24 +401,42 @@ export const PunchClockWidget = () => {
                       })}
                     </strong>
                   </span>
+                  {activeRecord.breakMinutes > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-amber-300 font-semibold">
+                        Break: {activeRecord.breakMinutes} mins recorded
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* 8-Hour Target Progress Bar */}
                 <div className="max-w-md space-y-1.5 pt-1">
                   <div className="flex justify-between text-[11px] text-slate-400">
                     <span>Daily Shift Progress</span>
-                    <span className="font-mono text-emerald-400 font-bold">{shiftProgressPercent}% (8h standard)</span>
+                    <span
+                      className={`font-mono font-bold ${
+                        activeRecord.isOnBreak ? 'text-amber-400' : 'text-emerald-400'
+                      }`}
+                    >
+                      {shiftProgressPercent}% (8h standard)
+                    </span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 ease-out"
+                      className={`h-full rounded-full transition-all duration-500 ease-out ${
+                        activeRecord.isOnBreak
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                          : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                      }`}
                       style={{ width: `${shiftProgressPercent}%` }}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Right Column: Punch Out Action & Shift Closing Note */}
+              {/* Right Column: Actions (Break / Resume / Punch Out) */}
               <div className="flex flex-col sm:items-end gap-3 shrink-0 lg:max-w-xs w-full">
                 <div className="w-full">
                   <label className="text-[11px] font-semibold text-slate-300 block mb-1">
@@ -314,24 +444,54 @@ export const PunchClockWidget = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Prep line cleaned & stocked..."
+                    placeholder="e.g. Completed inventory count, all stations clean..."
                     value={punchNote}
                     onChange={(e) => setPunchNote(e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-white/15 bg-white/10 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40 transition-all"
                   />
                 </div>
 
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={handlePunchOut}
-                  className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-sm shadow-xl shadow-rose-950/40 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                >
-                  <LogOut className="w-5 h-5 text-white/90" />
-                  <span>Punch Out &amp; Complete Shift</span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+                  {/* Break Button (Take Break or Resume) */}
+                  {activeRecord.isOnBreak ? (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleResumeShift}
+                      className="w-full sm:flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-amber-950/40 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                    >
+                      <PlayCircle className="w-4 h-4 text-white" />
+                      <span>Resume Shift</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleTakeBreak}
+                      className="w-full sm:flex-1 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                    >
+                      <Coffee className="w-4 h-4 text-amber-300" />
+                      <span>Take Break</span>
+                    </button>
+                  )}
+
+                  {/* Punch Out Action */}
+                  <button
+                    type="button"
+                    disabled={isSubmitting || activeRecord.isOnBreak}
+                    onClick={handlePunchOut}
+                    title={activeRecord.isOnBreak ? 'Resume shift before clocking out' : 'Punch Out'}
+                    className="w-full sm:flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-700 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs shadow-xl shadow-rose-950/40 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 text-white/90" />
+                    <span>Punch Out</span>
+                  </button>
+                </div>
+
                 <span className="text-[10px] text-slate-400 text-center sm:text-right">
-                  Will calculate total hours and update the Manager's Live Board instantly.
+                  {activeRecord.isOnBreak
+                    ? 'Break timer running. Resume shift before final clock out.'
+                    : 'Calculates total working hours and updates the Live Attendance Board.'}
                 </span>
               </div>
             </div>
@@ -342,10 +502,10 @@ export const PunchClockWidget = () => {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Select Cooking / Prep Station &amp; Punch In
+                  Select Work Station / Area &amp; Punch In
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Tap your assigned station section below for today's shift.
+                  Select your assigned station or duty desk for today's shift.
                 </p>
               </div>
 
@@ -354,9 +514,9 @@ export const PunchClockWidget = () => {
               </span>
             </div>
 
-            {/* Station Selector Cards (Large, Touch-Friendly for Tablets) */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {KITCHEN_STATIONS?.map((station) => {
+            {/* Station Selector Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {availableStations.map((station) => {
                 const isSelected = selectedStation === station;
                 const icon = getStationIcon(station);
 
@@ -395,7 +555,7 @@ export const PunchClockWidget = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Setup prep line, inspection of deliveries..."
+                  placeholder="e.g. Starting shift, inventory checks, kitchen prep..."
                   value={punchNote}
                   onChange={(e) => setPunchNote(e.target.value)}
                   className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
@@ -433,8 +593,12 @@ export const PunchClockWidget = () => {
 
         <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Shift Duty Status</span>
-          <span className={`font-bold text-sm mt-0.5 block ${activeRecord ? 'text-emerald-700' : 'text-slate-600'}`}>
-            {activeRecord ? '🟢 On Duty Now' : '⚪ Off Duty'}
+          <span
+            className={`font-bold text-sm mt-0.5 block ${
+              activeRecord?.isOnBreak ? 'text-amber-600' : activeRecord ? 'text-emerald-700' : 'text-slate-600'
+            }`}
+          >
+            {activeRecord?.isOnBreak ? '☕ On Break' : activeRecord ? '🟢 On Duty Now' : '⚪ Off Duty'}
           </span>
         </div>
 
@@ -473,6 +637,7 @@ export const PunchClockWidget = () => {
                   <th className="py-3 px-4">Station</th>
                   <th className="py-3 px-4">Clock-In</th>
                   <th className="py-3 px-4">Clock-Out</th>
+                  <th className="py-3 px-4">Break</th>
                   <th className="py-3 px-4">Duration</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Shift Note</th>
@@ -481,7 +646,7 @@ export const PunchClockWidget = () => {
               <tbody className="divide-y divide-slate-100">
                 {userRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate-400 text-xs">
+                    <td colSpan={8} className="py-6 text-center text-slate-400 text-xs">
                       No shift records logged yet.
                     </td>
                   </tr>
@@ -500,6 +665,9 @@ export const PunchClockWidget = () => {
                         {rec.punchOutTime
                           ? new Date(rec.punchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                           : '—'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        {rec.breakMinutes ? `${rec.breakMinutes} min` : '0 min'}
                       </td>
                       <td className="py-3 px-4 font-bold text-slate-900 font-mono">
                         {rec.totalHours ? `${rec.totalHours} hrs` : <span className="text-emerald-600">Active Shift</span>}

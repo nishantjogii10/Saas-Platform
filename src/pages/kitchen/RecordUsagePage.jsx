@@ -61,7 +61,7 @@ export const RecordUsagePage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6 w-full">
       <PageHeader
         title="Record Ingredient Usage"
         subtitle="Log quantities consumed during daily station prep or cooking orders (Workflow B)"
@@ -71,7 +71,8 @@ export const RecordUsagePage = () => {
         ]}
       />
 
-      <Card>
+      <div className="max-w-3xl">
+        <Card>
         {!submitted ? (
           <form onSubmit={handleSubmit} className="space-y-5">
             <FormInput
@@ -193,7 +194,8 @@ export const RecordUsagePage = () => {
             </div>
           </div>
         )}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

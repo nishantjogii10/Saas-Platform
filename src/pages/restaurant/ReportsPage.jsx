@@ -33,6 +33,7 @@ import { Card, CardHeader } from '../../components/common/Card';
 import { StatCard } from '../../components/common/StatCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 import { formatINR } from '../../data/inventoryBillingData';
 import {
   ResponsiveContainer,
@@ -55,6 +56,8 @@ export const ReportsPage = () => {
   const {
     currentUser,
     currentRestaurant,
+    currentBranch,
+    branchStaff,
     restaurantIngredients,
     restaurantMovements,
     goodsReceivedNotes,
@@ -72,7 +75,8 @@ export const ReportsPage = () => {
 
   const isOwner = currentUser?.role === 'restaurant_owner';
 
-  const [activeTab, setActiveTab] = useState('procurement_audit'); // 'procurement_audit' | 'inventory_analytics' | 'staff_reports'
+  const [activeTab, setActiveTab] = useState('procurement_audit');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false); // 'procurement_audit' | 'inventory_analytics' | 'staff_reports'
   const [timeframe, setTimeframe] = useState('month');
 
   // Filter/Search states for tables
@@ -475,9 +479,9 @@ export const ReportsPage = () => {
               variant="outline"
               size="sm"
               icon={Download}
-              onClick={handleExportReport}
+              onClick={() => setIsExportModalOpen(true)}
             >
-              Export Tabular Report (CSV)
+              Export to Excel
             </Button>
           </div>
         }
@@ -1294,6 +1298,83 @@ export const ReportsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Customizable Tabular Report Export Dialog */}
+      <ColumnExportDialog
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        data={
+          currentTab === 'procurement_audit'
+            ? (goodsReceivedNotes || []).map((g) => ({
+                id: g.grnNumber || g.id,
+                date: g.receivedDate || g.date || '—',
+                supplierName: g.supplierName || 'Vendor',
+                itemsCount: (g.items || []).length,
+                totalValue: (g.items || []).reduce((sum, item) => sum + (Number(item.acceptedQuantity || item.receivedQuantity || 0) * Number(item.unitPrice || 0)), 0),
+                status: g.status || 'Received',
+                verifiedBy: g.verifiedBy || 'Store Manager',
+              }))
+            : currentTab === 'inventory_analytics'
+            ? (restaurantIngredients || []).map((i) => ({
+                name: i.name,
+                category: i.category,
+                quantity: `${i.quantity} ${i.unit || ''}`,
+                unitCost: i.costPerUnit,
+                totalValue: (Number(i.quantity) || 0) * (Number(i.costPerUnit) || 0),
+                minThreshold: `${i.minThreshold} ${i.unit || ''}`,
+                status: (i.status || '').replace('_', ' ').toUpperCase(),
+                supplierName: i.supplierName || '—',
+                expiryDate: i.expiryDate || '—',
+              }))
+            : (branchStaff || []).map((s) => ({
+                name: s.name,
+                role: s.roleLabel || s.role,
+                branch: s.branchName || currentBranch?.name || '—',
+                department: s.department || 'Kitchen Operations',
+                salary: s.baseSalary || 25000,
+                status: s.status || 'Active',
+              }))
+        }
+        availableColumns={
+          currentTab === 'procurement_audit'
+            ? [
+                { key: 'id', header: 'GRN Number' },
+                { key: 'date', header: 'Receipt Date' },
+                { key: 'supplierName', header: 'Supplier Name' },
+                { key: 'itemsCount', header: 'Items Count' },
+                { key: 'totalValue', header: 'Total Value (INR)', format: (val) => formatINR(val) },
+                { key: 'status', header: 'Audit Status' },
+                { key: 'verifiedBy', header: 'Verified By' },
+              ]
+            : currentTab === 'inventory_analytics'
+            ? [
+                { key: 'name', header: 'Ingredient Name' },
+                { key: 'category', header: 'Category' },
+                { key: 'quantity', header: 'Stock Level' },
+                { key: 'unitCost', header: 'Unit Cost (INR)', format: (val) => formatINR(val) },
+                { key: 'totalValue', header: 'Total Valuation (INR)', format: (val) => formatINR(val) },
+                { key: 'minThreshold', header: 'Safety Threshold' },
+                { key: 'status', header: 'Inventory Status' },
+                { key: 'supplierName', header: 'Supplier' },
+                { key: 'expiryDate', header: 'Expiry Date' },
+              ]
+            : [
+                { key: 'name', header: 'Staff Name' },
+                { key: 'role', header: 'Designation' },
+                { key: 'branch', header: 'Outlet' },
+                { key: 'department', header: 'Department' },
+                { key: 'salary', header: 'Monthly Salary (INR)', format: (val) => formatINR(val) },
+                { key: 'status', header: 'Status' },
+              ]
+        }
+        reportTitle={`StockMate ${currentTab === 'procurement_audit' ? 'Procurement & Delivery' : currentTab === 'inventory_analytics' ? 'Kitchen Valuation' : 'Workforce'} Audit`}
+        fileNamePrefix={`stockmate_audit_${currentTab}`}
+        filtersSummary={{
+          Tab: currentTab,
+          Timeframe: timeframe,
+          Outlet: currentBranch?.name || 'All Outlets',
+        }}
+      />
     </div>
   );
 };

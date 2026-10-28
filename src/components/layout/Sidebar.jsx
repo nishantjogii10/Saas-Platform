@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
+import { getRoleLandingRoute } from '../../utils/permissions';
 import { useApp } from '../../context/AppContext';
 import {
   LayoutDashboard,
@@ -39,6 +40,7 @@ import {
   RotateCcw,
   FileCheck,
   Sliders,
+  Clock,
 } from 'lucide-react';
 
 export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
@@ -52,26 +54,30 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     currentBranch,
     switchBranch,
     ownerNotifications,
+    staffNotifications,
     customPlanRequests,
     announcements,
     announcementReads,
   } = useApp();
 
   const getHomeRoute = () => {
-    switch (currentUser?.role) {
-      case 'super_admin':
-        return '/admin/dashboard';
-      case 'supplier':
-        return '/supplier';
-      case 'kitchen_staff':
-        return '/kitchen';
-      default:
-        return '/dashboard';
-    }
+    return getRoleLandingRoute(currentUser?.role);
   };
 
-  const unreadAlertsCount = restaurantAlerts.filter(a => !a.read).length;
-  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => !n.read).length;
+  const unreadAlertsCount = restaurantAlerts.filter(a => {
+    if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !a.read;
+  }).length;
+  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => {
+    if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !n.read;
+  }).length;
+  const myStaffNotifs = (staffNotifications || []).filter(n => n.targetStaffId === currentUser?.id);
+  const unreadStaffNotifs = myStaffNotifs.filter(n => !n.read).length;
   const pendingCustomPlanReviews = (customPlanRequests || []).filter(r => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review').length;
   const unreadAnnouncementsCount = (announcements || []).filter(ann => {
     if (ann.status !== 'published') return false;
@@ -131,6 +137,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
               { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
               { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',
@@ -179,6 +186,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/supplier-billing', label: 'Supplier Invoices', icon: Receipt },
               { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
               { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',
@@ -189,15 +197,21 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/reports', label: 'Reports & Audits', icon: BarChart3 },
             ],
           },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
+              { to: '/profile', label: 'My Profile', icon: User },
+            ],
+          },
         ];
 
       case 'restaurant_manager':
         return [
           {
-            section: 'Restaurant Operations & Staff',
+            section: 'Staff Management',
             items: [
-              { to: '/dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-{ to: '/workforce', label: 'People & Workforce', icon: Users },
+              { to: '/workforce', label: 'People & Workforce', icon: Users },
               { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
@@ -206,6 +220,19 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
                 icon: Bell,
                 badge: unreadAlertsCount > 0 ? unreadAlertsCount : null,
               },
+              {
+                to: '/notifications',
+                label: 'Notifications',
+                icon: Bell,
+                badge: unreadOwnerNotifs > 0 ? unreadOwnerNotifs : null,
+              },
+            ],
+          },
+          {
+            section: 'Personal Attendance & Duty',
+            items: [
+              { to: '/my-attendance', label: 'My Attendance & Shifts', icon: Clock },
+              { to: '/profile', label: 'My Profile', icon: User },
             ],
           },
         ];
@@ -215,7 +242,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
           {
             section: 'Kitchen Station',
             items: [
-              { to: '/kitchen', label: 'Staff Dashboard', icon: LayoutDashboard },
+              {
+                to: '/kitchen',
+                label: 'Staff Dashboard',
+                icon: LayoutDashboard,
+                badge: unreadStaffNotifs > 0 ? unreadStaffNotifs : null,
+              },
               { to: '/kitchen/ingredients', label: 'Available Stock', icon: Boxes },
               { to: '/kitchen/usage', label: 'Record Ingredient Usage', icon: Scale },
               { to: '/kitchen/wastage', label: 'Record Food Wastage', icon: Trash2 },
@@ -231,6 +263,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Supplier Portal',
             items: [
               { to: '/supplier', label: 'Supplier Dashboard', icon: LayoutDashboard },
+              { to: '/supplier/products', label: 'Product Catalog', icon: Boxes },
+              { to: '/supplier/marketplace', label: 'Marketplace View', icon: Store },
               { to: '/supplier/orders', label: 'Assigned Orders', icon: ShoppingBag },
               { to: '/supplier/invoices', label: 'Invoices & Receivables', icon: Receipt },
               { to: '/supplier/returns', label: 'Returns & Credit Claims', icon: RotateCcw },

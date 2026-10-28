@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
@@ -9,9 +10,8 @@ export const AppLayout = ({ children }) => {
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 text-slate-800 overflow-hidden">
-      {/* Main Workspace (Sidebar + Scrollable Content Area) */}
+      {/* Main Workspace: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Dynamic Role-Based Sidebar */}
         <Sidebar
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -19,15 +19,17 @@ export const AppLayout = ({ children }) => {
 
         {/* Scrollable Content Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          <TopNavbar onOpenMobile={() => setIsMobileSidebarOpen(true)} />
+          <TopNavbar
+            onOpenMobile={() => setIsMobileSidebarOpen(true)}
+          />
 
-          <main className="flex-1 p-4 sm:p-6 w-full">
+          <main className="flex-1 w-full max-w-none px-4 sm:px-6 lg:px-8 py-6">
             {children}
           </main>
         </div>
       </div>
 
-      {/* 3. Global Toast Notifications & Modals */}
+      {/* Global Toast Notifications & Modals */}
       <ToastContainer />
       <ProfileModal />
     </div>

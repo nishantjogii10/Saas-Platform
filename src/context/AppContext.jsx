@@ -64,10 +64,19 @@ import {
   initialLeaveRequests,
   initialSalaryPayments,
   initialStaffNotifications,
+  initialHolidays,
+  INITIAL_STAFF_LEAVE_BALANCES,
   LEAVE_TYPES,
+  LEAVE_POLICIES,
   KITCHEN_STATIONS,
   STAFF_SALARY_PROFILES,
 } from '../data/staffAttendanceData';
+
+import {
+  SUPPLIER_SUBSCRIPTION_PLANS,
+  SUPPLIER_CATEGORIES,
+  INITIAL_SUPPLIER_PRODUCTS,
+} from '../data/supplierMarketplaceData';
 
 const AppContext = createContext(null);
 
@@ -230,9 +239,14 @@ export const AppProvider = ({ children }) => {
   const [leaveRequests, setLeaveRequests] = useState(() => loadStored('leaveRequests', initialLeaveRequests));
   const [salaryPayments, setSalaryPayments] = useState(() => loadStored('salaryPayments', initialSalaryPayments));
   const [staffNotifications, setStaffNotifications] = useState(() => loadStored('staffNotifications', initialStaffNotifications));
+  const [holidays, setHolidays] = useState(() => loadStored('holidays', initialHolidays));
+  const [staffLeaveBalances, setStaffLeaveBalances] = useState(() => loadStored('staffLeaveBalances', INITIAL_STAFF_LEAVE_BALANCES));
 
   // Custom Plan Requests & Rule-Based Approval Engine State
   const [customPlanRequests, setCustomPlanRequests] = useState(() => loadStored('custom_plan_requests', initialCustomPlanRequests));
+
+  // Third-Party Supplier B2B Marketplace Products State
+  const [supplierProducts, setSupplierProducts] = useState(() => loadStored('supplierProducts', INITIAL_SUPPLIER_PRODUCTS));
 
   // Staff alerts read & dismissed tracking for Restaurant Manager
   const [readStaffAlertIds, setReadStaffAlertIds] = useState(() => loadStored('read_staff_alert_ids', []));
@@ -429,8 +443,20 @@ export const AppProvider = ({ children }) => {
   }, [staffNotifications]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_holidays`, JSON.stringify(holidays));
+  }, [holidays]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_staffLeaveBalances`, JSON.stringify(staffLeaveBalances));
+  }, [staffLeaveBalances]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_custom_plan_requests`, JSON.stringify(customPlanRequests));
   }, [customPlanRequests]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_supplierProducts`, JSON.stringify(supplierProducts));
+  }, [supplierProducts]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_announcements`, JSON.stringify(announcements));
@@ -1329,7 +1355,44 @@ export const AppProvider = ({ children }) => {
 
     setPurchaseOrders(prev => [newPO, ...prev]);
 
-    // Also add PO update alert
+    // Automatically create linked sales invoice / pending receivable for the supplier
+    const initialInvoiceNumber = `SINV-${newPO.poNumber.replace(/^PO-/, '') || Date.now().toString().slice(-4)}`;
+    const newInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber: initialInvoiceNumber,
+      poId: newPO.id,
+      poNumber: newPO.poNumber,
+      grnId: null,
+      grnNumber: 'Awaiting Delivery',
+      supplierId: newPO.supplierId,
+      supplierName: newPO.supplierName,
+      supplierGstin: supplier?.gstin || '27AABCU1234F1Z0',
+      restaurantId: newPO.restaurantId,
+      restaurantName: newPO.restaurantName,
+      branchId: newPO.branchId,
+      branchName: newPO.branchName,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: newPO.expectedDelivery || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: newPO.subtotal,
+      taxAmount: newPO.tax,
+      shippingFee: newPO.shippingFee || 0,
+      totalAmount: newPO.totalAmount,
+      acceptedAmount: newPO.totalAmount,
+      damageDeduction: 0,
+      creditNoteApplied: 0,
+      netPayable: newPO.totalAmount,
+      paidAmount: 0,
+      outstandingBalance: newPO.totalAmount,
+      paymentStatus: 'Pending',
+      paymentMethod: 'Pending Settlement',
+      paymentDate: null,
+      transactionRef: null,
+      verificationStatus: 'Order Placed (Pending Dispatch)',
+      items: newPO.items,
+    };
+    setSupplierInvoices(prev => [newInvoice, ...prev]);
+
+    // Also add PO update alert (marked read for creator, visible only to owner & inventory manager)
     const newAlert = {
       id: `alt-${Date.now()}`,
       restaurantId: currentRestaurantId,
@@ -1338,12 +1401,19 @@ export const AppProvider = ({ children }) => {
       title: `Order Created: ${newPO.poNumber}`,
       message: `Sent to ${newPO.supplierName} for ${newPO.items.length} items (₹${Number(newPO.totalAmount).toLocaleString('en-IN')}).`,
       poId: newPO.id,
-      read: false,
+      read: true,
       timestamp: new Date().toISOString(),
       actionLink: '/purchase-orders',
       actionLabel: 'View Order',
+      targetRoles: ['restaurant_owner', 'inventory_manager'],
     };
-    setAlerts(prev => [newAlert, ...prev]);
+
+    // Mark any low stock alerts for ordered ingredients as read
+    const orderedIds = new Set((poData.items || []).map(it => it.ingredientId));
+    setAlerts(prev => [
+      newAlert,
+      ...prev.map(a => (orderedIds.has(a.ingredientId) && (a.type === 'low_stock' || a.type === 'out_of_stock')) ? { ...a, read: true } : a)
+    ]);
 
     addToast(`Purchase Order ${newPO.poNumber} created with status "Pending".`, 'success');
     return newPO;
@@ -1372,7 +1442,424 @@ export const AppProvider = ({ children }) => {
     }));
 
     const targetPO = purchaseOrders.find(p => p.id === poId);
+
+    // Keep linked supplier invoice in sync with PO status changes
+    setSupplierInvoices(prev => prev.map(inv => {
+      if (inv.poId === poId || (targetPO && inv.poNumber === targetPO.poNumber)) {
+        return {
+          ...inv,
+          invoiceNumber: extraMeta.invoiceNumber || inv.invoiceNumber,
+          verificationStatus: newStatus === 'dispatched' ? 'Dispatched' : newStatus === 'delivered' ? 'Delivered' : inv.verificationStatus,
+          deliveryChallan: extraMeta.deliveryChallan || inv.deliveryChallan,
+          dispatchDate: extraMeta.dispatchDate || inv.dispatchDate,
+        };
+      }
+      return inv;
+    }));
+
     addToast(`Purchase Order ${targetPO?.poNumber || poId} marked as "${newStatus.toUpperCase()}".`, 'info');
+  };
+
+  // ==============================================================
+  // THIRD-PARTY SUPPLIER B2B MARKETPLACE & PROCUREMENT WORKFLOW
+  // ==============================================================
+
+  // 1. Supplier Product Inventory Management (Add, Edit, Delete, Toggle Stock)
+  const addSupplierProduct = (productData) => {
+    const activeSupplier = suppliers.find(s => s.id === (productData.supplierId || currentUser?.supplierId));
+    const newProduct = {
+      id: `sprod-${Date.now()}`,
+      supplierId: productData.supplierId || currentUser?.supplierId || 'sup-1',
+      supplierName: productData.supplierName || activeSupplier?.name || currentUser?.supplierName || 'Metro Food Distributors',
+      supplierPlan: activeSupplier?.planName || 'Pro Vendor',
+      supplierRating: activeSupplier?.rating || 4.9,
+      name: productData.name,
+      category: productData.category || 'Fresh Vegetables & Greens',
+      unit: productData.unit || 'kg',
+      price: Number(productData.price) || 100,
+      mrp: Number(productData.mrp) || Math.round((Number(productData.price) || 100) * 1.25),
+      stock: Number(productData.stock) || 50,
+      minOrderQty: Number(productData.minOrderQty) || 1,
+      leadTimeDays: Number(productData.leadTimeDays) || 1,
+      shelfLifeDays: Number(productData.shelfLifeDays) || 7,
+      fssai: productData.fssai || '11522034000188',
+      organic: Boolean(productData.organic),
+      inStock: true,
+      description: productData.description || '',
+      image: productData.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+    };
+
+    setSupplierProducts((prev) => [newProduct, ...prev]);
+    addToast(`"${newProduct.name}" listed successfully in the B2B Marketplace.`, 'success');
+    return newProduct;
+  };
+
+  const updateSupplierProduct = (productId, updatedData) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, ...updatedData } : p))
+    );
+    addToast('Product details updated successfully.', 'success');
+  };
+
+  const deleteSupplierProduct = (productId) => {
+    setSupplierProducts((prev) => prev.filter((p) => p.id !== productId));
+    addToast('Product removed from catalog.', 'info');
+  };
+
+  const toggleSupplierProductStock = (productId) => {
+    setSupplierProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, inStock: !p.inStock } : p))
+    );
+  };
+
+  // 2. Seamless Supplier Onboarding with Subscription Plan & Automatic System Notifications
+  const registerSupplierAccount = (formData) => {
+    const selectedPlan =
+      SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === formData.planId) ||
+      SUPPLIER_SUBSCRIPTION_PLANS[1]; // default to Pro Vendor
+
+    const supplierId = `sup-${Date.now()}`;
+    const userId = `usr-sup-${Date.now()}`;
+
+    const newSupplier = {
+      id: supplierId,
+      name: formData.name,
+      contactPerson: formData.contactPerson,
+      email: formData.email,
+      phone: formData.phone || '+91 98000 00000',
+      address: formData.address || 'Central Logistics Park, Sector 4, Pune',
+      categories:
+        formData.categories && formData.categories.length > 0
+          ? formData.categories
+          : ['Dairy & Cheese', 'Fresh Vegetables & Greens'],
+      rating: 5.0,
+      leadTimeDays: Number(formData.leadTimeDays) || 1,
+      paymentTerms:
+        selectedPlan.payoutDays === 'Same Day'
+          ? 'Immediate Settlement'
+          : selectedPlan.payoutDays === '48 Hours'
+          ? 'Net 2 (48h Payout)'
+          : 'Net 14 (Standard)',
+      activeOrdersCount: 0,
+      status: 'active',
+      verificationStatus: 'verified',
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      planPrice: formData.billingCycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.price,
+      billingCycle: formData.billingCycle || 'monthly',
+      commissionRate: selectedPlan.commissionRate,
+      gstin: formData.gstin || '27AABCU9603R1ZM',
+      city: formData.city || 'Pune',
+      joinedDate: new Date().toISOString(),
+      restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+    };
+
+    const newSupplierUser = {
+      id: userId,
+      name: formData.contactPerson,
+      email: formData.email,
+      password: formData.password || 'password123',
+      role: 'supplier',
+      supplierId: supplierId,
+      supplierName: newSupplier.name,
+      restaurantId: null,
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
+      joinedDate: new Date().toISOString().split('T')[0],
+      lastActive: 'Just now',
+    };
+
+    // Update Suppliers state
+    setSuppliers((prev) => [newSupplier, ...prev]);
+
+    // Update Users state
+    setUsers((prev) => [newSupplierUser, ...prev]);
+
+    // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
+    const adminLog = {
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      action: 'SUPPLIER_ONBOARDED',
+      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Products & catalog pending review.`,
+      user: newSupplier.contactPerson,
+      role: 'supplier',
+    };
+    setPlatformLogs((prev) => [adminLog, ...prev]);
+
+    // SYSTEM NOTIFICATION B: To Admin, Restaurant Owner & Inventory Manager ONLY (Restaurant Manager is strictly excluded)
+    const ownerNotif = {
+      id: `notif-${Date.now()}-sup`,
+      type: 'supplier_onboarding',
+      title: `🎉 New B2B Supplier Partner: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has registered on StockMate Marketplace offering ${newSupplier.categories.join(', ')}. Fresh wholesale catalog is ready for procurement.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/marketplace',
+      actionLabel: 'Browse Products',
+      badge: 'New Supplier',
+      supplierId: newSupplier.id,
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setOwnerNotifications((prev) => [ownerNotif, ...prev]);
+
+    const supplierAlert = {
+      id: `alt-${Date.now()}-sup`,
+      restaurantId: currentRestaurantId,
+      type: 'supplier_new',
+      severity: 'low',
+      title: `New Supplier: ${newSupplier.name}`,
+      message: `Verified partner for ${newSupplier.categories.slice(0, 2).join(' & ')} with ${newSupplier.leadTimeDays}-day delivery lead time.`,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/marketplace',
+      actionLabel: 'Procure Stock',
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [supplierAlert, ...prev]);
+
+    // Auto-login the new supplier
+    setCurrentUser(newSupplierUser);
+
+    addToast(
+      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier.`,
+      'success'
+    );
+
+    return { success: true, supplier: newSupplier, user: newSupplierUser };
+  };
+
+  // 3. Structured 4-Stage Purchase Order (PO) Workflow:
+  // Stage 1: Request PO (Cart Requisition)
+  // Direct PO: Goes directly from Inventory Manager to Third-Party Supplier, completely bypassing manager approval!
+  const createMarketplacePO = (orderData) => {
+    const { supplierId, items, notes, expectedDelivery } = orderData;
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    const rest = currentRestaurant;
+
+    const subtotal = items.reduce(
+      (sum, item) => sum + Number(item.quantity) * Number(item.price || item.unitCost),
+      0
+    );
+    const tax = Number((subtotal * 0.05).toFixed(2)); // 5% GST
+    const shippingFee = subtotal > 1500 ? 0 : 150.0;
+    const totalAmount = Number((subtotal + tax + shippingFee).toFixed(2));
+    const poNum = `PO-B2B-${Math.floor(1000 + purchaseOrders.length + Math.random() * 900)}`;
+
+    // Order goes directly to supplier with status 'pending' (manager has no involvement)
+    const initialStatus = 'pending';
+
+    const newPO = {
+      id: `po-${Date.now()}`,
+      poNumber: poNum,
+      restaurantId: currentRestaurantId,
+      restaurantName: rest?.name || 'Mango Tree Kitchen & Bar',
+      branchId: currentBranchId,
+      branchName: currentBranch?.name || 'Main Branch',
+      supplierId: supplierId,
+      supplierName: supplier ? supplier.name : 'Marketplace Supplier',
+      supplierContact: supplier ? `${supplier.contactPerson} (${supplier.email})` : '',
+      status: initialStatus,
+      createdAt: new Date().toISOString(),
+      expectedDelivery:
+        expectedDelivery ||
+        new Date(Date.now() + (supplier?.leadTimeDays || 2) * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+      notes: notes || 'Procured via StockMate B2B Marketplace.',
+      items: items.map((it) => ({
+        ingredientId: it.id || it.ingredientId,
+        name: it.name,
+        quantity: Number(it.quantity),
+        unit: it.unit,
+        unitCost: Number(it.price || it.unitCost),
+        totalCost: Number((Number(it.quantity) * Number(it.price || it.unitCost)).toFixed(2)),
+      })),
+      subtotal,
+      tax,
+      shippingFee,
+      totalAmount,
+      source: 'b2b_marketplace',
+      timeline: [
+        {
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+          note: `PO created by ${currentUser?.name || 'Inventory Manager'} (${currentUser?.role?.replace('_', ' ') || 'inventory manager'}). Dispatched directly to ${supplier?.name || 'Supplier'} queue.`,
+        },
+      ],
+    };
+
+    setPurchaseOrders((prev) => [newPO, ...prev]);
+
+    // Automatically create linked sales invoice / pending receivable for the supplier
+    const initialInvoiceNumber = `SINV-${newPO.poNumber.replace(/^PO-(B2B-)?/, '') || Date.now().toString().slice(-4)}`;
+    const newInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber: initialInvoiceNumber,
+      poId: newPO.id,
+      poNumber: newPO.poNumber,
+      grnId: null,
+      grnNumber: 'Awaiting Delivery',
+      supplierId: newPO.supplierId,
+      supplierName: newPO.supplierName,
+      supplierGstin: supplier?.gstin || '27AABCU1234F1Z0',
+      restaurantId: newPO.restaurantId,
+      restaurantName: newPO.restaurantName,
+      branchId: newPO.branchId,
+      branchName: newPO.branchName,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: newPO.expectedDelivery || new Date(Date.now() + (supplier?.leadTimeDays || 14) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal: newPO.subtotal,
+      taxAmount: newPO.tax,
+      shippingFee: newPO.shippingFee || 0,
+      totalAmount: newPO.totalAmount,
+      acceptedAmount: newPO.totalAmount,
+      damageDeduction: 0,
+      creditNoteApplied: 0,
+      netPayable: newPO.totalAmount,
+      paidAmount: 0,
+      outstandingBalance: newPO.totalAmount,
+      paymentStatus: 'Pending',
+      paymentMethod: 'Pending Settlement',
+      paymentDate: null,
+      transactionRef: null,
+      verificationStatus: 'Order Placed (Pending Dispatch)',
+      items: newPO.items,
+    };
+    setSupplierInvoices((prev) => [newInvoice, ...prev]);
+
+    // Send confirmation alert to Inventory Manager & Owner (Manager has no involvement)
+    const orderAlert = {
+      id: `alt-${Date.now()}-po`,
+      restaurantId: currentRestaurantId,
+      type: 'po_created',
+      severity: 'low',
+      title: `Order Dispatched: ${newPO.poNumber}`,
+      message: `Direct requisition for ${newPO.items.length} items dispatched to ${newPO.supplierName} (₹${newPO.totalAmount.toLocaleString('en-IN')}).`,
+      poId: newPO.id,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/purchase-orders',
+      actionLabel: 'Track Order',
+      targetRoles: ['restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [orderAlert, ...prev]);
+    addToast(`Purchase Order ${newPO.poNumber} dispatched directly to ${newPO.supplierName}.`, 'success');
+
+    return newPO;
+  };
+
+  // Stage 2: Admin/Manager Approval
+  const approvePurchaseOrder = (poId) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const approvalEntry = {
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            note: `Approved by ${currentUser.name} (${currentUser.role.replace('_', ' ')}). Sent to supplier.`,
+          };
+          return {
+            ...po,
+            status: 'pending',
+            timeline: [...po.timeline, approvalEntry],
+          };
+        }
+        return po;
+      })
+    );
+    addToast('Purchase Order approved and dispatched to supplier queue.', 'success');
+  };
+
+  // Stage 4: Receiving Goods & Live Inventory Update
+  const receivePOAndStock = (poId, receiptNotes = 'Goods verified and received in optimal condition.') => {
+    const targetPO = purchaseOrders.find((p) => p.id === poId);
+    if (!targetPO) return;
+
+    // 1. Update Inventory Quantities
+    setIngredients((prev) =>
+      prev.map((ing) => {
+        const matchingItem = targetPO.items.find(
+          (it) => it.ingredientId === ing.id || it.name.toLowerCase() === ing.name.toLowerCase()
+        );
+        if (matchingItem) {
+          const addedQty = Number(matchingItem.quantity) || 0;
+          return {
+            ...ing,
+            currentStock: Number((ing.currentStock + addedQty).toFixed(2)),
+            lastRestocked: new Date().toISOString().split('T')[0],
+          };
+        }
+        return ing;
+      })
+    );
+
+    // 2. Add Stock Movement records
+    const newMovements = targetPO.items.map((it) => ({
+      id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      type: 'purchase',
+      quantity: Number(it.quantity),
+      unit: it.unit,
+      timestamp: new Date().toISOString(),
+      performedBy: currentUser?.name || 'Manager',
+      referenceNumber: targetPO.poNumber,
+      notes: `Restocked via B2B Purchase Order ${targetPO.poNumber} from ${targetPO.supplierName}`,
+    }));
+    setStockMovements((prev) => [...newMovements, ...prev]);
+
+    // 3. Mark PO as 'received' and 'delivered'
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        if (po.id === poId) {
+          const receivedEntry = {
+            status: 'received',
+            timestamp: new Date().toISOString(),
+            note: `Stock received & inventory updated by ${currentUser?.name || 'Manager'} (${currentUser?.role || 'user'}). ${receiptNotes}`,
+          };
+          return {
+            ...po,
+            status: 'received',
+            receivedAt: new Date().toISOString(),
+            timeline: [...po.timeline, receivedEntry],
+          };
+        }
+        return po;
+      })
+    );
+
+    // 4. Create batch records for QR tracking
+    const newBatches = targetPO.items.map((it) => ({
+      id: `BATCH-${new Date().getFullYear()}-${it.name.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      ingredientId: it.ingredientId,
+      ingredientName: it.name,
+      supplierId: targetPO.supplierId,
+      supplierName: targetPO.supplierName,
+      poNumber: targetPO.poNumber,
+      receivedDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      initialQuantity: Number(it.quantity),
+      remainingQuantity: Number(it.quantity),
+      unit: it.unit,
+      status: 'active',
+      storageLocation: 'Kitchen Storage A',
+    }));
+    setProductBatches((prev) => [...newBatches, ...prev]);
+
+    // Update linked supplier invoice status
+    setSupplierInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.poId === poId || inv.poNumber === targetPO.poNumber) {
+          return {
+            ...inv,
+            verificationStatus: 'Stock Received & Inventory Updated',
+          };
+        }
+        return inv;
+      })
+    );
+
+    addToast(`PO ${targetPO.poNumber} received. Restaurant inventory stock updated!`, 'success');
   };
 
   // ==========================================
@@ -1632,7 +2119,31 @@ export const AppProvider = ({ children }) => {
       transactionRef: null,
       verificationStatus: 'Verified by Manager',
     };
-    setSupplierInvoices((prev) => [newInvoice, ...prev]);
+    setSupplierInvoices((prev) => {
+      const existing = prev.find((inv) => inv.poId === (targetPO?.id || poId) || (targetPO && inv.poNumber === targetPO.poNumber));
+      if (existing) {
+        return prev.map((inv) => {
+          if (inv.id === existing.id) {
+            const net = Math.round(totalAccepted + taxAmount);
+            const remaining = Math.max(0, Number((net - (inv.creditNoteApplied || 0) - (inv.paidAmount || 0)).toFixed(2)));
+            return {
+              ...inv,
+              grnId: newGRN.id,
+              grnNumber: newGRN.grnNumber,
+              invoiceNumber: invoiceNumber || inv.invoiceNumber,
+              acceptedAmount: totalAccepted,
+              damageDeduction: totalDamageLoss,
+              netPayable: net,
+              outstandingBalance: remaining,
+              paymentStatus: remaining <= 0 ? 'Paid' : (inv.paidAmount > 0 ? 'Partially Paid' : 'Pending'),
+              verificationStatus: 'Verified by Manager',
+            };
+          }
+          return inv;
+        });
+      }
+      return [newInvoice, ...prev];
+    });
 
     // 4. Update PO Status
     if (targetPO) {
@@ -1854,31 +2365,38 @@ export const AppProvider = ({ children }) => {
 
     setSupplierReturns((prev) => [newReturn, ...prev]);
 
-    // If returning from an active batch (e.g. unsold fresh pav), deduct from batch remaining
+    // If returning from an active batch, deduct from batch remaining
     if (batchId) {
       setProductBatches((prev) =>
         prev.map((b) => {
           if (b.batchId === batchId) {
-            const newRemaining = Math.max(0, Number((b.remainingQty - qty).toFixed(2)));
+            const newRemaining = Math.max(0, Number(((b.remainingQty || 0) - qty).toFixed(2)));
             return {
               ...b,
               remainingQty: newRemaining,
-              returnedQty: Number((b.returnedQty + qty).toFixed(2)),
+              returnedQty: Number(((b.returnedQty || 0) + qty).toFixed(2)),
               batchStatus: newRemaining === 0 ? 'Returned' : b.batchStatus,
             };
           }
           return b;
         })
       );
+    }
 
-      // Deduct from available ingredient stock
+    // Always deduct from available ingredient stock if ingredient matches
+    if (ingredientId || productName) {
       setIngredients((prev) =>
         prev.map((ing) => {
-          if (ing.id === ingredientId) {
-            const newQty = Math.max(0, Number((ing.quantity - qty).toFixed(2)));
+          if (
+            (ingredientId && ing.id === ingredientId) ||
+            (productName && ing.name?.toLowerCase() === productName.toLowerCase())
+          ) {
+            const currentStockVal = ing.quantity !== undefined ? ing.quantity : (ing.currentStock || 0);
+            const newQty = Math.max(0, Number((currentStockVal - qty).toFixed(2)));
             return {
               ...ing,
               quantity: newQty,
+              currentStock: newQty,
               status: getIngredientStatus(newQty, ing.minThreshold),
             };
           }
@@ -1886,6 +2404,39 @@ export const AppProvider = ({ children }) => {
         })
       );
     }
+
+    // Record stock movement audit trail
+    const returnMovement = {
+      id: `mov-${Date.now()}`,
+      restaurantId: currentRestaurant?.id || currentRestaurantId || 'rest-1',
+      ingredientId: ingredientId || 'misc',
+      ingredientName: productName,
+      type: 'waste',
+      quantity: qty,
+      unit: unit || 'units',
+      performedBy: currentUser?.name || 'Inventory Manager',
+      role: currentUser?.role?.replace('_', ' ').toUpperCase() || 'INVENTORY MANAGER',
+      reason: `Supplier return (${returnType}): ${reason || 'Damaged / Unsold return to supplier'}`,
+      referenceNumber: returnNumber,
+      timestamp: new Date().toISOString(),
+    };
+    setStockMovements((prev) => [returnMovement, ...prev]);
+
+    // Send targeted return alert to Owner & Inventory Manager
+    const returnAlert = {
+      id: `alt-${Date.now()}-ret`,
+      restaurantId: currentRestaurant?.id || currentRestaurantId || 'rest-1',
+      type: 'supplier_return',
+      severity: 'medium',
+      title: `Return Logged: ${returnNumber}`,
+      message: `${qty} ${unit || 'units'} of ${productName} flagged for return to ${supplierName}. Claim: ${formatINR(totalLossAmount)}.`,
+      read: false,
+      timestamp: new Date().toISOString(),
+      actionLink: '/supplier-returns',
+      actionLabel: 'Review Claims',
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [returnAlert, ...prev]);
 
     addToast(`Return request ${returnNumber} submitted to ${supplierName}. Status: Pending.`, 'success');
     return newReturn;
@@ -1987,8 +2538,8 @@ export const AppProvider = ({ children }) => {
   };
 
   // Record verified Restaurant-to-Supplier payment transaction
-  const recordSupplierPayment = ({ invoiceId, amount, paymentMethod, transactionRef }) => {
-    const inv = supplierInvoices.find((i) => i.id === invoiceId);
+  const recordSupplierPayment = ({ invoiceId, poId, amount, paymentMethod, transactionRef }) => {
+    const inv = supplierInvoices.find((i) => i.id === invoiceId || (poId && (i.poId === poId || i.poNumber === poId)));
     if (!inv) {
       addToast('Invoice not found', 'error');
       return false;
@@ -2011,13 +2562,17 @@ export const AppProvider = ({ children }) => {
       paymentNumber,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber,
+      poId: inv.poId,
+      poNumber: inv.poNumber,
       supplierId: inv.supplierId,
       supplierName: inv.supplierName,
+      restaurantId: inv.restaurantId,
+      restaurantName: inv.restaurantName,
       amountPaid: payAmount,
       paymentMethod: paymentMethod || 'NEFT Bank Transfer',
       paymentDate: new Date().toISOString().split('T')[0],
       transactionRef: transactionRef.trim(),
-      verifiedBy: `${currentUser?.name || 'Priya Sharma'} (${currentUser?.role?.replace('_', ' ') || 'Owner'})`,
+      verifiedBy: `${currentUser?.name || 'Finance User'} (${currentUser?.role?.replace('_', ' ') || 'Authorized'})`,
       receiptNumber: `RCPT-${Math.floor(1000 + Math.random() * 9000)}`,
       status: 'Settled',
     };
@@ -2027,9 +2582,9 @@ export const AppProvider = ({ children }) => {
     // Update invoice
     setSupplierInvoices((prev) =>
       prev.map((i) => {
-        if (i.id === invoiceId) {
-          const newPaid = Number((i.paidAmount + payAmount).toFixed(2));
-          const newBalance = Math.max(0, Number((i.netPayable - i.creditNoteApplied - newPaid).toFixed(2)));
+        if (i.id === inv.id) {
+          const newPaid = Number(((i.paidAmount || 0) + payAmount).toFixed(2));
+          const newBalance = Math.max(0, Number((i.netPayable - (i.creditNoteApplied || 0) - newPaid).toFixed(2)));
           return {
             ...i,
             paidAmount: newPaid,
@@ -2044,7 +2599,7 @@ export const AppProvider = ({ children }) => {
       })
     );
 
-    addToast(`Payment of ${formatINR(payAmount)} to ${inv.supplierName} verified and recorded!`, 'success');
+    addToast(`Payment of ${formatINR(payAmount)} for ${inv.invoiceNumber} recorded successfully!`, 'success');
     return newPayment;
   };
 
@@ -2988,6 +3543,23 @@ export const AppProvider = ({ children }) => {
   // Multi-Branch Management & Staff Transfer Operations
   // --------------------------------------------------------------------------
   const switchBranch = (branchId) => {
+    if (!currentUser) return false;
+
+    // Strict role check: Only restaurant_owner or super_admin can switch active branch
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+      addToast('Access Denied: Only restaurant owners are authorized to switch active branches.', 'error');
+      return false;
+    }
+
+    if (branchId === 'all') {
+      setCurrentBranchId('all');
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_currentBranchId`, JSON.stringify('all'));
+      } catch (e) {}
+      addToast('Switched to Aggregated View (All Authorized Outlets).', 'info');
+      return true;
+    }
+
     const isAllowed = authorizedBranches.some((b) => b.id === branchId);
     if (!isAllowed) {
       addToast('Access Denied: You are not authorized to view or manage this branch.', 'error');
@@ -3041,7 +3613,7 @@ export const AppProvider = ({ children }) => {
 
     setBranches((prev) => [newBranch, ...prev]);
 
-    // Create notification
+    // Create notification (marked read for creator)
     const newNotif = {
       id: `notif-${Date.now()}`,
       type: 'branch_created',
@@ -3049,7 +3621,7 @@ export const AppProvider = ({ children }) => {
       message: `Successfully provisioned ${newBranch.name} with ${newBranch.planName} plan.`,
       branchId: newBranch.id,
       branchName: newBranch.name,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branches',
       actionLabel: 'View Branch',
@@ -3091,7 +3663,7 @@ export const AppProvider = ({ children }) => {
         message: `${targetBranch.name} status updated to ${nextStatus}.`,
         branchId: targetBranch.id,
         branchName: targetBranch.name,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branches',
         actionLabel: 'View Branches',
@@ -3141,7 +3713,7 @@ export const AppProvider = ({ children }) => {
         branchName: targetBranch.name,
         planName: planConfig.name,
         amount: totalRenewalPrice,
-        read: false,
+        read: true,
         timestamp: 'Just now',
         actionLink: '/branch-subscriptions',
         actionLabel: 'View Subscription',
@@ -3240,7 +3812,7 @@ export const AppProvider = ({ children }) => {
       message: `${newStaff.name} invited to ${newStaff.branchName} (${newStaff.roleLabel}). Temporary credentials dispatched.`,
       branchId: newStaff.branchId,
       branchName: newStaff.branchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -3298,7 +3870,7 @@ export const AppProvider = ({ children }) => {
       message: `${mgr.name} appointed as Branch Manager for ${targetBranch?.name}.`,
       branchId,
       branchName: targetBranch?.name || 'Branch',
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Managers',
@@ -3357,7 +3929,7 @@ export const AppProvider = ({ children }) => {
       branchId: toB.id,
       branchName: toB.name,
       transferId: newTransfer.id,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'Review Request',
@@ -3433,7 +4005,12 @@ export const AppProvider = ({ children }) => {
       })
     );
 
-    // Create notification
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
+    // Create decision notification (marked read for decider)
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3441,7 +4018,7 @@ export const AppProvider = ({ children }) => {
       message: `${transfer.employeeName} successfully transferred to ${transfer.toBranchName}.`,
       branchId: transfer.toBranchId,
       branchName: transfer.toBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/branch-staff',
       actionLabel: 'View Staff Roster',
@@ -3481,6 +4058,11 @@ export const AppProvider = ({ children }) => {
       })
     );
 
+    // Automatically mark the pending transfer request notification as read
+    setOwnerNotifications((prev) =>
+      prev.map((n) => (n.transferId === transfer.id || n.transferId === transferId ? { ...n, read: true } : n))
+    );
+
     const notif = {
       id: `notif-${Date.now()}`,
       type: 'transfer_decision',
@@ -3488,7 +4070,7 @@ export const AppProvider = ({ children }) => {
       message: `Transfer of ${transfer.employeeName} to ${transfer.toBranchName} was declined. Reason: ${reason}.`,
       branchId: transfer.fromBranchId,
       branchName: transfer.fromBranchName,
-      read: false,
+      read: true,
       timestamp: 'Just now',
       actionLink: '/staff-transfers',
       actionLabel: 'View Transfers',
@@ -3580,16 +4162,16 @@ export const AppProvider = ({ children }) => {
     addToast(`Ticket status updated to ${newStatus}.`, 'info');
   };
 
-  // --- KITCHEN ATTENDANCE (PUNCH-IN / PUNCH-OUT) ---
+  // --- KITCHEN & EMPLOYEE ATTENDANCE (PUNCH-IN / PUNCH-OUT / BREAKS) ---
   const punchInStaff = ({ staffId, staffName, staffRole, branchId, branchName, station, notes }) => {
     const user = currentUser;
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
-    // Check if already active
+    // Prevent duplicate active session
     const existingActive = attendanceRecords.find(r => r.staffId === targetId && r.status === 'active');
     if (existingActive) {
       addToast(`${targetName} is already clocked in!`, 'warning');
@@ -3597,6 +4179,12 @@ export const AppProvider = ({ children }) => {
     }
 
     const now = new Date();
+    // Late arrival check: past 09:30 AM on morning shift
+    const hrs = now.getHours();
+    const mins = now.getMinutes();
+    const isLate = hrs > 9 || (hrs === 9 && mins > 30);
+    const initialStatus = isLate ? 'late' : 'present';
+
     const newRecord = {
       id: `att-${Date.now()}`,
       staffId: targetId,
@@ -3610,14 +4198,20 @@ export const AppProvider = ({ children }) => {
       punchInTime: now.toISOString(),
       punchOutTime: null,
       status: 'active',
+      attendanceStatus: initialStatus,
       totalHours: null,
       station: station || 'Main Prep Line',
-      notes: notes || 'Started station shift prep',
+      notes: notes || 'Clocked in via Workstation',
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: 0,
+      isCorrected: false,
+      correctionAudit: [],
     };
 
     setAttendanceRecords(prev => [newRecord, ...prev]);
 
-    // Live notification for Manager
+    // Live notification for Manager/Owner
     const notif = {
       id: `notif-punch-${Date.now()}`,
       type: 'staff_punch_in',
@@ -3627,14 +4221,50 @@ export const AppProvider = ({ children }) => {
       branchName: newRecord.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Attendance',
       badge: 'Attendance',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punch-in recorded! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
+    addToast(`Clocked in successfully! Shift active since ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`, 'success');
     return newRecord;
+  };
+
+  const startStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec) {
+      addToast('No active attendance session found.', 'error');
+      return false;
+    }
+    if (rec.isOnBreak) {
+      addToast('You are already on break.', 'warning');
+      return false;
+    }
+    const now = new Date().toISOString();
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? { ...r, isOnBreak: true, breakStartTime: now } : r));
+    addToast('Break started. Enjoy your rest!', 'info');
+    return true;
+  };
+
+  const endStaffBreak = (recordId) => {
+    const rec = attendanceRecords.find(r => r.id === recordId || (r.staffId === currentUser?.id && r.status === 'active'));
+    if (!rec || !rec.isOnBreak) {
+      addToast('No active break found to end.', 'error');
+      return false;
+    }
+    const now = Date.now();
+    const breakStart = new Date(rec.breakStartTime).getTime();
+    const breakMins = Math.max(1, Math.round((now - breakStart) / 60000));
+    const totalBreak = (rec.totalBreakMinutes || 0) + breakMins;
+    setAttendanceRecords(prev => prev.map(r => r.id === rec.id ? {
+      ...r,
+      isOnBreak: false,
+      breakStartTime: null,
+      totalBreakMinutes: totalBreak,
+    } : r));
+    addToast(`Break ended (${breakMins} mins). Back on duty!`, 'success');
+    return true;
   };
 
   const punchOutStaff = (recordId, notes = '') => {
@@ -3646,7 +4276,12 @@ export const AppProvider = ({ children }) => {
 
     const now = new Date();
     const inTime = new Date(record.punchInTime);
-    const diffHours = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const totalElapsedHrs = Math.max(0.1, Number(((now - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    const breakHrs = Number(((record.totalBreakMinutes || 0) / 60).toFixed(2));
+    const netWorkedHrs = Math.max(0.1, Number((totalElapsedHrs - breakHrs).toFixed(2)));
+    
+    // Determine attendance status: half-day if < 5 hrs, else keep existing (present or late)
+    const attStatus = netWorkedHrs < 5.0 ? 'half_day' : (record.attendanceStatus || 'present');
 
     setAttendanceRecords(prev => prev.map(r => {
       if (r.id === record.id) {
@@ -3654,7 +4289,10 @@ export const AppProvider = ({ children }) => {
           ...r,
           punchOutTime: now.toISOString(),
           status: 'completed',
-          totalHours: diffHours,
+          attendanceStatus: attStatus,
+          totalHours: netWorkedHrs,
+          isOnBreak: false,
+          breakStartTime: null,
           notes: notes ? `${r.notes ? r.notes + ' • ' : ''}Closing: ${notes}` : r.notes,
         };
       }
@@ -3666,18 +4304,79 @@ export const AppProvider = ({ children }) => {
       id: `notif-punchout-${Date.now()}`,
       type: 'staff_punch_out',
       title: `Staff Punched Out: ${record.staffName}`,
-      message: `${record.staffName} completed shift. Total work duration: ${diffHours} hrs.`,
+      message: `${record.staffName} completed shift. Total work duration: ${netWorkedHrs} hrs.`,
       branchId: record.branchId,
       branchName: record.branchName,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=attendance',
       actionLabel: 'View Timesheet',
       badge: 'Shift End',
     };
     setOwnerNotifications(prev => [notif, ...prev]);
 
-    addToast(`Punched out successfully. Total shift duration: ${diffHours} hrs.`, 'success');
+    addToast(`Punched out successfully. Total shift duration: ${netWorkedHrs} hrs.`, 'success');
+    return true;
+  };
+
+  // --- ATTENDANCE CORRECTIONS (AUDIT TRAIL) ---
+  const correctAttendanceRecord = (recordId, correctionData) => {
+    const record = attendanceRecords.find(r => r.id === recordId);
+    if (!record) {
+      addToast('Attendance record not found.', 'error');
+      return false;
+    }
+    if (!correctionData.reason || !correctionData.reason.trim()) {
+      addToast('Correction reason is mandatory.', 'error');
+      return false;
+    }
+
+    const inTime = correctionData.punchInTime ? new Date(correctionData.punchInTime) : (record.punchInTime ? new Date(record.punchInTime) : null);
+    const outTime = correctionData.punchOutTime ? new Date(correctionData.punchOutTime) : (record.punchOutTime ? new Date(record.punchOutTime) : null);
+    
+    if (inTime && outTime && outTime < inTime) {
+      addToast('Clock-out time cannot be earlier than clock-in time.', 'error');
+      return false;
+    }
+
+    let newTotalHours = record.totalHours;
+    if (inTime && outTime) {
+      newTotalHours = Math.max(0.1, Number(((outTime - inTime) / (1000 * 60 * 60)).toFixed(2)));
+    }
+
+    const auditEntry = {
+      id: `audit-${Date.now()}`,
+      correctedBy: `${currentUser?.name || 'Authorized Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      correctedAt: new Date().toISOString(),
+      originalPunchIn: record.punchInTime,
+      originalPunchOut: record.punchOutTime,
+      originalStatus: record.attendanceStatus || 'present',
+      originalTotalHours: record.totalHours,
+      newPunchIn: correctionData.punchInTime || record.punchInTime,
+      newPunchOut: correctionData.punchOutTime || record.punchOutTime,
+      newStatus: correctionData.attendanceStatus || record.attendanceStatus,
+      newTotalHours,
+      reason: correctionData.reason.trim(),
+    };
+
+    setAttendanceRecords(prev => prev.map(r => {
+      if (r.id === recordId) {
+        return {
+          ...r,
+          punchInTime: correctionData.punchInTime !== undefined ? correctionData.punchInTime : r.punchInTime,
+          punchOutTime: correctionData.punchOutTime !== undefined ? correctionData.punchOutTime : r.punchOutTime,
+          attendanceStatus: correctionData.attendanceStatus || r.attendanceStatus,
+          totalHours: newTotalHours,
+          station: correctionData.station || r.station,
+          notes: correctionData.notes ? `${r.notes ? r.notes + ' • ' : ''}Correction Note: ${correctionData.notes}` : r.notes,
+          isCorrected: true,
+          correctionAudit: [auditEntry, ...(r.correctionAudit || [])],
+        };
+      }
+      return r;
+    }));
+
+    addToast('Attendance record corrected and audit trail logged.', 'success');
     return true;
   };
 
@@ -3687,13 +4386,37 @@ export const AppProvider = ({ children }) => {
     const targetId = staffId || user?.id || 'usr-sg-3';
     const targetName = staffName || user?.name || 'Chef Anita Rao';
     const targetRole = staffRole || user?.roleLabel || 'Head Chef';
-    const targetBranchId = branchId || currentBranchId || 'branch-pune-central';
+    const targetBranchId = branchId || user?.branchId || currentBranchId || 'branch-pune-central';
     const targetBranch = branches.find(b => b.id === targetBranchId);
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    const durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (end < start) {
+      addToast('End date cannot precede start date.', 'error');
+      return null;
+    }
+
+    const durationDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Overlap validation with existing active/pending leave requests
+    const hasOverlap = leaveRequests.some(l => {
+      if (l.staffId !== targetId || l.status === 'rejected' || l.status === 'cancelled') return false;
+      const lStart = new Date(l.startDate);
+      const lEnd = new Date(l.endDate);
+      return (start <= lEnd && end >= lStart);
+    });
+
+    if (hasOverlap) {
+      addToast('You already have an existing leave request spanning these dates.', 'error');
+      return null;
+    }
+
+    // Leave balance check
+    const currentStaffBal = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {};
+    const bal = currentStaffBal[leaveType];
+    if (bal && (bal.total - bal.used) < durationDays && leaveType !== 'Unpaid Leave') {
+      addToast(`Notice: Requested duration (${durationDays}d) exceeds current ${leaveType} balance (${Math.max(0, bal.total - bal.used)}d remaining). Will require Manager special sign-off.`, 'warning');
+    }
 
     const newLeave = {
       id: `leave-${Date.now()}`,
@@ -3729,13 +4452,13 @@ export const AppProvider = ({ children }) => {
       leaveId: newLeave.id,
       read: false,
       timestamp: 'Just now',
-      actionLink: '/branch-staff',
+      actionLink: '/workforce?tab=leave',
       actionLabel: 'Review Request',
       badge: 'Leave Request',
     };
     setOwnerNotifications(prev => [managerNotif, ...prev]);
 
-    // Staff in-app notification
+    // Staff in-app notification (marked read for applicant)
     const staffNotif = {
       id: `snotif-${Date.now()}`,
       targetStaffId: targetId,
@@ -3744,18 +4467,39 @@ export const AppProvider = ({ children }) => {
       message: `Your leave request for ${startDate} – ${endDate} (${durationDays} days) has been dispatched to the Manager for approval.`,
       status: 'pending',
       timestamp: 'Just now',
-      read: false,
+      read: true,
     };
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
-    addToast(`Leave request for ${durationDays} days submitted to Manager!`, 'success');
+    addToast(`Leave request for ${durationDays} days submitted for Manager review!`, 'success');
     return newLeave;
+  };
+
+  const cancelLeaveRequest = (leaveId) => {
+    const req = leaveRequests.find(l => l.id === leaveId);
+    if (!req) {
+      addToast('Leave request not found.', 'error');
+      return false;
+    }
+    if (req.status !== 'pending') {
+      addToast(`Cannot cancel request that is already ${req.status}.`, 'error');
+      return false;
+    }
+    setLeaveRequests(prev => prev.map(l => l.id === leaveId ? { ...l, status: 'cancelled' } : l));
+    addToast('Leave request cancelled.', 'info');
+    return true;
   };
 
   const reviewLeaveRequest = (leaveId, decision, reviewNotes = '') => {
     const req = leaveRequests.find(l => l.id === leaveId);
     if (!req) {
       addToast('Leave request not found.', 'error');
+      return;
+    }
+
+    // Manager self-approval prevention check
+    if (req.staffId === currentUser?.id && currentUser?.role === 'restaurant_manager') {
+      addToast('Managers cannot approve their own leave applications. An Owner must review your request.', 'error');
       return;
     }
 
@@ -3773,6 +4517,70 @@ export const AppProvider = ({ children }) => {
       return l;
     }));
 
+    // If approved, deduct leave balance and mark dates on attendance calendar
+    if (decision === 'approved') {
+      setStaffLeaveBalances(prev => {
+        const currentStaffBal = prev[req.staffId] || INITIAL_STAFF_LEAVE_BALANCES[req.staffId] || {};
+        const typeBal = currentStaffBal[req.leaveType] || { total: 12, used: 0 };
+        return {
+          ...prev,
+          [req.staffId]: {
+            ...currentStaffBal,
+            [req.leaveType]: {
+              ...typeBal,
+              used: (typeBal.used || 0) + req.durationDays,
+            },
+          },
+        };
+      });
+
+      // Update/insert attendance records for leave dates
+      const startDate = new Date(req.startDate);
+      const endDate = new Date(req.endDate);
+      const datesToMark = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        datesToMark.push(d.toISOString().split('T')[0]);
+      }
+
+      setAttendanceRecords(prev => {
+        let updated = [...prev];
+        datesToMark.forEach(dateStr => {
+          const existingIdx = updated.findIndex(r => r.staffId === req.staffId && r.date === dateStr);
+          if (existingIdx !== -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+            };
+          } else {
+            updated.unshift({
+              id: `att-leave-${Date.now()}-${dateStr}`,
+              staffId: req.staffId,
+              staffName: req.staffName,
+              staffRole: req.staffRole,
+              staffAvatar: req.staffAvatar,
+              branchId: req.branchId,
+              branchName: req.branchName,
+              restaurantId: req.restaurantId || currentRestaurantId,
+              date: dateStr,
+              punchInTime: null,
+              punchOutTime: null,
+              status: 'completed',
+              attendanceStatus: 'on_leave',
+              leaveType: req.leaveType,
+              totalHours: 0,
+              station: 'On Approved Leave',
+              notes: `Approved ${req.leaveType}: ${req.reason}`,
+              isCorrected: false,
+              correctionAudit: [],
+            });
+          }
+        });
+        return updated;
+      });
+    }
+
     // Real-time Staff Notification
     const staffNotif = {
       id: `snotif-${Date.now()}`,
@@ -3787,6 +4595,72 @@ export const AppProvider = ({ children }) => {
     setStaffNotifications(prev => [staffNotif, ...prev]);
 
     addToast(`Leave request ${decision} for ${req.staffName}.`, decision === 'approved' ? 'success' : 'info');
+  };
+
+  const getStaffLeaveBalance = (staffId) => {
+    const targetId = staffId || currentUser?.id || 'usr-sg-3';
+    const balances = staffLeaveBalances[targetId] || INITIAL_STAFF_LEAVE_BALANCES[targetId] || {
+      'Casual Leave': { total: 12, used: 0 },
+      'Sick Leave': { total: 10, used: 0 },
+      'Earned Leave': { total: 15, used: 0 },
+      'Emergency Leave': { total: 5, used: 0 },
+      'Unpaid Leave': { total: 99, used: 0 },
+      'Festival / Compensatory Off': { total: 6, used: 0 },
+    };
+    const result = {};
+    Object.keys(balances).forEach(type => {
+      const b = balances[type];
+      result[type] = {
+        total: b.total,
+        used: b.used,
+        remaining: Math.max(0, b.total - b.used),
+      };
+    });
+    return result;
+  };
+
+  // --- HOLIDAY MANAGEMENT ---
+  const addHoliday = (holidayData) => {
+    if (!holidayData.name || !holidayData.date) {
+      addToast('Holiday name and date are required.', 'error');
+      return null;
+    }
+    // Check duplicate date for same scope
+    const existing = holidays.find(h => 
+      h.date === holidayData.date && 
+      h.restaurantId === currentRestaurantId &&
+      (h.scope === 'all' || holidayData.scope === 'all' || h.branchId === holidayData.branchId)
+    );
+    if (existing) {
+      addToast(`A holiday ("${existing.name}") is already scheduled for ${holidayData.date}.`, 'warning');
+      return null;
+    }
+
+    const newHol = {
+      id: `hol-${Date.now()}`,
+      name: holidayData.name.trim(),
+      date: holidayData.date,
+      type: holidayData.type || 'Festival',
+      scope: holidayData.scope || 'all',
+      branchId: holidayData.scope === 'all' ? null : (holidayData.branchId || currentBranchId),
+      restaurantId: currentRestaurantId,
+      description: holidayData.description || 'Official restaurant holiday',
+      createdBy: `${currentUser?.name || 'Manager'} (${currentUser?.role?.replace('_', ' ') || 'Manager'})`,
+      createdAt: new Date().toISOString(),
+    };
+    setHolidays(prev => [...prev, newHol]);
+    addToast(`Holiday "${newHol.name}" scheduled for ${newHol.date}.`, 'success');
+    return newHol;
+  };
+
+  const updateHoliday = (holidayId, updatedData) => {
+    setHolidays(prev => prev.map(h => h.id === holidayId ? { ...h, ...updatedData, modifiedBy: currentUser?.name, modifiedAt: new Date().toISOString() } : h));
+    addToast('Holiday details updated successfully.', 'success');
+  };
+
+  const deleteHoliday = (holidayId) => {
+    setHolidays(prev => prev.filter(h => h.id !== holidayId));
+    addToast('Holiday removed from calendar.', 'info');
   };
 
   // --- SALARY & PAYROLL NOTIFICATIONS ---
@@ -3922,6 +4796,7 @@ export const AppProvider = ({ children }) => {
     localStorage.removeItem(`${STORAGE_KEY}_salaryPayments`);
     localStorage.removeItem(`${STORAGE_KEY}_staffNotifications`);
     localStorage.removeItem(`${STORAGE_KEY}_custom_plan_requests`);
+    localStorage.removeItem(`${STORAGE_KEY}_supplierProducts`);
 
     setRestaurants(initialRestaurants);
     setPlans(initialPlans);
@@ -3956,6 +4831,7 @@ export const AppProvider = ({ children }) => {
     setSalaryPayments(initialSalaryPayments);
     setStaffNotifications(initialStaffNotifications);
     setCustomPlanRequests(initialCustomPlanRequests);
+    setSupplierProducts(INITIAL_SUPPLIER_PRODUCTS);
     setCurrentUser(initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0]);
     setCurrentRestaurantId('rest-1');
 
@@ -3976,13 +4852,20 @@ export const AppProvider = ({ children }) => {
 
     const userRestId = currentUser.restaurantId || currentRestaurantId;
 
+    // Restaurant Owner sees all branches belonging to their restaurant tenant
     if (currentUser.role === 'restaurant_owner') {
       return branches.filter((b) => b.restaurantId === userRestId);
     }
 
-    if (currentUser.branchId) {
+    // ALL OTHER ROLES (restaurant_manager, inventory_manager, kitchen_staff, supplier):
+    // Strictly limited to their single assigned branch!
+    const assignedId =
+      currentUser.branchId ||
+      branchStaff.find((s) => s.id === currentUser.id || s.email === currentUser.email)?.branchId;
+
+    if (assignedId) {
       return branches.filter(
-        (b) => b.restaurantId === userRestId && b.id === currentUser.branchId
+        (b) => b.restaurantId === userRestId && b.id === assignedId
       );
     }
 
@@ -3994,12 +4877,10 @@ export const AppProvider = ({ children }) => {
       );
     }
 
-    if (currentUser.role === 'restaurant_manager') {
-      return branches.filter((b) => b.restaurantId === userRestId);
-    }
-
-    return branches.filter((b) => b.restaurantId === userRestId);
-  }, [branches, currentUser, currentRestaurantId]);
+    // Fallback: at most the single first branch of their restaurant tenant
+    const fallback = branches.filter((b) => b.restaurantId === userRestId);
+    return fallback.slice(0, 1);
+  }, [branches, currentUser, currentRestaurantId, branchStaff]);
 
   const organizationBranches = useMemo(() => {
     const userRestId = currentUser?.restaurantId || currentRestaurantId;
@@ -4009,6 +4890,21 @@ export const AppProvider = ({ children }) => {
   // Keep currentBranchId synchronized with authorizedBranches
   useEffect(() => {
     if (authorizedBranches.length > 0) {
+      // Non-owners are strictly locked to their single authorized branch
+      if (currentUser && currentUser.role !== 'restaurant_owner' && currentUser.role !== 'super_admin') {
+        const singleBranchId = authorizedBranches[0].id;
+        if (currentBranchId !== singleBranchId) {
+          setCurrentBranchId(singleBranchId);
+        }
+        return;
+      }
+
+      if (currentBranchId === 'all') {
+        if (authorizedBranches.length > 1) return;
+        setCurrentBranchId(authorizedBranches[0].id);
+        return;
+      }
+
       const isAllowed = authorizedBranches.some((b) => b.id === currentBranchId);
       if (!isAllowed) {
         setCurrentBranchId(authorizedBranches[0].id);
@@ -4019,10 +4915,19 @@ export const AppProvider = ({ children }) => {
     } else {
       if (currentBranchId !== null) setCurrentBranchId(null);
     }
-  }, [authorizedBranches, currentBranchId]);
+  }, [authorizedBranches, currentBranchId, currentUser]);
 
   const currentBranch = useMemo(() => {
     if (!authorizedBranches || authorizedBranches.length === 0) return null;
+    if (currentBranchId === 'all') {
+      return {
+        id: 'all',
+        name: 'All Outlets (Aggregated)',
+        code: 'ALL',
+        type: 'Aggregated View',
+        status: 'active',
+      };
+    }
     return authorizedBranches.find((b) => b.id === currentBranchId) || authorizedBranches[0];
   }, [authorizedBranches, currentBranchId]);
 
@@ -4030,7 +4935,7 @@ export const AppProvider = ({ children }) => {
   const restaurantIngredients = useMemo(() => {
     return ingredients.filter((i) => {
       if (i.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && i.branchId) return i.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && i.branchId) return i.branchId === currentBranchId;
       return true;
     });
   }, [ingredients, currentRestaurantId, currentBranchId]);
@@ -4038,7 +4943,7 @@ export const AppProvider = ({ children }) => {
   const restaurantOrders = useMemo(() => {
     return purchaseOrders.filter((p) => {
       if (p.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && p.branchId) return p.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && p.branchId) return p.branchId === currentBranchId;
       return true;
     });
   }, [purchaseOrders, currentRestaurantId, currentBranchId]);
@@ -4046,7 +4951,7 @@ export const AppProvider = ({ children }) => {
   const restaurantMovements = useMemo(() => {
     return stockMovements.filter((m) => {
       if (m.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && m.branchId) return m.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && m.branchId) return m.branchId === currentBranchId;
       return true;
     });
   }, [stockMovements, currentRestaurantId, currentBranchId]);
@@ -4163,15 +5068,15 @@ export const AppProvider = ({ children }) => {
     }
     return alerts.filter((a) => {
       if (a.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && a.branchId) return a.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && a.branchId) return a.branchId === currentBranchId;
       return true;
     });
-  }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId]);
+  }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchGRNs = useMemo(() => {
     return goodsReceivedNotes.filter((g) => {
       if (g.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && g.branchId) return g.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && g.branchId) return g.branchId === currentBranchId;
       return true;
     });
   }, [goodsReceivedNotes, currentRestaurantId, currentBranchId]);
@@ -4179,31 +5084,66 @@ export const AppProvider = ({ children }) => {
   const branchBatches = useMemo(() => {
     return productBatches.filter((b) => {
       if (b.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && b.branchId) return b.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && b.branchId) return b.branchId === currentBranchId;
       return true;
     });
   }, [productBatches, currentRestaurantId, currentBranchId]);
 
   const branchReturns = useMemo(() => {
-    return supplierReturns.filter((r) => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierReturns || []).filter((r) => {
+        return (activeSupId && r.supplierId === activeSupId) || (activeSupName && r.supplierName === activeSupName);
+      });
+    }
+    return (supplierReturns || []).filter((r) => {
       if (r.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && r.branchId) return r.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && r.branchId) return r.branchId === currentBranchId;
       return true;
     });
-  }, [supplierReturns, currentRestaurantId, currentBranchId]);
+  }, [supplierReturns, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchSupplierInvoices = useMemo(() => {
-    return supplierInvoices.filter((inv) => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierInvoices || []).filter((inv) => {
+        return (activeSupId && inv.supplierId === activeSupId) || (activeSupName && inv.supplierName === activeSupName);
+      });
+    }
+    return (supplierInvoices || []).filter((inv) => {
       if (inv.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && inv.branchId) return inv.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
-  }, [supplierInvoices, currentRestaurantId, currentBranchId]);
+  }, [supplierPayments, currentRestaurantId, currentUser]);
+
+  const branchOwnerNotifications = useMemo(() => {
+    return (ownerNotifications || []).filter((n) => {
+      if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerNotifications, currentUser]);
+
+  // Scoped supplier products: if a supplier is logged in, they ONLY see their own products!
+  const visibleSupplierProducts = useMemo(() => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierProducts || []).filter(
+        (p) => (activeSupId && p.supplierId === activeSupId) || (activeSupName && p.supplierName === activeSupName)
+      );
+    }
+    return supplierProducts || [];
+  }, [supplierProducts, currentUser]);
 
   const branchStaffList = useMemo(() => {
     return branchStaff.filter((s) => {
       if (s.restaurantId !== currentRestaurantId) return false;
-      if (currentBranchId && s.branchId) return s.branchId === currentBranchId;
+      if (currentBranchId && currentBranchId !== 'all' && s.branchId) return s.branchId === currentBranchId;
       return true;
     });
   }, [branchStaff, currentRestaurantId, currentBranchId]);
@@ -4633,6 +5573,164 @@ export const AppProvider = ({ children }) => {
     };
   };
 
+
+  // ==========================================
+  // EXCEL / CSV BULK IMPORT OPERATIONS
+  // ==========================================
+  const importIngredientsBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role === 'kitchen_staff' || currentUser.role === 'supplier') {
+      addToast('Permission Denied: Your role is not authorized to import inventory records.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const qty = Number(item.quantity) || 0;
+      const minThresh = Number(item.minThreshold) || 5;
+      const status = qty === 0 ? 'out_of_stock' : qty <= minThresh ? 'low_stock' : 'in_stock';
+      return {
+        id: `ing-imported-${Date.now()}-${idx}`,
+        restaurantId: currentRestaurantId,
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        name: item.name,
+        category: item.category || 'General',
+        quantity: qty,
+        unit: item.unit || 'kg',
+        costPerUnit: Number(item.costPerUnit) || 0,
+        minThreshold: minThresh,
+        status,
+        supplierId: item.supplierId || null,
+        supplierName: item.supplierName || 'Imported via Excel',
+        batchNumber: item.batchNumber || `BCH-IMP-${Math.floor(100 + Math.random() * 900)}`,
+        storageLocation: item.storageLocation || 'Store Room',
+        expiryDate: item.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        daysUntilExpiry: 30,
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setIngredients((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_ingredients`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} ingredient(s) into inventory!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Ingredients into ${currentBranch?.name || 'Branch'}`,
+      'Inventory',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importSuppliersBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'inventory_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only owners and inventory leads can import suppliers.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const mapped = newItems.map((item, idx) => {
+      const rawCats = item.categories
+        ? (Array.isArray(item.categories) ? item.categories : String(item.categories).split(',').map((c) => c.trim()))
+        : ['Produce'];
+      return {
+        id: `sup-imported-${Date.now()}-${idx}`,
+        restaurantIds: [currentRestaurantId],
+        name: item.name,
+        contactPerson: item.contactPerson || item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        address: item.address || 'Local Delivery Depot',
+        leadTimeDays: Number(item.leadTimeDays) || 2,
+        paymentTerms: item.paymentTerms || 'Net 30',
+        categories: rawCats,
+        rating: 4.8,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setSuppliers((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_suppliers`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} supplier(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Suppliers`,
+      'Procurement',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
+  const importStaffBulk = (newItems) => {
+    if (!currentUser) return { success: false, error: 'Unauthorized' };
+    if (currentUser.role !== 'restaurant_owner' && currentUser.role !== 'restaurant_manager' && currentUser.role !== 'super_admin') {
+      addToast('Permission Denied: Only restaurant owners and managers can import staff.', 'error');
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const targetBranch = currentBranchId && currentBranchId !== 'all'
+      ? currentBranchId
+      : (authorizedBranches[0]?.id || 'branch-pune-central');
+
+    const mapped = newItems.map((item, idx) => {
+      const baseSalary = Number(item.baseSalary) || 25000;
+      return {
+        id: `usr-imported-${Date.now()}-${idx}`,
+        name: item.name,
+        email: item.email,
+        phone: item.phone || '+91 98220 00000',
+        role: 'kitchen_staff',
+        roleLabel: item.roleLabel || 'Kitchen Team Member',
+        department: item.department || 'Kitchen Operations',
+        branchId: targetBranch,
+        branchName: currentBranch?.name || 'Active Branch',
+        restaurantId: currentRestaurantId,
+        baseSalary,
+        bankAccount: item.bankAccount || 'Direct Bank Deposit',
+        status: 'active',
+        joinedDate: new Date().toISOString().split('T')[0],
+        avatar: `https://images.unsplash.com/photo-${1500000000000 + (idx % 1000)}?w=150`,
+      };
+    });
+
+    setBranchStaff((prev) => {
+      const updated = [...prev, ...mapped];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_branchStaff`, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addToast(`Successfully imported ${mapped.length} staff member(s)!`, 'success');
+    addPlatformLog(
+      currentUser.name,
+      'Excel Bulk Import',
+      `${mapped.length} Staff records into ${currentBranch?.name || 'Branch'}`,
+      'Workforce',
+      'success'
+    );
+    return { success: true, count: mapped.length };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -4664,7 +5762,7 @@ export const AppProvider = ({ children }) => {
         branchStaff: branchStaffList,
         organizationStaff: branchStaff.filter(s => s.restaurantId === currentRestaurantId),
         staffTransfers,
-        ownerNotifications,
+        ownerNotifications: branchOwnerNotifications,
         branchInvoices,
         toasts,
 
@@ -4678,7 +5776,7 @@ export const AppProvider = ({ children }) => {
         supplierReturns: branchReturns,
         branchReturns,
         creditNotes,
-        supplierPayments,
+        supplierPayments: branchSupplierPayments,
         supplierAgreements,
         createGoodsReceivedNote,
         consumeFromBatch,
@@ -4696,6 +5794,9 @@ export const AppProvider = ({ children }) => {
         staffAlerts,
         restaurantSuppliers,
         restaurantStaff,
+        importIngredientsBulk,
+        importSuppliersBulk,
+        importStaffBulk,
 
         // Role Matrix & Employee Access
         updateEmployeeRole,
@@ -4802,8 +5903,19 @@ export const AppProvider = ({ children }) => {
         STAFF_SALARY_PROFILES,
         punchInStaff,
         punchOutStaff,
+        startStaffBreak,
+        endStaffBreak,
+        correctAttendanceRecord,
         submitLeaveRequest,
+        cancelLeaveRequest,
         reviewLeaveRequest,
+        getStaffLeaveBalance,
+        staffLeaveBalances,
+        LEAVE_POLICIES,
+        holidays,
+        addHoliday,
+        updateHoliday,
+        deleteHoliday,
         processSalaryPayment,
         markStaffNotificationRead,
         markAllStaffNotificationsRead,
@@ -4820,6 +5932,19 @@ export const AppProvider = ({ children }) => {
         BASE_PLANS,
         FEATURE_ADDONS,
         AUTOMATION_LIMITS,
+
+        // Third-Party Supplier B2B Marketplace & Procurement Workflow
+        supplierProducts: visibleSupplierProducts,
+        SUPPLIER_SUBSCRIPTION_PLANS,
+        SUPPLIER_CATEGORIES,
+        addSupplierProduct,
+        updateSupplierProduct,
+        deleteSupplierProduct,
+        toggleSupplierProductStock,
+        registerSupplierAccount,
+        createMarketplacePO,
+        approvePurchaseOrder,
+        receivePOAndStock,
 
         // Communication Center & Announcement System
         announcements,

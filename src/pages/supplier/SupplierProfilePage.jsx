@@ -20,8 +20,16 @@ export const SupplierProfilePage = () => {
   const { suppliers, currentUser, restaurants, addToast } = useApp();
 
   const currentSup =
-    suppliers.find((s) => s.id === (currentUser.supplierId || 'sup-1')) ||
-    suppliers[0];
+    suppliers.find((s) => s.id === currentUser?.supplierId || s.name === currentUser?.supplierName) ||
+    {
+      name: currentUser?.supplierName || currentUser?.name || 'Vendor Partner',
+      contactPerson: currentUser?.name || 'Partner',
+      email: currentUser?.email || 'vendor@supplier.com',
+      phone: '+91 98000 00000',
+      address: 'Central Logistics Hub, Sector 4, Pune',
+      leadTimeDays: 1,
+      paymentTerms: 'Net 14',
+    };
 
   const [formData, setFormData] = useState({
     name: currentSup?.name || '',
@@ -39,7 +47,7 @@ export const SupplierProfilePage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 w-full pb-12">
       <PageHeader
         title="Supplier Vendor Profile"
         subtitle="Manage dispatch contact details, catalog categories, and payment agreements"

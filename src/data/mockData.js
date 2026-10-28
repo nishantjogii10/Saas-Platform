@@ -384,6 +384,8 @@ export const initialUsers = [
     password: 'password123',
     role: 'restaurant_manager',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     status: 'active',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
@@ -410,6 +412,8 @@ export const initialUsers = [
     email: 'anita.chef@spicegarden.com',
     role: 'kitchen_staff',
     restaurantId: 'rest-1',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
     restaurantName: 'Spice Garden',
     status: 'active',
     pin: '4421', // Quick Touch Station PIN

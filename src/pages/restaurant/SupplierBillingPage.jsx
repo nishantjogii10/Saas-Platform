@@ -583,7 +583,7 @@ export const SupplierBillingPage = () => {
                 </span>
                 <h3 className="text-xl font-black text-white">{selectedInvoiceDetails.invoiceNumber}</h3>
                 <div className="text-xs text-slate-300 mt-0.5">
-                  Supplier: <strong>{selectedInvoiceDetails.supplierName}</strong> (GSTIN: {selectedInvoiceDetails.supplierGstin || '27AABCM8821D1Z1'})
+                  Supplier: <strong>{selectedInvoiceDetails.supplierName}</strong>{selectedInvoiceDetails.supplierGstin ? ` (GSTIN: ${selectedInvoiceDetails.supplierGstin})` : ''}
                 </div>
               </div>
               <div className="text-right sm:text-right">
