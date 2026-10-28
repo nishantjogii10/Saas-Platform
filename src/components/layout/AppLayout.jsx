@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
@@ -9,7 +8,7 @@ export const AppLayout = ({ children }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-800 overflow-hidden">
+    <div className="h-screen flex flex-col bg-ambient-canvas text-slate-800 overflow-hidden">
       {/* Main Workspace: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         <Sidebar

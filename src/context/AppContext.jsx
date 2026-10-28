@@ -201,8 +201,8 @@ export const AppProvider = ({ children }) => {
         }
       }
     }
-    syncPricingEnginePlans(loaded);
-    syncBranchPlansConfig(loaded);
+    if (typeof syncPricingEnginePlans === 'function') syncPricingEnginePlans(loaded);
+    if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(loaded);
     return loaded;
   });
   const [users, setUsers] = useState(() => loadStored('users', initialUsers));
@@ -318,8 +318,8 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_plans`, JSON.stringify(plans));
-    syncPricingEnginePlans(plans);
-    syncBranchPlansConfig(plans);
+    if (typeof syncPricingEnginePlans === 'function') syncPricingEnginePlans(plans);
+    if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(plans);
   }, [plans]);
 
   useEffect(() => {
@@ -2567,6 +2567,7 @@ export const AppProvider = ({ children }) => {
       supplierId: inv.supplierId,
       supplierName: inv.supplierName,
       restaurantId: inv.restaurantId,
+      branchId: inv.branchId || (currentBranchId !== 'all' ? currentBranchId : null),
       restaurantName: inv.restaurantName,
       amountPaid: payAmount,
       paymentMethod: paymentMethod || 'NEFT Bank Transfer',
@@ -2707,8 +2708,8 @@ export const AppProvider = ({ children }) => {
 
     setPlans(initialPlans);
     localStorage.setItem(`${STORAGE_KEY}_plans`, JSON.stringify(initialPlans));
-    syncPricingEnginePlans(initialPlans);
-    syncBranchPlansConfig(initialPlans);
+    if (typeof syncPricingEnginePlans === 'function') syncPricingEnginePlans(initialPlans);
+    if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(initialPlans);
 
     initialPlans.forEach(plan => {
       setRestaurants(prev => prev.map(r => {
@@ -5117,7 +5118,51 @@ export const AppProvider = ({ children }) => {
       if (currentBranchId && currentBranchId !== 'all' && inv.branchId) return inv.branchId === currentBranchId;
       return true;
     });
-  }, [supplierPayments, currentRestaurantId, currentUser]);
+  }, [supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
+
+  const branchSupplierPayments = useMemo(() => {
+    if (currentUser?.role === 'supplier') {
+      const activeSupId = currentUser?.supplierId;
+      const activeSupName = currentUser?.supplierName;
+      return (supplierPayments || []).filter((pay) => {
+        return (
+          (activeSupId && pay.supplierId === activeSupId) ||
+          (activeSupName && pay.supplierName === activeSupName)
+        );
+      });
+    }
+
+    // Build an invoice lookup map to resolve restaurantId/branchId for legacy or un-migrated payment records
+    const invoiceMap = new Map();
+    (supplierInvoices || []).forEach((inv) => {
+      if (inv && inv.id) {
+        invoiceMap.set(inv.id, inv);
+      }
+    });
+
+    return (supplierPayments || []).filter((pay) => {
+      const linkedInvoice = pay.invoiceId ? invoiceMap.get(pay.invoiceId) : null;
+      const targetRestaurantId = pay.restaurantId || linkedInvoice?.restaurantId;
+      const targetBranchId = pay.branchId || linkedInvoice?.branchId;
+
+      // Super Admin access: can view all if no specific restaurant is scoped
+      if (currentUser?.role === 'super_admin' && !currentRestaurantId) {
+        return true;
+      }
+
+      // Multi-tenant check: payment must belong to the active restaurant
+      if (targetRestaurantId && targetRestaurantId !== currentRestaurantId) {
+        return false;
+      }
+
+      // Branch check: if a specific branch is selected, filter by branch
+      if (currentBranchId && currentBranchId !== 'all' && targetBranchId) {
+        return targetBranchId === currentBranchId;
+      }
+
+      return true;
+    });
+  }, [supplierPayments, supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
 
   const branchOwnerNotifications = useMemo(() => {
     return (ownerNotifications || []).filter((n) => {
@@ -5777,6 +5822,8 @@ export const AppProvider = ({ children }) => {
         branchReturns,
         creditNotes,
         supplierPayments: branchSupplierPayments,
+        branchSupplierPayments,
+        allSupplierPayments: supplierPayments,
         supplierAgreements,
         createGoodsReceivedNote,
         consumeFromBatch,
@@ -5930,6 +5977,7 @@ export const AppProvider = ({ children }) => {
         acceptQuotation,
         activateCustomSubscription,
         BASE_PLANS,
+        syncPricingEnginePlans,
         FEATURE_ADDONS,
         AUTOMATION_LIMITS,
 

@@ -363,21 +363,21 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
   // Role-specific active link styling
   const getActiveNavClass = (isActive) => {
-    if (!isActive) return 'text-slate-300 hover:bg-slate-800/70 hover:text-white';
+    if (!isActive) return 'text-slate-300 hover:bg-slate-800/60 hover:text-white transition-all duration-150';
     switch (currentUser?.role) {
       case 'super_admin':
-        return 'bg-indigo-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm shadow-indigo-950/40 font-semibold border-l-2 border-indigo-400';
       case 'supplier':
-        return 'bg-sky-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-sm shadow-sky-950/40 font-semibold border-l-2 border-sky-400';
       case 'kitchen_staff':
-        return 'bg-amber-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-sm shadow-amber-950/40 font-semibold border-l-2 border-amber-400';
       case 'inventory_manager':
-        return 'bg-teal-700 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-teal-700 to-teal-800 text-white shadow-sm shadow-teal-950/40 font-semibold border-l-2 border-teal-400';
       case 'restaurant_manager':
-        return 'bg-blue-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-sm shadow-blue-950/40 font-semibold border-l-2 border-blue-400';
       case 'restaurant_owner':
       default:
-        return 'bg-emerald-700 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-emerald-700 to-teal-800 text-white shadow-sm shadow-emerald-950/40 font-semibold border-l-2 border-emerald-400';
     }
   };
 
@@ -393,7 +393,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
       {/* Dynamic Role Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-950/95 backdrop-blur-xl border-r border-slate-800/80 flex flex-col h-full transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 shrink-0 shadow-2xl lg:shadow-none ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

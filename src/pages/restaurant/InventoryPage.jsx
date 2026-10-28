@@ -354,7 +354,7 @@ export const InventoryPage = () => {
       />
 
       {/* Workflow B Step Indicator Notice */}
-      <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3 text-xs text-emerald-950">
+      <div className="p-4 rounded-2xl glass-panel bg-emerald-50/40 border-emerald-200/70 flex items-start gap-3 text-xs text-emerald-950">
         <span className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0 font-bold text-[11px]">
           B
         </span>
@@ -365,7 +365,7 @@ export const InventoryPage = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 glass-panel p-4">
         <div className="sm:col-span-5">
           <SearchBar
             value={searchTerm}
@@ -397,8 +397,8 @@ export const InventoryPage = () => {
               onClick={() => setCategoryFilter(f)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none ${
                 categoryFilter === f
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-sm font-bold active:scale-[0.98]'
+                  : 'glass-pill text-slate-600 hover:text-slate-900 hover:bg-white/80 active:scale-[0.98]'
               }`}
             >
               {f === 'all' ? 'All Stock' : f.replace('_', ' ').toUpperCase()}

@@ -2284,7 +2284,7 @@ export const CommunicationCenterPage = () => {
                     variant="outline"
                     size="sm"
                     icon={Eye}
-                    onClick={() => handlePreviewAnnouncement(ann)}
+                    onClick={() => setPreviewingTemplate(ann)}
                   >
                     Preview Email Shell
                   </Button>

@@ -267,7 +267,7 @@ export const SubscriptionPlans = () => {
       />
 
       {/* Subscription Metrics Quick Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 glass-panel p-5">
         <div>
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Subscriptions</span>
           <div className="text-xl font-bold text-emerald-800 mt-1">{activeSubs} Accounts</div>
@@ -289,7 +289,7 @@ export const SubscriptionPlans = () => {
       </div>
 
       {/* Dynamic Sync Helper Notice */}
-      <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex items-start gap-3 text-xs text-indigo-950">
+      <div className="p-4 rounded-2xl glass-panel bg-indigo-50/40 border-indigo-200/70 flex items-start gap-3 text-xs text-indigo-950">
         <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 font-bold text-[11px]">
           D
         </span>
@@ -311,12 +311,12 @@ export const SubscriptionPlans = () => {
           return (
             <div
               key={plan.id}
-              className={`relative rounded-3xl p-6 bg-white border transition-all duration-200 shadow-xs flex flex-col justify-between ${
+              className={`relative rounded-3xl p-6 transition-all duration-200 flex flex-col justify-between ${
                 isInactive
-                  ? 'border-dashed border-amber-300 bg-amber-50/20 opacity-80'
+                  ? 'border-dashed border-amber-300/80 bg-amber-50/30 opacity-80 backdrop-blur-md'
                   : plan.popular
-                  ? 'border-emerald-600 ring-2 ring-emerald-500/20 shadow-md'
-                  : 'border-slate-200/90 hover:border-slate-300'
+                  ? 'glass-panel border-emerald-500 ring-2 ring-emerald-500/30 shadow-glass-hover bg-gradient-to-b from-white/95 to-emerald-50/20'
+                  : 'glass-panel hover:shadow-glass-hover'
               }`}
             >
               <div>
