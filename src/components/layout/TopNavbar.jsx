@@ -89,46 +89,85 @@ const roleFilteredAlerts = React.useMemo(() => {
     });
   }, [restaurantAlerts, currentUser]);
 
-  // Combined notifications for popover
-  const combinedNotifications = useMemo(() => {
-    const alerts = (restaurantAlerts || []).map(a => ({
-      id: a.id,
-      title: a.title,
-      message: a.message,
-      timestamp: a.timestamp,
-      read: a.read,
-      type: a.type || 'alert',
-      severity: a.severity,
-      actionLink: a.actionLink,
-      action: () => {
-        markAlertRead(a.id);
-        if (a.actionLink) {
-          if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => a.actionLink.startsWith(p))) {
-            navigate('/alerts');
-          } else {
-            navigate(a.actionLink);
-          }
-          setShowNotifications(false);
-        }
-      },
-      link: a.actionLink || '/alerts'
-    }));
+  const unreadAlerts = roleFilteredAlerts.filter(a => !a.read);
+  const unreadOwnerNotifs = (ownerNotifications || []).filter(n => {
+    if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+      return false;
+    }
+    return !n.read;
+  });
+  const myStaffNotifs = (staffNotifications || []).filter(n => n.targetStaffId === currentUser?.id);
+  const unreadStaffNotifs = myStaffNotifs.filter(n => !n.read);
 
-    const annNotifs = (currentUser?.role === 'restaurant_owner' ? (ownerNotifications || []) : []).filter(n => n.actionLink === '/inbox').map(n => ({
-      id: n.id,
-      title: n.title,
-      message: n.message,
-      timestamp: n.timestamp,
-      read: n.read,
-      type: 'announcement',
-      severity: n.priority === 'urgent' ? 'critical' : 'normal',
-      action: () => {
-        if (n.announcementId && currentRestaurant) {
-          markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
+  const isKitchenStaff = currentUser?.role === 'kitchen_staff';
+  const roleFilteredOwnerNotifs = React.useMemo(() => {
+    return (ownerNotifications || []).filter(n => {
+      if (n.targetRoles && currentUser?.role && !n.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerNotifications, currentUser]);
+
+  const relevantNotifs = isKitchenStaff ? myStaffNotifs : roleFilteredOwnerNotifs;
+  const relevantUnreadNotifs = isKitchenStaff ? unreadStaffNotifs : unreadOwnerNotifs;
+  const totalUnreadCount = unreadAlerts.length + relevantUnreadNotifs.length;
+
+  const combinedItems = React.useMemo(() => {
+    const list = [];
+    if (notifTab === 'all' || notifTab === 'alerts') {
+      roleFilteredAlerts.forEach(a => {
+        list.push({
+          id: a.id,
+          sourceType: 'alert',
+          title: a.title,
+          message: a.message,
+          read: a.read,
+          severity: a.severity,
+          timestamp: a.timestamp,
+          actionLink: a.actionLink,
+        });
+      });
+    }
+    if (notifTab === 'all' || notifTab === 'notifications') {
+      relevantNotifs.forEach(n => {
+        list.push({
+          id: n.id,
+          sourceType: 'notification',
+          title: n.title,
+          message: n.message,
+          read: n.read,
+          badge: n.badge || 'Notice',
+          timestamp: n.timestamp,
+          actionLink: n.actionLink,
+          amount: n.amount,
+          announcementId: n.announcementId,
+        });
+      });
+    }
+    return list.sort((a, b) => {
+      if (a.read !== b.read) return a.read ? 1 : -1;
+      return 0;
+    }).slice(0, 8);
+  }, [roleFilteredAlerts, relevantNotifs, notifTab]);
+
+  const handleItemClick = (item) => {
+    if (item.sourceType === 'alert') {
+      markAlertRead(item.id);
+      if (item.actionLink) {
+        if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => item.actionLink.startsWith(p))) {
+          navigate('/alerts');
+        } else if (isKitchenStaff && !item.actionLink.startsWith('/kitchen')) {
+          navigate('/kitchen');
+        } else {
+          navigate(item.actionLink);
         }
         setShowNotifications(false);
       }
     } else {
+      if (item.announcementId && currentRestaurant) {
+        markAnnouncementAsRead(item.announcementId, currentRestaurant.id);
+      }
       if (isKitchenStaff) {
         markStaffNotificationRead(item.id);
       } else {
@@ -144,7 +183,6 @@ const roleFilteredAlerts = React.useMemo(() => {
       }
     }
   };
-
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 transition-colors duration-200">
       {/* Left: Mobile Menu Toggle & Workspace Info */}
