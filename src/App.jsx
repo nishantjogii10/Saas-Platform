@@ -24,6 +24,7 @@ import { SubscriptionPlans } from './pages/superAdmin/SubscriptionPlans';
 import { PlatformAnalytics } from './pages/superAdmin/PlatformAnalytics';
 import { ActivityLogs } from './pages/superAdmin/ActivityLogs';
 import { SupportSettings } from './pages/superAdmin/SupportSettings';
+import { PlatformSettingsPage } from './pages/superAdmin/PlatformSettingsPage';
 import { RoleMatrixPage } from './pages/superAdmin/RoleMatrixPage';
 import { PaymentsDashboard } from './pages/superAdmin/PaymentsDashboard';
 import { SubscriptionsPage } from './pages/superAdmin/SubscriptionsPage';
@@ -268,6 +269,20 @@ function App() {
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['super_admin']}>
+                  <PlatformSettingsPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/admin/platform-settings"
+            element={<Navigate to="/admin/settings" replace />}
           />
           <Route
             path="/admin/support"

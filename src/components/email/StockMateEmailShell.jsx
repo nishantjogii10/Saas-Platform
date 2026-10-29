@@ -22,6 +22,7 @@ import {
   Building,
   Check,
 } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 import { formatINR } from '../../data/inventoryBillingData';
 import { ANNOUNCEMENT_CATEGORIES, PRIORITY_CONFIGS } from '../../data/announcementData';
 
@@ -68,6 +69,20 @@ export const StockMateEmailShell = ({
   const restaurantName = recipient.restaurantName || 'Your Restaurant';
   const recipientEmail = recipient.ownerEmail || recipient.email || 'partner@stockmate.io';
 
+  let platformGeneral = null;
+  try {
+    const appCtx = useApp();
+    platformGeneral = appCtx?.platformSettings?.general;
+  } catch (err) {}
+
+  const dynamicPlatformName = platformGeneral?.platformName || 'StockMate';
+  const dynamicSenderName = platformGeneral?.emailSenderName || 'StockMate Cloud Notifications';
+  const dynamicSenderEmail = platformGeneral?.emailSenderAddress || 'notifications@stockmate.io';
+  const dynamicSupportEmail = platformGeneral?.supportEmail || 'support@stockmate.io';
+  const dynamicCompany = platformGeneral?.companyLegalName || 'StockMate Platform Technologies Inc.';
+  const dynamicAddress = platformGeneral?.registeredAddress || 'Registered: Tech Park Hub, Bengaluru, KA 560103, India';
+  const dynamicDisclaimer = platformGeneral?.emailFooterDisclaimer;
+
   // Category Icon Resolver
   const getCategoryIcon = () => {
     switch (category) {
@@ -104,7 +119,7 @@ export const StockMateEmailShell = ({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-base sm:text-lg tracking-tight text-white">StockMate</span>
+                <span className="font-black text-base sm:text-lg tracking-tight text-white">{dynamicPlatformName}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   SaaS
                 </span>
@@ -135,8 +150,8 @@ export const StockMateEmailShell = ({
           <div className="flex flex-wrap items-center justify-between gap-1">
             <div>
               <span className="text-slate-400 font-semibold">From: </span>
-              <strong className="text-white">StockMate Cloud Notifications</strong>{' '}
-              <span className="text-slate-400">&lt;notifications@stockmate.io&gt;</span>
+              <strong className="text-white">{dynamicSenderName}</strong>{' '}
+              <span className="text-slate-400">&lt;{dynamicSenderEmail}&gt;</span>
             </div>
             <div className={`flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded font-bold border ${
               deliveryStatus === 'delivered'
@@ -349,12 +364,12 @@ export const StockMateEmailShell = ({
       <div className="bg-slate-50 p-5 sm:p-6 border-t border-slate-200/80 text-[11px] text-slate-500 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">StockMate Platform Technologies Inc.</span>
+            <span className="font-bold text-slate-800">{dynamicCompany}</span>
             <span className="text-slate-300">&bull;</span>
             <span>Enterprise Multi-Tenant Infrastructure</span>
           </div>
           <div className="text-slate-400">
-            Registered: Tech Park Hub, Bengaluru, KA 560103, India
+            {dynamicAddress}
           </div>
         </div>
 
@@ -366,14 +381,14 @@ export const StockMateEmailShell = ({
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[10px] text-slate-400">
           <div>
-            Need assistance? <span className="text-emerald-700 font-semibold">support@stockmate.io</span> &bull; 24/7 Priority SLA
+            Need assistance? <span className="text-emerald-700 font-semibold">{dynamicSupportEmail}</span> &bull; 24/7 Priority SLA
           </div>
           {simulated && (
             <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
               ⚡ In-App Dispatch Active &bull; External SMTP requires AWS SES / SendGrid API
             </div>
           )}
-          <div>&copy; 2026 StockMate Technologies Inc. All rights reserved.</div>
+          <div>&copy; {new Date().getFullYear()} {dynamicCompany}. All rights reserved.</div>
         </div>
       </div>
     </div>
