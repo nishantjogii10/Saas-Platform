@@ -58,6 +58,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     customPlanRequests,
     announcements,
     announcementReads,
+    platformSettings,
   } = useApp();
 
   const getHomeRoute = () => {
@@ -102,7 +103,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/admin/plans', label: 'Subscription Plans', icon: CreditCard },
               { to: '/admin/analytics', label: 'Platform Analytics', icon: BarChart3 },
               { to: '/admin/logs', label: 'Activity Logs', icon: FileText },
-              { to: '/admin/support', label: 'Support & Settings', icon: LifeBuoy },
+              { to: '/admin/settings', label: 'Platform Settings', icon: Sliders },
+              { to: '/admin/support', label: 'Support Inquiries', icon: LifeBuoy },
             ],
           },
           {
@@ -410,7 +412,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-base tracking-tight text-white group-hover:text-emerald-300 transition-colors">
-                  StockMate
+                  {platformSettings?.general?.platformName || 'StockMate'}
                 </span>
                 <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800/60">
                   SaaS

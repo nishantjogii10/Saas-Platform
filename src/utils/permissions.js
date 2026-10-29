@@ -157,6 +157,8 @@ export const ROUTE_PERMISSIONS = {
 
   // Super Admin Module
   '/admin/dashboard': [ROLES.SUPER_ADMIN],
+  '/admin/settings': [ROLES.SUPER_ADMIN],
+  '/admin/platform-settings': [ROLES.SUPER_ADMIN],
   '/admin/communication': [ROLES.SUPER_ADMIN],
   '/admin/restaurants': [ROLES.SUPER_ADMIN],
   '/admin/users': [ROLES.SUPER_ADMIN],

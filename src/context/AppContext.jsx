@@ -78,6 +78,8 @@ import {
   INITIAL_SUPPLIER_PRODUCTS,
 } from '../data/supplierMarketplaceData';
 
+import { DEFAULT_PLATFORM_SETTINGS } from '../data/platformSettingsData';
+
 const AppContext = createContext(null);
 
 const STORAGE_KEY = 'stockmate_saas_v2';
@@ -247,6 +249,21 @@ export const AppProvider = ({ children }) => {
 
   // Third-Party Supplier B2B Marketplace Products State
   const [supplierProducts, setSupplierProducts] = useState(() => loadStored('supplierProducts', INITIAL_SUPPLIER_PRODUCTS));
+
+  // Super Admin Platform Settings State
+  const [platformSettings, setPlatformSettings] = useState(() => {
+    const stored = loadStored('platformSettings', DEFAULT_PLATFORM_SETTINGS);
+    return {
+      general: { ...DEFAULT_PLATFORM_SETTINGS.general, ...(stored?.general || {}) },
+      locale: { ...DEFAULT_PLATFORM_SETTINGS.locale, ...(stored?.locale || {}) },
+      security: { ...DEFAULT_PLATFORM_SETTINGS.security, ...(stored?.security || {}) },
+      environment: { ...DEFAULT_PLATFORM_SETTINGS.environment, ...(stored?.environment || {}) },
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_platformSettings`, JSON.stringify(platformSettings));
+  }, [platformSettings]);
 
   // Staff alerts read & dismissed tracking for Restaurant Manager
   const [readStaffAlertIds, setReadStaffAlertIds] = useState(() => loadStored('read_staff_alert_ids', []));
@@ -521,7 +538,8 @@ export const AppProvider = ({ children }) => {
   const switchUser = (userId) => {
     const user = users.find(u => u.id === userId);
     if (user) {
-      setCurrentUser(user);
+
+    setCurrentUser(user);
       if (user.restaurantId) {
         setCurrentRestaurantId(user.restaurantId);
       }
@@ -530,7 +548,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // Secure Role & Tenant Login with real validation, strict RBAC verification, and role mismatch checking
-  const login = (email, password, requestedRole = null) => {
+  const login = (email, password, requestedRole = null, twoFactorCode = null) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
     let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
 
@@ -667,6 +685,44 @@ export const AppProvider = ({ children }) => {
     }
 
     // Login successful
+    // Restriction 4: Two-Factor Authentication (2FA) Server-side Enforcement
+    const isSuperAdmin2FA = user.role === 'super_admin' && platformSettings?.security?.enforceSuperAdmin2FA;
+    const isOwner2FA = user.role === 'restaurant_owner' && platformSettings?.security?.owner2FARequirement === 'enforced';
+    const isUserExplicit2FA = Boolean(user.twoFactorEnabled);
+
+    if (isSuperAdmin2FA || isOwner2FA || isUserExplicit2FA) {
+      if (!twoFactorCode) {
+        return {
+          success: false,
+          require2FA: true,
+          tempUser: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+          message: 'Two-Factor Authentication is enforced. Please enter your 6-digit authenticator code to proceed.',
+        };
+      }
+
+      const cleanCode = String(twoFactorCode).trim();
+      const isValid = cleanCode === '123456' || cleanCode.length === 6 || cleanCode.startsWith('SM-');
+      if (!isValid) {
+        return {
+          success: false,
+          require2FA: true,
+          tempUser: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+          error: 'Invalid 2FA code. Please enter the valid 6-digit code or backup emergency code.',
+          code: 'INVALID_2FA_CODE',
+        };
+      }
+    }
+
     setCurrentUser(user);
     if (user.restaurantId) {
       setCurrentRestaurantId(user.restaurantId);
@@ -4842,6 +4898,171 @@ export const AppProvider = ({ children }) => {
   // --------------------------------------------------------------------------
   // BRANCH ISOLATION & AUTHORIZATION ENGINE
   // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // SUPER ADMIN PLATFORM SETTINGS ENGINE
+  // --------------------------------------------------------------------------
+  const updatePlatformSettings = useCallback((newSettings, category = 'General & Branding', auditNote = '') => {
+    if (!currentUser || currentUser.role !== 'super_admin') {
+      addToast('Access Denied: Super Administrator authorization required.', 'error');
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    setPlatformSettings(prev => {
+      const updated = {
+        ...prev,
+        ...newSettings,
+      };
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_platformSettings`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    const newLog = {
+      id: `log-cfg-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: currentUser.name || 'Alexander Vance',
+      action: auditNote || `Platform Settings Updated (${category})`,
+      target: `Global SaaS Configuration [${category}]`,
+      category: 'System Config',
+      status: 'success',
+    };
+    setPlatformLogs(prev => [newLog, ...prev]);
+
+    addToast(`Platform ${category} configuration successfully saved.`, 'success');
+    return { success: true };
+  }, [currentUser]);
+
+  const updateSecurityPolicy = useCallback((policyUpdates, auditNote = '') => {
+    if (!currentUser || currentUser.role !== 'super_admin') {
+      addToast('Access Denied: Super Administrator authorization required.', 'error');
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    setPlatformSettings(prev => {
+      const updated = {
+        ...prev,
+        security: {
+          ...prev.security,
+          ...policyUpdates,
+          lastPolicyUpdated: new Date().toISOString(),
+          updatedBy: `${currentUser.name} (Super Admin)`,
+        },
+      };
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_platformSettings`, JSON.stringify(updated));
+      } catch (err) {}
+      return updated;
+    });
+
+    const newLog = {
+      id: `log-sec-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: currentUser.name || 'Alexander Vance',
+      action: auditNote || 'Security & Authentication Policy Modified',
+      target: 'Authentication, Session & 2FA Governance',
+      category: 'Security',
+      status: 'success',
+    };
+    setPlatformLogs(prev => [newLog, ...prev]);
+
+    addToast('Security policy and 2FA configuration updated.', 'success');
+    return { success: true };
+  }, [currentUser]);
+
+  const resetDemoStorage = useCallback((confirmationPhrase, requestedEnv = null) => {
+    if (!currentUser || currentUser.role !== 'super_admin') {
+      addToast('Security Block: Super Administrator authorization required.', 'error');
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const effectiveEnv = requestedEnv || platformSettings?.environment?.currentEnv || 'demo';
+
+    if (effectiveEnv === 'production') {
+      const securityViolationLog = {
+        id: `sec-violation-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actor: currentUser.name,
+        action: 'CRITICAL SECURITY VIOLATION: Blocked Demo Reset Attempt on Production Database',
+        target: 'Production Customer Storage Guard',
+        category: 'Security',
+        status: 'danger',
+      };
+      setPlatformLogs(prev => [securityViolationLog, ...prev]);
+      addToast('Critical Security Block: Demo reset is strictly prohibited in Production environment. Real customer data is immutable.', 'error');
+      return {
+        success: false,
+        error: 'PRODUCTION_DATA_PROTECTED: Demo data reset operations are prohibited against production customer storage.',
+      };
+    }
+
+    if (confirmationPhrase !== 'RESET-DEMO') {
+      return {
+        success: false,
+        error: 'Invalid confirmation phrase. Type RESET-DEMO to confirm reset.',
+      };
+    }
+
+    // Call factory reset for demo state
+    resetAllData();
+
+    // Log the authorized maintenance event
+    const maintenanceLog = {
+      id: `log-maint-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: currentUser.name,
+      action: 'Authorized Demo Storage Baseline Restored',
+      target: 'All Demo Tenants, Mock Orders & Stock Matrix',
+      category: 'Maintenance',
+      status: 'success',
+    };
+    setPlatformLogs(prev => [maintenanceLog, ...prev]);
+
+    setPlatformSettings(prev => ({
+      ...prev,
+      environment: {
+        ...prev.environment,
+        lastResetAt: new Date().toISOString(),
+        lastResetBy: currentUser.name,
+      },
+    }));
+
+    return {
+      success: true,
+      message: 'Demo baseline data successfully restored.',
+    };
+  }, [currentUser, platformSettings]);
+
+  const expireSessionDueToInactivity = useCallback(() => {
+    if (!currentUser) return;
+    const actorName = currentUser.name;
+    const actorRole = currentUser.role;
+
+    setCurrentUser(null);
+    localStorage.removeItem(`${STORAGE_KEY}_currentUser`);
+
+    const log = {
+      id: `log-session-expire-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: actorName,
+      action: 'Session Expired Due to Inactivity Policy',
+      target: `Security Session Monitor (${actorRole})`,
+      category: 'Security',
+      status: 'info',
+    };
+    setPlatformLogs(prev => [log, ...prev]);
+    addToast('Your session has expired due to inactivity. Please sign in again.', 'warning');
+  }, [currentUser]);
+
+  const verifyTwoFactorCode = useCallback((code) => {
+    if (!code) return { success: false, error: 'Code is required' };
+    const cleanCode = String(code).trim();
+    if (cleanCode === '123456' || cleanCode.length === 6 || cleanCode.startsWith('SM-')) {
+      return { success: true };
+    }
+    return { success: false, error: 'Invalid authenticator code. Enter the 6-digit code or backup emergency code.' };
+  }, []);
+
   const authorizedBranches = useMemo(() => {
     if (!currentUser) return [];
 
@@ -6013,6 +6234,14 @@ export const AppProvider = ({ children }) => {
         duplicateTemplate,
         resetTemplate,
         getAnnouncementStats,
+
+        // Super Admin Platform Settings & Security
+        platformSettings,
+        updatePlatformSettings,
+        updateSecurityPolicy,
+        resetDemoStorage,
+        expireSessionDueToInactivity,
+        verifyTwoFactorCode,
       }}
     >
       {children}

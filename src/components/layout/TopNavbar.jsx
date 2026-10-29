@@ -627,7 +627,7 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                 {currentUser?.role === 'super_admin' && (
                   <button
                     onClick={() => {
-                      navigate('/admin/support');
+                      navigate('/admin/settings');
                       setShowUserDropdown(false);
                     }}
                     className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"

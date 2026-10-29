@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
 import { ToastContainer } from '../common/Toast';
 import { ProfileModal } from '../common/ProfileModal';
+import { SessionInactivityWatcher } from '../common/SessionInactivityWatcher';
 
 export const AppLayout = ({ children }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -31,6 +32,7 @@ export const AppLayout = ({ children }) => {
       {/* Global Toast Notifications & Modals */}
       <ToastContainer />
       <ProfileModal />
+      <SessionInactivityWatcher />
     </div>
   );
 };
