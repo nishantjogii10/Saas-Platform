@@ -23,6 +23,8 @@ import {
   Percent,
   Download,
   AlertCircle,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -40,6 +42,8 @@ export const SupplierBillingPage = () => {
     supplierPayments,
     goodsReceivedNotes,
     recordSupplierPayment,
+    suppliers,
+    restaurantSuppliers,
     addToast,
     currentUser,
   } = useApp();
@@ -402,7 +406,20 @@ export const SupplierBillingPage = () => {
 
                       <td className="py-3 px-4">
                         <div className="font-semibold text-slate-800">{inv.supplierName}</div>
-                        <div className="text-[11px] font-mono text-slate-400">
+                        {(() => {
+                          const sup = (suppliers || restaurantSuppliers || []).find((s) => s.id === inv.supplierId || s.name === inv.supplierName);
+                          const isTieUp = (sup?.supplierType === 'Tie-up Supplier') || sup?.registeredVia === 'main_system' || sup?.id === 'sup-4' || sup?.id === 'sup-5' || inv.supplierName?.toLowerCase().includes('golden crust') || inv.supplierName?.toLowerCase().includes('amrit dairy');
+                          const isThirdParty = !isTieUp;
+                          return (
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                              isThirdParty ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-teal-50 text-teal-700 border border-teal-200'
+                            }`}>
+                              {isThirdParty ? <Globe className="w-2.5 h-2.5" /> : <Handshake className="w-2.5 h-2.5" />}
+                              <span>{isThirdParty ? 'Third-Party' : 'Tie-up'}</span>
+                            </span>
+                          );
+                        })()}
+                        <div className="text-[11px] font-mono text-slate-400 mt-0.5">
                           GST: {inv.supplierGstin || '27AABC...'}
                         </div>
                       </td>

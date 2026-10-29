@@ -13,6 +13,8 @@ import {
   ArrowRight,
   Sparkles,
   Clock,
+  Bell,
+  Globe,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -37,12 +39,19 @@ import { formatINR } from '../../data/inventoryBillingData';
 
 export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
-  const { restaurants, users, plans, platformLogs } = useApp();
+  const { restaurants, users, plans, platformLogs, alerts } = useApp();
 
   const totalRestaurants = restaurants.length;
   const activeRestaurants = restaurants.filter(r => r.status === 'active').length;
   const suspendedRestaurants = restaurants.filter(r => r.status === 'suspended').length;
   const totalUsers = users.length;
+
+  const supplierRegistrationAlerts = (alerts || []).filter(
+    (a) =>
+      a.targetRoles?.includes('super_admin') ||
+      a.type === 'user_registration' ||
+      a.title?.toLowerCase().includes('supplier')
+  );
 
   // Calculate simulated monthly recurring revenue (MRR)
   const calculatedMRR = restaurants.reduce((acc, r) => {
@@ -88,6 +97,38 @@ export const SuperAdminDashboard = () => {
           </div>
         }
       />
+
+      {/* Real-Time Supplier Onboarding Alert Banner (Requirement 2) */}
+      {supplierRegistrationAlerts.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 p-4 rounded-2xl text-white border border-emerald-600/40 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                  Real-Time Notification: New Supplier Portal Registration
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/30 text-emerald-200">
+                  New Alert
+                </span>
+              </div>
+              <p className="text-xs text-slate-200 mt-0.5 font-medium">
+                {supplierRegistrationAlerts[0].message}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="xs"
+            variant="brand"
+            iconRight={ArrowRight}
+            onClick={() => navigate('/admin/users')}
+          >
+            Review in Platform Users
+          </Button>
+        </div>
+      )}
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">

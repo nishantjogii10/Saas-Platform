@@ -29,6 +29,8 @@ import {
   Percent,
   SlidersHorizontal,
   RefreshCw,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -274,6 +276,16 @@ export const SupplierMarketplaceViewPage = () => {
                 <Badge variant="info" size="sm" className="bg-sky-500/20 text-sky-300 border-sky-500/40">
                   {mySupplier.planName || 'Pro Vendor'} Plan
                 </Badge>
+                {(() => {
+                  const sType = mySupplier.supplierType || currentUser?.supplierType || (mySupplier.registeredVia === 'main_system' || currentUser?.registeredVia === 'main_system' || mySupplier.id === 'sup-4' || mySupplier.id === 'sup-5' ? 'Tie-up Supplier' : 'Third-Party Supplier');
+                  const isTieUp = sType === 'Tie-up Supplier';
+                  return (
+                    <Badge variant={isTieUp ? 'success' : 'info'} size="sm" className={isTieUp ? 'bg-teal-500/20 text-teal-300 border-teal-500/40' : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'}>
+                      {isTieUp ? <Handshake className="w-3 h-3 mr-1 inline" /> : <Globe className="w-3 h-3 mr-1 inline" />}
+                      {sType}
+                    </Badge>
+                  );
+                })()}
               </div>
               <p className="text-xs text-slate-300 mt-1 flex items-center gap-3 flex-wrap">
                 <span className="flex items-center gap-1 text-amber-300">

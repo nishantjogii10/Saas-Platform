@@ -17,6 +17,9 @@ import {
   PackageX,
   Building2,
   FileText,
+  Truck,
+  Check,
+  Receipt,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -32,6 +35,7 @@ export const SupplierReturnsPage = () => {
     supplierReturns,
     approveSupplierReturn,
     rejectSupplierReturn,
+    updateReturnTrackingStatus,
     currentUser,
     addToast,
   } = useApp();
@@ -39,6 +43,86 @@ export const SupplierReturnsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedReturn, setSelectedReturn] = useState(null);
+
+  // Tracking Modal State
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [trackingTarget, setTrackingTarget] = useState(null);
+  const [trackingForm, setTrackingForm] = useState({
+    trackingStatus: 'Received & Warehouse Inspected',
+    carrierName: 'FastTrack Agri-Logistics',
+    trackingNumber: '',
+    note: '',
+  });
+
+  const handleOpenTrackingModal = (ret) => {
+    setTrackingTarget(ret);
+    setTrackingForm({
+      trackingStatus: ret.trackingStatus || 'Received & Warehouse Inspected',
+      carrierName: ret.carrierName || 'FastTrack Agri-Logistics',
+      trackingNumber: ret.trackingNumber || `TRK-${Math.floor(100000 + Math.random() * 900000)}`,
+      note: 'Inspected upon return to central supplier warehouse dock.',
+    });
+    setIsTrackingModalOpen(true);
+  };
+
+  const handleSaveTracking = (e) => {
+    e.preventDefault();
+    if (!trackingTarget) return;
+    updateReturnTrackingStatus(trackingTarget.id, trackingForm);
+    setIsTrackingModalOpen(false);
+    if (selectedReturn && selectedReturn.id === trackingTarget.id) {
+      setSelectedReturn((prev) => ({
+        ...prev,
+        trackingStatus: trackingForm.trackingStatus,
+        carrierName: trackingForm.carrierName,
+        trackingNumber: trackingForm.trackingNumber,
+      }));
+    }
+  };
+
+  const getTrackingBadge = (trackingStatus, status) => {
+    const s =
+      trackingStatus ||
+      (status === 'Completed'
+        ? 'Refund Processed & Settled'
+        : status === 'Approved'
+        ? 'Return Approved'
+        : 'Return Requested');
+
+    if (s.includes('Settled') || s.includes('Processed') || status === 'Completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Refund Settled
+        </span>
+      );
+    }
+    if (s.includes('Transit') || s.includes('Pickup')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+          <Truck className="w-3 h-3 text-sky-600" /> In Transit
+        </span>
+      );
+    }
+    if (s.includes('Inspected') || s.includes('Received')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+          <Building2 className="w-3 h-3 text-indigo-600" /> Dock Inspected
+        </span>
+      );
+    }
+    if (s.includes('Approved')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+          <Check className="w-3 h-3 text-teal-600" /> Claim Approved
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+        <Clock className="w-3 h-3 text-amber-600" /> {s}
+      </span>
+    );
+  };
 
   // Modals for actions
   const [approveModalOpen, setApproveModalOpen] = useState(false);
@@ -218,6 +302,7 @@ export const SupplierReturnsPage = () => {
                 <th className="py-3 px-4">Category & Reason</th>
                 <th className="py-3 px-4 text-right">Return Qty</th>
                 <th className="py-3 px-4 text-right">Loss Claimed</th>
+                <th className="py-3 px-4">Tracking & Carrier</th>
                 <th className="py-3 px-4">Status & Settlement</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
@@ -225,7 +310,7 @@ export const SupplierReturnsPage = () => {
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredReturns.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-400">
+                  <td colSpan={9} className="py-10 text-center text-slate-400">
                     No return claims found.
                   </td>
                 </tr>
@@ -271,12 +356,28 @@ export const SupplierReturnsPage = () => {
                     </td>
 
                     <td className="py-3 px-4">
+                      <div className="mb-1">{getTrackingBadge(ret.trackingStatus, ret.status)}</div>
+                      <div className="text-[10px] text-slate-500 font-medium">
+                        {ret.carrierName || 'FastTrack Logistics'}
+                      </div>
+                      {ret.trackingNumber && (
+                        <div className="text-[10px] font-mono text-slate-400">
+                          #{ret.trackingNumber}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-4">
                       <div className="mb-1">{getStatusBadge(ret.status)}</div>
-                      {ret.creditNoteId && (
+                      {ret.refundStatus === 'Processed' ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded inline-block">
+                          Refund Settled
+                        </span>
+                      ) : ret.creditNoteId ? (
                         <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block">
                           {ret.creditNoteId}
                         </div>
-                      )}
+                      ) : null}
                     </td>
 
                     <td className="py-3 px-4 text-center">
@@ -288,6 +389,16 @@ export const SupplierReturnsPage = () => {
                           onClick={() => setSelectedReturn(ret)}
                         >
                           View
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Truck}
+                          title="Update Tracking & Warehouse Inspection"
+                          onClick={() => handleOpenTrackingModal(ret)}
+                        >
+                          Track
                         </Button>
 
                         {ret.status === 'Pending' && (
@@ -459,8 +570,8 @@ export const SupplierReturnsPage = () => {
           isOpen={!!selectedReturn}
           onClose={() => setSelectedReturn(null)}
           title={`Return Claim Details — ${selectedReturn.returnNumber}`}
-          subtitle="Audit log and settlement record"
-          size="md"
+          subtitle="Audit log, tracking milestones, and settlement record"
+          size="lg"
         >
           <div className="space-y-4 text-xs">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between">
@@ -474,9 +585,78 @@ export const SupplierReturnsPage = () => {
               </div>
             </div>
 
+            {/* Visual Tracking Stepper */}
+            <div className="p-4 bg-slate-900 rounded-2xl text-white">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Return Logistics & Refund Milestones
+                  </span>
+                </div>
+                <div className="text-xs text-emerald-300 font-bold">
+                  {selectedReturn.carrierName || 'FastTrack Logistics'}
+                </div>
+              </div>
+
+              {(() => {
+                const s = (selectedReturn.trackingStatus || selectedReturn.status || '').toLowerCase();
+                const isStep5 =
+                  selectedReturn.refundStatus === 'Processed' ||
+                  selectedReturn.status === 'Completed' ||
+                  s.includes('settled') ||
+                  s.includes('refund');
+                const isStep4 = isStep5 || selectedReturn.status === 'Approved' || s.includes('approved');
+                const isStep3 = isStep4 || s.includes('inspected') || s.includes('warehouse') || s.includes('received');
+                const isStep2 = isStep3 || s.includes('transit') || s.includes('pickup');
+                const isStep1 = true;
+
+                const steps = [
+                  { num: 1, title: 'Claim Logged', done: isStep1 },
+                  { num: 2, title: 'In Transit', done: isStep2 },
+                  { num: 3, title: 'Inspected', done: isStep3 },
+                  { num: 4, title: 'Approved', done: isStep4 },
+                  { num: 5, title: 'Refund Settled', done: isStep5 },
+                ];
+
+                return (
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    {steps.map((st) => (
+                      <div key={st.num} className="flex flex-col items-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                            st.done ? 'bg-emerald-500 text-white ring-2 ring-emerald-500/20' : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {st.done ? <Check className="w-3.5 h-3.5" /> : st.num}
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-200 mt-1">{st.title}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="mt-3 pt-2.5 border-t border-slate-800 flex justify-between items-center text-xs text-slate-300">
+                <span className="font-mono text-[11px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400">
+                  Waybill #{selectedReturn.trackingNumber || 'TRK-984210'}
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                  icon={Truck}
+                  onClick={() => handleOpenTrackingModal(selectedReturn)}
+                >
+                  Update Milestone
+                </Button>
+              </div>
+            </div>
+
+            {/* Product & Loss Overview */}
             <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
               <div className="flex justify-between">
-                <span className="text-slate-500">Client:</span>
+                <span className="text-slate-500">Client Restaurant:</span>
                 <span className="font-bold text-slate-800">{selectedReturn.restaurantName}</span>
               </div>
               <div className="flex justify-between">
@@ -501,14 +681,51 @@ export const SupplierReturnsPage = () => {
                 <span className="text-slate-500">Reported Reason:</span>
                 <span className="font-medium text-slate-700 text-right max-w-xs">{selectedReturn.reason}</span>
               </div>
-              {selectedReturn.creditNoteId && (
-                <div className="flex justify-between pt-1 border-t border-slate-200">
-                  <span className="text-slate-500">Credit Note ID:</span>
-                  <span className="font-mono font-bold text-emerald-700">
-                    {selectedReturn.creditNoteId} ({formatINR(selectedReturn.creditNoteAmount)})
+            </div>
+
+            {/* Payment & Refund Settlement Receipt */}
+            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5 text-emerald-950">
+              <div className="flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-emerald-700" />
+                  Refund & Settlement Record
+                </span>
+                {selectedReturn.refundStatus === 'Processed' || selectedReturn.status === 'Completed' ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    Payment Disbursed
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                    Pending Disbursal
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60 text-[11px]">
+                <div>
+                  <span className="text-emerald-800/70 block">Disbursed Amount:</span>
+                  <span className="font-bold text-emerald-900">
+                    {formatINR(selectedReturn.refundAmount || selectedReturn.creditNoteAmount || selectedReturn.totalLossAmount)}
                   </span>
                 </div>
-              )}
+                <div>
+                  <span className="text-emerald-800/70 block">Settlement Channel:</span>
+                  <span className="font-semibold text-emerald-950">
+                    {selectedReturn.refundMethod || selectedReturn.settlementType || 'Credit Note'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-800/70 block">Reference / UTR:</span>
+                  <span className="font-mono font-bold text-emerald-800">
+                    {selectedReturn.refundTransactionId || selectedReturn.creditNoteId || 'Pending'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-800/70 block">Settlement Date:</span>
+                  <span className="font-semibold text-emerald-950">
+                    {selectedReturn.refundDate || (selectedReturn.status === 'Completed' ? 'Today' : 'Pending')}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="pt-2 border-t border-slate-200 flex justify-end">
@@ -521,6 +738,108 @@ export const SupplierReturnsPage = () => {
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Modal: Update Tracking for Supplier */}
+      {isTrackingModalOpen && trackingTarget && (
+        <Modal
+          isOpen={isTrackingModalOpen}
+          onClose={() => setIsTrackingModalOpen(false)}
+          title={`Update Logistics Milestone — ${trackingTarget.returnNumber}`}
+          subtitle={`Log dock inspection and transit status for return from ${trackingTarget.restaurantName}`}
+          size="md"
+        >
+          <form onSubmit={handleSaveTracking} className="space-y-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Item:</span>
+                <span className="font-bold text-slate-800">{trackingTarget.productName} ({trackingTarget.returnQty} {trackingTarget.unit})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Client:</span>
+                <span className="font-semibold text-slate-800">{trackingTarget.restaurantName}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Milestone Status *
+              </label>
+              <select
+                value={trackingForm.trackingStatus}
+                onChange={(e) => setTrackingForm({ ...trackingForm, trackingStatus: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+              >
+                <option value="Pickup Scheduled / In Transit">Pickup Scheduled / In Transit</option>
+                <option value="Received & Warehouse Inspected">Received & Warehouse Inspected</option>
+                <option value="Return Approved">Return Approved by QA</option>
+                <option value="Refund Processed & Settled">Refund Processed & Settled</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Logistics Carrier *
+                </label>
+                <input
+                  type="text"
+                  value={trackingForm.carrierName}
+                  onChange={(e) => setTrackingForm({ ...trackingForm, carrierName: e.target.value })}
+                  placeholder="e.g. FastTrack Agri-Logistics"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tracking Waybill # *
+                </label>
+                <input
+                  type="text"
+                  value={trackingForm.trackingNumber}
+                  onChange={(e) => setTrackingForm({ ...trackingForm, trackingNumber: e.target.value })}
+                  placeholder="e.g. TRK-842910"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Warehouse / Inspection Remarks
+              </label>
+              <textarea
+                rows={2}
+                value={trackingForm.note}
+                onChange={(e) => setTrackingForm({ ...trackingForm, note: e.target.value })}
+                placeholder="Inspected condition, seals checked..."
+                className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTrackingModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="brand"
+                size="sm"
+                icon={Truck}
+              >
+                Update Milestone
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

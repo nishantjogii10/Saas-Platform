@@ -15,6 +15,9 @@ import {
   Building2,
   Mail,
   Calendar,
+  Globe,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -40,10 +43,32 @@ export const UserManagement = () => {
     restaurantId: restaurants[0]?.id || '',
   });
 
-  const filteredUsers = users.filter((u) => {
+  // Requirement 1 (Platform Users Filtering):
+  // In the Super Admin dashboard under Platform Users, it should only display data for suppliers who register
+  // through the Supplier Portal for the very first time. Deduplicate multiple entries/names for the same supplier.
+  const deduplicatedUsers = React.useMemo(() => {
+    const seenSupplierKeys = new Set();
+    return users.filter((u) => {
+      if (u.role === 'supplier') {
+        // Only display data for suppliers who register through the Supplier Portal for the very first time
+        const isPortalSupplier = u.registeredVia === 'supplier_portal' || u.isFirstTimePortalRegistration === true;
+        if (!isPortalSupplier) return false;
+
+        // Deduplicate supplier records by supplierId, email, or cleaned supplierName/contact
+        const key = (u.supplierId || u.email || u.supplierName || u.name || '').toLowerCase().trim();
+        if (seenSupplierKeys.has(key)) return false;
+        seenSupplierKeys.add(key);
+        return true;
+      }
+      return true;
+    });
+  }, [users]);
+
+  const filteredUsers = deduplicatedUsers.filter((u) => {
     const matchesSearch =
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.supplierName && u.supplierName.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
 
@@ -89,7 +114,14 @@ export const UserManagement = () => {
             className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-100"
           />
           <div>
-            <div className="font-semibold text-slate-900">{row.name}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-slate-900">{row.name}</span>
+              {row.role === 'supplier' && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <Globe className="w-2.5 h-2.5" /> 1st Reg
+                </span>
+              )}
+            </div>
             <div className="text-xs text-slate-500">{row.email}</div>
           </div>
         </div>
@@ -99,20 +131,33 @@ export const UserManagement = () => {
       header: 'Assigned Role',
       accessor: 'role',
       sortable: true,
-      render: (row) => <Badge status={row.role} />,
+      render: (row) => (
+        <div>
+          <Badge status={row.role} />
+          {row.role === 'supplier' && (
+            <div className="text-[10px] font-bold text-emerald-700 mt-0.5 flex items-center gap-1">
+              <span>Third-Party Supplier</span>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
-      header: 'Restaurant Workspace',
+      header: 'Organization / Restaurant',
       accessor: 'restaurantName',
       sortable: true,
       render: (row) => (
         <div className="text-xs">
           <span className="font-medium text-slate-800">
-            {row.restaurantName || (row.role === 'super_admin' ? 'Platform Wide' : 'Supplier Partner')}
+            {row.role === 'supplier'
+              ? (row.supplierName || 'Third-Party Supplier')
+              : (row.restaurantName || (row.role === 'super_admin' ? 'Platform Wide' : 'Supplier Partner'))}
           </span>
-          {row.restaurantId && (
+          {row.restaurantId ? (
             <span className="block text-[11px] text-slate-400">ID: {row.restaurantId}</span>
-          )}
+          ) : row.role === 'supplier' ? (
+            <span className="block text-[10px] text-emerald-600 font-mono">External Supplier Portal Registration</span>
+          ) : null}
         </div>
       ),
     },
@@ -203,13 +248,13 @@ export const UserManagement = () => {
             onChange={(e) => setRoleFilter(e.target.value)}
             className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
           >
-            <option value="all">All Roles ({users.length})</option>
+            <option value="all">All Roles ({deduplicatedUsers.length})</option>
             <option value="super_admin">Super Admins</option>
             <option value="restaurant_owner">Restaurant Owners</option>
             <option value="restaurant_manager">Restaurant Managers</option>
             <option value="inventory_manager">Inventory Managers</option>
             <option value="kitchen_staff">Kitchen Staff</option>
-            <option value="supplier">Suppliers</option>
+            <option value="supplier">Portal Suppliers (First-Time Only)</option>
           </select>
         </div>
 
@@ -228,6 +273,17 @@ export const UserManagement = () => {
             <option value="none">Platform / External</option>
           </select>
         </div>
+      </div>
+
+      {/* Supplier Registration Policy Notification Banner */}
+      <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex items-center justify-between text-xs text-emerald-900 gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>
+            <strong>Portal Supplier Filtering Active:</strong> Displaying only deduplicated accounts for suppliers who register through the external Supplier Portal for the very first time. Duplicate entries and secondary tie-up records are filtered out.
+          </span>
+        </div>
+        <Badge status="success" label="Deduplication On" size="xs" />
       </div>
 
       {/* Main Data Table */}

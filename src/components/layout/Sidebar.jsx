@@ -137,9 +137,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
               { to: '/batch-tracking', label: 'QR & Batch Matrix', icon: QrCode },
               { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
-              { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
-              { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
-              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
+              { to: '/suppliers', label: 'Supplier List', icon: Truck },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',

@@ -85,7 +85,7 @@ export const SupplierLoginPage = () => {
     setIsSubmitting(true);
 
     setTimeout(() => {
-      const result = login(loginEmail, loginPassword, 'supplier');
+      const result = login(loginEmail, loginPassword, 'supplier', null, 'supplier_portal');
       setIsSubmitting(false);
 
       if (!result.success) {
@@ -104,7 +104,7 @@ export const SupplierLoginPage = () => {
     setLoginPassword('password123');
 
     setTimeout(() => {
-      const result = login(email, 'password123', 'supplier');
+      const result = login(email, 'password123', 'supplier', null, 'supplier_portal');
       setIsSubmitting(false);
       if (result.success) {
         addToast(`Logged in as verified vendor: ${name}`, 'success');
@@ -130,6 +130,9 @@ export const SupplierLoginPage = () => {
       try {
         const result = registerSupplierAccount({
           ...regForm,
+          supplierType: 'Third-Party Supplier',
+          registeredVia: 'supplier_portal',
+          isFirstTimePortalRegistration: true,
           planId: selectedPlanId,
           billingCycle,
         });

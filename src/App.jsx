@@ -445,7 +445,7 @@ function App() {
             path="/purchase-orders"
             element={
               <AppLayout>
-  <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
+  <RoleGuard allowedRoles={['inventory_manager', 'super_admin']}>
     <PurchaseOrdersPage />
   </RoleGuard>
 </AppLayout>
@@ -455,7 +455,7 @@ function App() {
             path="/marketplace"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin', 'supplier']}>
+                <RoleGuard allowedRoles={['inventory_manager', 'super_admin', 'supplier']}>
                   <B2BMarketplacePage />
                 </RoleGuard>
               </AppLayout>
@@ -495,7 +495,7 @@ function App() {
             element={
               <AppLayout>
   <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-    <SupplierBillingPage />
+    <SupplierReturnsPage />
   </RoleGuard>
 </AppLayout>
             }

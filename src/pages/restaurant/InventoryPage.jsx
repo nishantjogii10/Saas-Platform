@@ -15,6 +15,8 @@ import {
   Calendar,
   Layers,
   ShoppingBag,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -254,20 +256,36 @@ export const InventoryPage = () => {
       header: 'Supplier & Expiry',
       accessor: 'supplierName',
       sortable: true,
-      render: (row) => (
-        <div className="text-xs">
-          <div className="font-medium text-slate-700 truncate max-w-[150px]">{row.supplierName}</div>
-          <div className={`mt-0.5 ${
-            row.daysUntilExpiry < 0
-              ? 'text-rose-600 font-bold'
-              : row.daysUntilExpiry <= 3
-              ? 'text-amber-600 font-semibold'
-              : 'text-slate-400'
-          }`}>
-            Exp: {row.expiryDate} ({row.daysUntilExpiry < 0 ? 'Expired' : `${row.daysUntilExpiry}d left`})
+      render: (row) => {
+        const sup = (restaurantSuppliers || []).find((s) => s.id === row.supplierId || s.name === row.supplierName);
+        const isTieUp = sup?.supplierType === 'Tie-up Supplier' || sup?.registeredVia === 'main_system' || sup?.id === 'sup-4' || sup?.id === 'sup-5' || row.supplierName?.toLowerCase().includes('golden crust') || row.supplierName?.toLowerCase().includes('amrit dairy');
+        const supType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+
+        return (
+          <div className="text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-slate-800 truncate max-w-[140px]">{row.supplierName}</span>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                isTieUp
+                  ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+              }`}>
+                {isTieUp ? <Handshake className="w-2.5 h-2.5" /> : <Globe className="w-2.5 h-2.5" />}
+                <span>{supType}</span>
+              </span>
+            </div>
+            <div className={`mt-0.5 ${
+              row.daysUntilExpiry < 0
+                ? 'text-rose-600 font-bold'
+                : row.daysUntilExpiry <= 3
+                ? 'text-amber-600 font-semibold'
+                : 'text-slate-400'
+            }`}>
+              Exp: {row.expiryDate} ({row.daysUntilExpiry < 0 ? 'Expired' : `${row.daysUntilExpiry}d left`})
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'Actions',
@@ -533,7 +551,11 @@ export const InventoryPage = () => {
               type="select"
               value={formData.supplierId}
               onChange={(e) => handleSupplierChange(e.target.value)}
-              options={restaurantSuppliers.map(s => ({ label: s.name, value: s.id }))}
+              options={restaurantSuppliers.map(s => {
+                const isTieUp = s.supplierType === 'Tie-up Supplier' || s.registeredVia === 'main_system' || s.id === 'sup-4' || s.id === 'sup-5' || s.name?.toLowerCase().includes('golden crust') || s.name?.toLowerCase().includes('amrit dairy');
+                const supType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+                return { label: `${s.name} (${supType})`, value: s.id };
+              })}
               required
             />
           </div>

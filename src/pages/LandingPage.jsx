@@ -508,13 +508,21 @@ export const LandingPage = () => {
               <span>Supplier Portal</span>
             </Link>
 
+            {/* Requirement 2: Sign In option directly routing to main login page */}
+            <Link
+              to="/login"
+              className="px-4 py-2 rounded-xl text-white bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-700 hover:border-emerald-500/50 transition-all flex items-center gap-1.5 shadow-xs"
+            >
+              <span>Sign In</span>
+            </Link>
+
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate(getUserDashboardRoute(currentUser.role))}
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5"
                 >
-                  <span>Dashboard ({currentUser.role.replace('_', ' ')})</span>
+                  <span>Go to Dashboard</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
                 <button
@@ -525,22 +533,13 @@ export const LandingPage = () => {
                 </button>
               </div>
             ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="px-3.5 py-2 rounded-xl text-slate-300 hover:text-white text-xs font-bold hover:bg-white/5 transition-all"
-                >
-                  Sign In
-                </Link>
-
-                <Link
-                  to="/signup"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
-                >
-                  <span>Get Started Free</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </>
+              <Link
+                to="/signup"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+              >
+                <span>Get Started Free</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             )}
           </div>
 
@@ -610,6 +609,20 @@ export const LandingPage = () => {
               FAQ
             </a>
             <div className="pt-3 border-t border-slate-800 flex flex-col gap-2">
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 text-white font-bold text-xs text-center border border-slate-700"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/supplier-portal"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-900 text-emerald-400 font-bold text-xs text-center border border-emerald-500/30"
+              >
+                Supplier Portal
+              </Link>
               {currentUser ? (
                 <button
                   onClick={() => {
@@ -621,30 +634,13 @@ export const LandingPage = () => {
                   Open Dashboard
                 </button>
               ) : (
-                <>
-                  <Link
-                    to="/signup"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs text-center"
-                  >
-                    Get Started Free
-                  </Link>
-                  <Link
-                    to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-2.5 rounded-xl bg-slate-800 text-slate-200 font-semibold text-xs text-center"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    to="/supplier-portal"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full py-2.5 rounded-xl bg-slate-900 border border-emerald-500/30 text-emerald-400 font-semibold text-xs text-center flex items-center justify-center gap-1.5"
-                  >
-                    <Truck className="w-3.5 h-3.5" />
-                    <span>Supplier Portal</span>
-                  </Link>
-                </>
+                <Link
+                  to="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs text-center"
+                >
+                  Get Started Free
+                </Link>
               )}
             </div>
           </div>

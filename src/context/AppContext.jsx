@@ -10,6 +10,7 @@ import {
   initialAlerts,
   initialPlatformLogs,
   initialSupportTickets,
+  initialSupplierPlanPayments,
 } from '../data/mockData';
 import {
   INITIAL_ROLE_PERMISSIONS,
@@ -76,6 +77,8 @@ import {
   SUPPLIER_SUBSCRIPTION_PLANS,
   SUPPLIER_CATEGORIES,
   INITIAL_SUPPLIER_PRODUCTS,
+  autoDetectProductCategory,
+  normalizeSupplierCategory,
 } from '../data/supplierMarketplaceData';
 
 import { DEFAULT_PLATFORM_SETTINGS } from '../data/platformSettingsData';
@@ -207,8 +210,50 @@ export const AppProvider = ({ children }) => {
     if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(loaded);
     return loaded;
   });
-  const [users, setUsers] = useState(() => loadStored('users', initialUsers));
-  const [suppliers, setSuppliers] = useState(() => loadStored('suppliers', initialSuppliers));
+  const [users, setUsers] = useState(() => {
+    const loaded = loadStored('users', initialUsers);
+    if (Array.isArray(loaded)) {
+      return loaded.map((u) => {
+        if (u.role === 'supplier') {
+          const isTieUp =
+            u.registeredVia === 'main_system' ||
+            u.id === 'usr-sup-4' ||
+            u.id === 'usr-sup-5' ||
+            u.supplierId === 'sup-4' ||
+            u.supplierId === 'sup-5' ||
+            u.email?.includes('goldencrustbakery') ||
+            u.email?.includes('amritdairy');
+          return {
+            ...u,
+            supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
+            registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
+          };
+        }
+        return u;
+      });
+    }
+    return initialUsers;
+  });
+
+  const [suppliers, setSuppliers] = useState(() => {
+    const loaded = loadStored('suppliers', initialSuppliers);
+    if (Array.isArray(loaded)) {
+      return loaded.map((sup) => {
+        const isTieUp =
+          sup.registeredVia === 'main_system' ||
+          sup.id === 'sup-4' ||
+          sup.id === 'sup-5' ||
+          sup.name?.toLowerCase().includes('golden crust') ||
+          sup.name?.toLowerCase().includes('amrit dairy');
+        return {
+          ...sup,
+          supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
+          registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
+        };
+      });
+    }
+    return initialSuppliers;
+  });
   const [ingredients, setIngredients] = useState(() => loadStored('ingredients', initialIngredients));
   const [purchaseOrders, setPurchaseOrders] = useState(() => loadStored('purchaseOrders', initialPurchaseOrders));
   const [stockMovements, setStockMovements] = useState(() => loadStored('stockMovements', initialStockMovements));
@@ -235,6 +280,7 @@ export const AppProvider = ({ children }) => {
   const [creditNotes, setCreditNotes] = useState(() => loadStored('creditNotes', initialCreditNotes));
   const [supplierPayments, setSupplierPayments] = useState(() => loadStored('supplierPayments', initialSupplierPayments));
   const [supplierAgreements, setSupplierAgreements] = useState(() => loadStored('supplierAgreements', initialSupplierAgreements));
+  const [supplierPlanPayments, setSupplierPlanPayments] = useState(() => loadStored('supplierPlanPayments', initialSupplierPlanPayments));
 
   // Staff Attendance, Leave Requests & Payroll Notifications States
   const [attendanceRecords, setAttendanceRecords] = useState(() => loadStored('attendanceRecords', initialAttendanceRecords));
@@ -310,13 +356,10 @@ export const AppProvider = ({ children }) => {
   ]));
   const [emailDeliveryLogs, setEmailDeliveryLogs] = useState(() => loadStored('emailDeliveryLogs', []));
 
-  // Current session state: defaults to Restaurant Owner of Spice Garden (Priya Sharma)
-  // or restore from localStorage
+  // Current session state: load saved user session from localStorage or null (defaults to unauthenticated)
   const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = loadStored('currentUser', undefined);
-    if (savedUser !== undefined) return savedUser;
-    // Default to Restaurant Owner
-    return initialUsers.find(u => u.id === 'usr-sg-1') || initialUsers[0];
+    const savedUser = loadStored('currentUser', null);
+    return savedUser || null;
   });
 
   const [currentRestaurantId, setCurrentRestaurantId] = useState(() => {
@@ -444,6 +487,10 @@ export const AppProvider = ({ children }) => {
   }, [supplierAgreements]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_supplierPlanPayments`, JSON.stringify(supplierPlanPayments));
+  }, [supplierPlanPayments]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_attendanceRecords`, JSON.stringify(attendanceRecords));
   }, [attendanceRecords]);
 
@@ -538,8 +585,7 @@ export const AppProvider = ({ children }) => {
   const switchUser = (userId) => {
     const user = users.find(u => u.id === userId);
     if (user) {
-
-    setCurrentUser(user);
+      setCurrentUser(user);
       if (user.restaurantId) {
         setCurrentRestaurantId(user.restaurantId);
       }
@@ -548,7 +594,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // Secure Role & Tenant Login with real validation, strict RBAC verification, and role mismatch checking
-  const login = (email, password, requestedRole = null, twoFactorCode = null) => {
+  const login = (email, password, requestedRole = null, twoFactorCode = null, loginOrigin = null) => {
     const normalizedEmail = email ? email.trim().toLowerCase() : '';
     let user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
 
@@ -723,24 +769,69 @@ export const AppProvider = ({ children }) => {
       }
     }
 
-    setCurrentUser(user);
-    if (user.restaurantId) {
-      setCurrentRestaurantId(user.restaurantId);
-      if (user.branchId) {
-        setCurrentBranchId(user.branchId);
+    let authenticatedUser = { ...user };
+
+    // Requirement 1 & 2: Supplier Classification Alignment
+    // External Supplier Portal -> "Third-Party Supplier"
+    // Main System / Home Page Login -> "Tie-up Supplier"
+    if (user.role === 'supplier') {
+      const isPortalLogin = loginOrigin === 'supplier_portal';
+      const isMainSystemLogin = loginOrigin === 'main_system' || (requestedRole === 'supplier' && !isPortalLogin);
+
+      const assignedType = isPortalLogin
+        ? 'Third-Party Supplier'
+        : isMainSystemLogin
+        ? 'Tie-up Supplier'
+        : (user.supplierType || (user.registeredVia === 'supplier_portal' ? 'Third-Party Supplier' : 'Tie-up Supplier'));
+
+      const assignedVia = isPortalLogin ? 'supplier_portal' : 'main_system';
+
+      authenticatedUser = {
+        ...user,
+        supplierType: assignedType,
+        registeredVia: assignedVia,
+      };
+
+      // Sync matching supplier record in suppliers state
+      setSuppliers((prev) =>
+        prev.map((s) => {
+          if (
+            s.id === user.supplierId ||
+            (user.supplierName && s.name?.toLowerCase() === user.supplierName.toLowerCase()) ||
+            (user.email && s.email?.toLowerCase() === user.email.toLowerCase())
+          ) {
+            return {
+              ...s,
+              supplierType: assignedType,
+              registeredVia: assignedVia,
+            };
+          }
+          return s;
+        })
+      );
+
+      // Persist updated user in users state
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? authenticatedUser : u)));
+    }
+
+    setCurrentUser(authenticatedUser);
+    if (authenticatedUser.restaurantId) {
+      setCurrentRestaurantId(authenticatedUser.restaurantId);
+      if (authenticatedUser.branchId) {
+        setCurrentBranchId(authenticatedUser.branchId);
       } else {
-        const userBranches = branches.filter(b => b.restaurantId === user.restaurantId);
+        const userBranches = branches.filter(b => b.restaurantId === authenticatedUser.restaurantId);
         if (userBranches.length > 0) {
           setCurrentBranchId(userBranches[0].id);
         }
       }
     }
-    localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(user));
-    addToast(`Welcome back, ${user.name}! Authenticated as ${user.role.replace('_', ' ').toUpperCase()}.`, 'success');
+    localStorage.setItem(`${STORAGE_KEY}_currentUser`, JSON.stringify(authenticatedUser));
+    addToast(`Welcome back, ${authenticatedUser.name}! Authenticated as ${authenticatedUser.role.replace('_', ' ').toUpperCase()}.`, 'success');
 
     return {
       success: true,
-      user,
+      user: authenticatedUser,
     };
   };
 
@@ -1522,15 +1613,31 @@ export const AppProvider = ({ children }) => {
 
   // 1. Supplier Product Inventory Management (Add, Edit, Delete, Toggle Stock)
   const addSupplierProduct = (productData) => {
-    const activeSupplier = suppliers.find(s => s.id === (productData.supplierId || currentUser?.supplierId));
+    const activeSupplier =
+      suppliers.find((s) => s.id === (productData.supplierId || currentUser?.supplierId)) ||
+      suppliers.find((s) => s.name === currentUser?.supplierName);
+
+    // Auto-map category based on product name and supplier's registered categories
+    const primarySupplierCategory = activeSupplier?.categories?.[0]
+      ? normalizeSupplierCategory(activeSupplier.categories[0])
+      : 'Dairy & Cheese';
+    const detectedCategory = autoDetectProductCategory(
+      productData.name,
+      productData.category || primarySupplierCategory
+    );
+
     const newProduct = {
       id: `sprod-${Date.now()}`,
-      supplierId: productData.supplierId || currentUser?.supplierId || 'sup-1',
-      supplierName: productData.supplierName || activeSupplier?.name || currentUser?.supplierName || 'Metro Food Distributors',
+      supplierId: productData.supplierId || currentUser?.supplierId || activeSupplier?.id || 'sup-1',
+      supplierName:
+        productData.supplierName ||
+        activeSupplier?.name ||
+        currentUser?.supplierName ||
+        'Metro Food Distributors',
       supplierPlan: activeSupplier?.planName || 'Pro Vendor',
       supplierRating: activeSupplier?.rating || 4.9,
       name: productData.name,
-      category: productData.category || 'Fresh Vegetables & Greens',
+      category: detectedCategory,
       unit: productData.unit || 'kg',
       price: Number(productData.price) || 100,
       mrp: Number(productData.mrp) || Math.round((Number(productData.price) || 100) * 1.25),
@@ -1542,17 +1649,28 @@ export const AppProvider = ({ children }) => {
       organic: Boolean(productData.organic),
       inStock: true,
       description: productData.description || '',
-      image: productData.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+      image:
+        productData.image ||
+        'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
     };
 
     setSupplierProducts((prev) => [newProduct, ...prev]);
-    addToast(`"${newProduct.name}" listed successfully in the B2B Marketplace.`, 'success');
+    addToast(
+      `"${newProduct.name}" automatically mapped to "${detectedCategory}" and listed in the catalog.`,
+      'success'
+    );
     return newProduct;
   };
 
   const updateSupplierProduct = (productId, updatedData) => {
     setSupplierProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, ...updatedData } : p))
+      prev.map((p) => {
+        if (p.id === productId) {
+          const cat = updatedData.category || autoDetectProductCategory(updatedData.name || p.name, p.category);
+          return { ...p, ...updatedData, category: cat };
+        }
+        return p;
+      })
     );
     addToast('Product details updated successfully.', 'success');
   };
@@ -1574,21 +1692,38 @@ export const AppProvider = ({ children }) => {
       SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === formData.planId) ||
       SUPPLIER_SUBSCRIPTION_PLANS[1]; // default to Pro Vendor
 
-    const supplierId = `sup-${Date.now()}`;
+    const normalizedCats = (
+      formData.categories && formData.categories.length > 0
+        ? formData.categories
+        : ['Dairy & Cheese', 'Fresh Vegetables & Greens']
+    ).map(normalizeSupplierCategory);
+
+    // Deduplication check: check if a user or supplier with this email or name already exists
+    const cleanEmail = (formData.email || '').trim().toLowerCase();
+    const cleanName = (formData.name || '').trim().toLowerCase();
+
+    const existingSupplier = suppliers.find(
+      (s) =>
+        (s.email && s.email.trim().toLowerCase() === cleanEmail) ||
+        (s.name && s.name.trim().toLowerCase() === cleanName)
+    );
+
+    const supplierId = existingSupplier ? existingSupplier.id : `sup-${Date.now()}`;
     const userId = `usr-sup-${Date.now()}`;
 
     const newSupplier = {
+      ...(existingSupplier || {}),
       id: supplierId,
       name: formData.name,
+      supplierType: 'Third-Party Supplier', // Requirement 4: Third-Party Supplier type
+      registeredVia: 'supplier_portal',
+      isFirstTimePortalRegistration: !existingSupplier,
       contactPerson: formData.contactPerson,
       email: formData.email,
       phone: formData.phone || '+91 98000 00000',
       address: formData.address || 'Central Logistics Park, Sector 4, Pune',
-      categories:
-        formData.categories && formData.categories.length > 0
-          ? formData.categories
-          : ['Dairy & Cheese', 'Fresh Vegetables & Greens'],
-      rating: 5.0,
+      categories: normalizedCats,
+      rating: existingSupplier?.rating || 5.0,
       leadTimeDays: Number(formData.leadTimeDays) || 1,
       paymentTerms:
         selectedPlan.payoutDays === 'Same Day'
@@ -1596,7 +1731,7 @@ export const AppProvider = ({ children }) => {
           : selectedPlan.payoutDays === '48 Hours'
           ? 'Net 2 (48h Payout)'
           : 'Net 14 (Standard)',
-      activeOrdersCount: 0,
+      activeOrdersCount: existingSupplier?.activeOrdersCount || 0,
       status: 'active',
       verificationStatus: 'verified',
       planId: selectedPlan.id,
@@ -1606,8 +1741,8 @@ export const AppProvider = ({ children }) => {
       commissionRate: selectedPlan.commissionRate,
       gstin: formData.gstin || '27AABCU9603R1ZM',
       city: formData.city || 'Pune',
-      joinedDate: new Date().toISOString(),
-      restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+      joinedDate: existingSupplier?.joinedDate || new Date().toISOString(),
+      restaurantIds: existingSupplier?.restaurantIds || ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
     };
 
     const newSupplierUser = {
@@ -1618,6 +1753,10 @@ export const AppProvider = ({ children }) => {
       role: 'supplier',
       supplierId: supplierId,
       supplierName: newSupplier.name,
+      supplierType: 'Third-Party Supplier',
+      registeredVia: 'supplier_portal',
+      isFirstTimePortalRegistration: true,
+      categories: normalizedCats,
       restaurantId: null,
       status: 'active',
       avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
@@ -1625,59 +1764,107 @@ export const AppProvider = ({ children }) => {
       lastActive: 'Just now',
     };
 
-    // Update Suppliers state
-    setSuppliers((prev) => [newSupplier, ...prev]);
+    // Update Suppliers state without duplicates
+    setSuppliers((prev) => {
+      const filtered = prev.filter(
+        (s) => s.id !== supplierId && s.email?.toLowerCase() !== cleanEmail && s.name?.toLowerCase() !== cleanName
+      );
+      return [newSupplier, ...filtered];
+    });
 
-    // Update Users state
-    setUsers((prev) => [newSupplierUser, ...prev]);
+    // Update Users state without duplicates (only 1 single entry for this supplier!)
+    setUsers((prev) => {
+      const filtered = prev.filter(
+        (u) =>
+          u.email?.toLowerCase() !== cleanEmail &&
+          !(u.role === 'supplier' && (u.supplierId === supplierId || u.supplierName?.toLowerCase() === cleanName))
+      );
+      return [newSupplierUser, ...filtered];
+    });
+
+    // Record Plan Subscription Payment Record (Requirement 1: Payment History Tracking)
+    const planCost = formData.billingCycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.price;
+    const planPayment = {
+      id: `spp-${Date.now()}`,
+      transactionId: `TXN-SP-${Date.now().toString().slice(-5)}`,
+      supplierId: supplierId,
+      supplierName: newSupplier.name,
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      billingCycle: formData.billingCycle || 'monthly',
+      amount: planCost,
+      paymentDate: new Date().toISOString().split('T')[0],
+      paymentMethod: selectedPlan.price === 0 ? 'Complimentary Onboarding (Free)' : 'Instant Online Pay (Razorpay / UPI)',
+      referenceNumber: selectedPlan.price === 0 ? 'FREE-TIER-00' : `UTR-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      invoiceNumber: `INV-SPP-${Date.now().toString().slice(-4)}`,
+      status: 'Paid',
+      nextBillingDate: new Date(Date.now() + (formData.billingCycle === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    };
+    setSupplierPlanPayments((prev) => [planPayment, ...prev]);
 
     // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
     const adminLog = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SUPPLIER_ONBOARDED',
-      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Products & catalog pending review.`,
+      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}.`,
       user: newSupplier.contactPerson,
       role: 'supplier',
     };
     setPlatformLogs((prev) => [adminLog, ...prev]);
 
-    // SYSTEM NOTIFICATION B: To Admin, Restaurant Owner & Inventory Manager ONLY (Restaurant Manager is strictly excluded)
+    // SYSTEM NOTIFICATION B: Real-Time Notification & Alert to BOTH Super Admin & Restaurant Owner (Requirement 5)
+    const realtimeSupplierJoinedAlert = {
+      id: `alt-${Date.now()}-sup-join`,
+      restaurantId: null, // Broadcast to Super Admin and all Restaurant Owners
+      type: 'supplier_joined',
+      severity: 'high',
+      title: `🔔 New Third-Party Supplier Registered: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal offering ${normalizedCats.join(', ')} under ${selectedPlan.name} Plan.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/suppliers',
+      actionLabel: 'View Supplier List',
+      badge: 'New Supplier',
+      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+    };
+    setAlerts((prev) => [realtimeSupplierJoinedAlert, ...prev]);
+
+    // SYSTEM NOTIFICATION C: Owner & Inventory Manager Notifications (Owner only views supplier list!)
     const ownerNotif = {
       id: `notif-${Date.now()}-sup`,
       type: 'supplier_onboarding',
-      title: `🎉 New B2B Supplier Partner: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${selectedPlan.name}) has registered on StockMate Marketplace offering ${newSupplier.categories.join(', ')}. Fresh wholesale catalog is ready for procurement.`,
+      title: `🎉 New Supplier Partner: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has joined as a Third-Party Supplier offering ${normalizedCats.join(', ')}.`,
+      read: false,
+      timestamp: 'Just now',
+      actionLink: '/suppliers', // Linked to Supplier List for Owner
+      actionLabel: 'View Supplier List',
+      badge: 'New Supplier',
+      supplierId: newSupplier.id,
+      targetRoles: ['restaurant_owner'],
+    };
+
+    const imNotif = {
+      id: `notif-${Date.now()}-sup-im`,
+      type: 'supplier_onboarding',
+      title: `🎉 New B2B Wholesale Partner: ${newSupplier.name}`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has registered offering ${normalizedCats.join(', ')}. Wholesale catalog ready for procurement.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/marketplace',
       actionLabel: 'Browse Products',
       badge: 'New Supplier',
       supplierId: newSupplier.id,
-      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
+      targetRoles: ['inventory_manager'],
     };
-    setOwnerNotifications((prev) => [ownerNotif, ...prev]);
-
-    const supplierAlert = {
-      id: `alt-${Date.now()}-sup`,
-      restaurantId: currentRestaurantId,
-      type: 'supplier_new',
-      severity: 'low',
-      title: `New Supplier: ${newSupplier.name}`,
-      message: `Verified partner for ${newSupplier.categories.slice(0, 2).join(' & ')} with ${newSupplier.leadTimeDays}-day delivery lead time.`,
-      read: false,
-      timestamp: new Date().toISOString(),
-      actionLink: '/marketplace',
-      actionLabel: 'Procure Stock',
-      targetRoles: ['super_admin', 'restaurant_owner', 'inventory_manager'],
-    };
-    setAlerts((prev) => [supplierAlert, ...prev]);
+    setOwnerNotifications((prev) => [imNotif, ownerNotif, ...prev]);
 
     // Auto-login the new supplier
     setCurrentUser(newSupplierUser);
 
     addToast(
-      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier.`,
+      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier. Categories: ${normalizedCats.join(', ')}.`,
       'success'
     );
 
@@ -2591,6 +2778,210 @@ export const AppProvider = ({ children }) => {
     );
 
     addToast(`Return request rejected.`, 'info');
+  };
+
+  // 4. Update Return Tracking Status (Monitor returned product lifecycle)
+  const updateReturnTrackingStatus = (returnId, { trackingStatus, note, carrierName, trackingNumber }) => {
+    setSupplierReturns((prev) =>
+      prev.map((r) => {
+        if (r.id === returnId) {
+          const timestamp =
+            new Date().toLocaleDateString('en-IN') +
+            ' ' +
+            new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          const trackingHistory = r.trackingHistory || [
+            {
+              status: 'Return Requested',
+              date: r.requestDate || new Date().toISOString().split('T')[0],
+              note: r.reason || 'Initial return initiated by Inventory Manager',
+              by: r.requestedBy || 'Inventory Manager',
+            },
+          ];
+          const newStep = {
+            status: trackingStatus,
+            date: timestamp,
+            note: note || `Return shipment status updated to ${trackingStatus}`,
+            carrierName: carrierName || r.carrierName || 'Internal / Direct Logistics',
+            trackingNumber: trackingNumber || r.trackingNumber || `TRK-${Math.floor(100000 + Math.random() * 900000)}`,
+            by: currentUser?.name || 'Staff',
+          };
+
+          return {
+            ...r,
+            trackingStatus,
+            carrierName: carrierName || r.carrierName,
+            trackingNumber: trackingNumber || r.trackingNumber,
+            trackingHistory: [newStep, ...trackingHistory],
+            timeline: [
+              ...r.timeline,
+              {
+                date: timestamp,
+                action: `Return Tracking Updated: ${trackingStatus}${note ? ` (${note})` : ''}`,
+                by: currentUser?.name || 'Inventory Manager',
+              },
+            ],
+          };
+        }
+        return r;
+      })
+    );
+    addToast(`Return tracking updated to "${trackingStatus}".`, 'success');
+  };
+
+  // 5. Manage and Process Corresponding Payments or Refunds for Returned Products
+  const processReturnPaymentRefund = ({
+    returnId,
+    paymentType = 'Refund', // 'Refund' | 'Credit Note' | 'Bank Transfer' | 'UPI'
+    amount,
+    paymentMethod = 'Direct Bank Transfer (NEFT/IMPS)',
+    referenceNumber,
+    notes,
+  }) => {
+    const ret = supplierReturns.find((r) => r.id === returnId);
+    if (!ret) {
+      addToast('Return record not found.', 'error');
+      return false;
+    }
+
+    const refundAmount = Number(amount) || ret.totalLossAmount || 0;
+    const refNum = referenceNumber?.trim() || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+    const timestamp =
+      new Date().toLocaleDateString('en-IN') +
+      ' ' +
+      new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const today = new Date().toISOString().split('T')[0];
+
+    // If Credit Note was requested or used
+    let creditNoteNum = ret.creditNoteId;
+    if (paymentType === 'Credit Note' && !creditNoteNum) {
+      creditNoteNum = `CRN-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+      const newCreditNote = {
+        id: `crn-${Date.now()}`,
+        creditNoteNumber: creditNoteNum,
+        supplierId: ret.supplierId,
+        supplierName: ret.supplierName,
+        returnId: ret.id,
+        returnNumber: ret.returnNumber,
+        invoiceNumber: ret.poNumber,
+        amount: refundAmount,
+        issueDate: today,
+        status: 'Applied to Invoice',
+        reason: `${ret.returnType}: ${ret.productName} (${ret.returnQty} ${ret.unit})`,
+      };
+      setCreditNotes((prev) => [newCreditNote, ...prev]);
+    }
+
+    // Add refund payment record in supplierPayments
+    const refundPaymentRecord = {
+      id: `rpay-${Date.now()}`,
+      paymentNumber: `RFND-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      invoiceId: ret.grnId || ret.poId,
+      invoiceNumber: ret.returnNumber,
+      poId: ret.poId,
+      poNumber: ret.poNumber,
+      supplierId: ret.supplierId,
+      supplierName: ret.supplierName,
+      restaurantId: ret.restaurantId || currentRestaurantId,
+      restaurantName: ret.restaurantName || currentRestaurant?.name || 'Restaurant',
+      amountPaid: refundAmount,
+      type: 'RETURN_REFUND',
+      paymentMethod,
+      paymentDate: today,
+      transactionRef: refNum,
+      verifiedBy: `${currentUser?.name || 'Inventory Manager'} (${currentUser?.role?.replace('_', ' ') || 'Authorized'})`,
+      receiptNumber: `RCPT-RFND-${Math.floor(1000 + Math.random() * 9000)}`,
+      status: 'Settled',
+      notes: notes || `Refund / reimbursement processed for return ${ret.returnNumber}`,
+    };
+    setSupplierPayments((prev) => [refundPaymentRecord, ...prev]);
+
+    // Update return record
+    setSupplierReturns((prev) =>
+      prev.map((r) => {
+        if (r.id === returnId) {
+          return {
+            ...r,
+            status: 'Completed',
+            trackingStatus: 'Refund Processed & Settled',
+            refundStatus: 'Processed',
+            refundAmount,
+            refundMethod: paymentMethod,
+            refundTransactionId: refNum,
+            refundDate: today,
+            creditNoteId: creditNoteNum || r.creditNoteId,
+            creditNoteAmount: refundAmount,
+            settlementType: paymentType,
+            timeline: [
+              ...r.timeline,
+              {
+                date: timestamp,
+                action: `Refund / Payment Processed (${formatINR(refundAmount)}) via ${paymentMethod} (Ref: ${refNum})`,
+                by: currentUser?.name || 'Staff',
+              },
+            ],
+          };
+        }
+        return r;
+      })
+    );
+
+    addToast(
+      `Payment / Refund of ${formatINR(refundAmount)} processed for return ${ret.returnNumber}.`,
+      'success'
+    );
+    return true;
+  };
+
+  // 6. Supplier Plan Switch / Subscription Change
+  const switchSupplierPlan = (newPlanId) => {
+    const targetPlan = SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === newPlanId);
+    if (!targetPlan) return false;
+    const activeSupplierId = currentUser?.supplierId;
+
+    setSuppliers((prev) =>
+      prev.map((s) => {
+        if (s.id === activeSupplierId || (currentUser?.supplierName && s.name === currentUser.supplierName)) {
+          return {
+            ...s,
+            planId: targetPlan.id,
+            planName: targetPlan.name,
+            commissionRate: targetPlan.commissionRate,
+            paymentTerms:
+              targetPlan.payoutDays === 'Same Day'
+                ? 'Immediate Settlement'
+                : targetPlan.payoutDays === '48 Hours'
+                ? 'Net 2 (48h Payout)'
+                : 'Net 14 (Standard)',
+          };
+        }
+        return s;
+      })
+    );
+
+    // Record Plan Switch Payment (Requirement 1: Payment History Tracking)
+    const targetSup = suppliers.find(
+      (s) => s.id === activeSupplierId || (currentUser?.supplierName && s.name === currentUser.supplierName)
+    );
+    const switchPayment = {
+      id: `spp-${Date.now()}`,
+      transactionId: `TXN-SP-${Date.now().toString().slice(-5)}`,
+      supplierId: activeSupplierId || targetSup?.id || 'sup-1',
+      supplierName: targetSup?.name || currentUser?.supplierName || 'Third-Party Supplier',
+      planId: targetPlan.id,
+      planName: targetPlan.name,
+      billingCycle: 'monthly',
+      amount: targetPlan.price,
+      paymentDate: new Date().toISOString().split('T')[0],
+      paymentMethod: targetPlan.price === 0 ? 'Complimentary Plan (Free)' : 'Online Payment (Instant NetBanking / UPI)',
+      referenceNumber: targetPlan.price === 0 ? 'FREE-TIER-00' : `UTR-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      invoiceNumber: `INV-SPP-${Date.now().toString().slice(-4)}`,
+      status: 'Paid',
+      nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    };
+    setSupplierPlanPayments((prev) => [switchPayment, ...prev]);
+
+    addToast(`Subscribed to ${targetPlan.name} plan successfully!`, 'success');
+    return true;
   };
 
   // Record verified Restaurant-to-Supplier payment transaction
@@ -4152,9 +4543,12 @@ export const AppProvider = ({ children }) => {
 
   // Suppliers CRUD
   const addSupplier = (supplierData) => {
+    const supplierId = `sup-${Date.now()}`;
     const newSup = {
-      id: `sup-${Date.now()}`,
+      id: supplierId,
       name: supplierData.name,
+      supplierType: 'Tie-up Supplier', // Explicitly Tie-up Supplier when added via main system
+      registeredVia: 'main_system',
       contactPerson: supplierData.contactPerson,
       email: supplierData.email,
       phone: supplierData.phone,
@@ -4167,8 +4561,36 @@ export const AppProvider = ({ children }) => {
       status: 'active',
       restaurantIds: [currentRestaurantId],
     };
-    setSuppliers(prev => [newSup, ...prev]);
-    addToast(`Supplier "${newSup.name}" added.`, 'success');
+
+    // Also register corresponding supplier user so they can log in through the main system
+    const newSupUser = {
+      id: `usr-${supplierId}`,
+      name: supplierData.contactPerson || supplierData.name,
+      email: supplierData.email,
+      password: supplierData.password || 'password123',
+      role: 'supplier',
+      supplierId: supplierId,
+      supplierName: newSup.name,
+      supplierType: 'Tie-up Supplier',
+      registeredVia: 'main_system',
+      restaurantId: currentRestaurantId,
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      joinedDate: new Date().toISOString().split('T')[0],
+      lastActive: 'Just now',
+    };
+
+    setSuppliers((prev) => [newSup, ...prev]);
+    setUsers((prev) => {
+      const cleanEmail = (supplierData.email || '').toLowerCase().trim();
+      const exists = prev.some((u) => u.email?.toLowerCase() === cleanEmail);
+      if (exists) {
+        return prev.map((u) => u.email?.toLowerCase() === cleanEmail ? { ...u, supplierType: 'Tie-up Supplier', registeredVia: 'main_system' } : u);
+      }
+      return [newSupUser, ...prev];
+    });
+
+    addToast(`Supplier "${newSup.name}" added as Tie-up Supplier.`, 'success');
   };
 
   const updateSupplier = (id, supplierData) => {
@@ -5288,9 +5710,15 @@ export const AppProvider = ({ children }) => {
     if (currentUser?.role === 'restaurant_manager') {
       return staffAlerts;
     }
+    // Super admin receives all platform-wide and cross-tenant alerts in real time
+    if (currentUser?.role === 'super_admin') {
+      return alerts;
+    }
     return alerts.filter((a) => {
-      if (a.restaurantId !== currentRestaurantId) return false;
+      // Platform-wide alerts (e.g. new supplier registrations) reach restaurant owners
+      if (a.restaurantId && a.restaurantId !== currentRestaurantId) return false;
       if (currentBranchId && currentBranchId !== 'all' && a.branchId) return a.branchId === currentBranchId;
+      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role)) return false;
       return true;
     });
   }, [currentUser?.role, staffAlerts, alerts, currentRestaurantId, currentBranchId, currentUser]);
@@ -6051,6 +6479,8 @@ export const AppProvider = ({ children }) => {
         createSupplierReturn,
         approveSupplierReturn,
         rejectSupplierReturn,
+        updateReturnTrackingStatus,
+        processReturnPaymentRefund,
         recordSupplierPayment,
         updateSupplierAgreement,
 
@@ -6211,6 +6641,8 @@ export const AppProvider = ({ children }) => {
         deleteSupplierProduct,
         toggleSupplierProductStock,
         registerSupplierAccount,
+        switchSupplierPlan,
+        supplierPlanPayments,
         createMarketplacePO,
         approvePurchaseOrder,
         receivePOAndStock,

@@ -25,6 +25,8 @@ import {
   ChevronRight,
   TrendingUp,
   AlertCircle,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -47,11 +49,55 @@ export const B2BMarketplacePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [selectedSupplierId, setSelectedSupplierId] = useState('all');
+  const [supplierTypeFilter, setSupplierTypeFilter] = useState('all'); // 'all' | 'third-party' | 'tie-up'
   const [onlyOrganic, setOnlyOrganic] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
 
   // Cart state: array of { ...product, quantity }
   const [cart, setCart] = useState([]);
+
+  // Resolve whether product supplier is Third-Party vs Tie-up
+  const getProductSupplierType = (prod) => {
+    const sup = (suppliers || []).find(
+      (s) => s.id === prod.supplierId || s.name?.toLowerCase() === prod.supplierName?.toLowerCase()
+    );
+    if (sup?.supplierType) return sup.supplierType;
+    if (prod.supplierType) return prod.supplierType;
+    if (
+      sup?.registeredVia === 'main_system' ||
+      prod.registeredVia === 'main_system' ||
+      prod.supplierId === 'sup-4' ||
+      prod.supplierId === 'sup-5' ||
+      prod.supplierName?.toLowerCase().includes('golden crust') ||
+      prod.supplierName?.toLowerCase().includes('amrit dairy')
+    ) {
+      return 'Tie-up Supplier';
+    }
+    if (
+      sup?.registeredVia === 'supplier_portal' ||
+      prod.registeredVia === 'supplier_portal' ||
+      prod.supplierId === 'sup-1' ||
+      prod.supplierId === 'sup-2' ||
+      prod.supplierId === 'sup-3' ||
+      prod.supplierId === 'sup-6' ||
+      prod.supplierId === 'sup-diksha'
+    ) {
+      return 'Third-Party Supplier';
+    }
+    return 'Tie-up Supplier';
+  };
+
+  const thirdPartyProductCount = useMemo(() => {
+    return (supplierProducts || []).filter(
+      (p) => getProductSupplierType(p) === 'Third-Party Supplier'
+    ).length;
+  }, [supplierProducts, suppliers]);
+
+  const tieUpProductCount = useMemo(() => {
+    return (supplierProducts || []).filter(
+      (p) => getProductSupplierType(p) === 'Tie-up Supplier'
+    ).length;
+  }, [supplierProducts, suppliers]);
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
@@ -69,9 +115,15 @@ export const B2BMarketplacePage = () => {
 
       const matchesOrganic = !onlyOrganic || prod.organic;
 
-      return matchesSearch && matchesCat && matchesSup && matchesOrganic && prod.inStock;
+      const prodSupType = getProductSupplierType(prod);
+      const matchesSupplierType =
+        supplierTypeFilter === 'all' ||
+        (supplierTypeFilter === 'third-party' && prodSupType === 'Third-Party Supplier') ||
+        (supplierTypeFilter === 'tie-up' && prodSupType === 'Tie-up Supplier');
+
+      return matchesSearch && matchesCat && matchesSup && matchesOrganic && matchesSupplierType && prod.inStock;
     });
-  }, [supplierProducts, searchTerm, selectedCategory, selectedSupplierId, onlyOrganic]);
+  }, [supplierProducts, searchTerm, selectedCategory, selectedSupplierId, supplierTypeFilter, onlyOrganic, suppliers]);
 
   // Cart Operations
   const handleAddToCart = (product, qtyToAdd = 1) => {
@@ -243,6 +295,66 @@ export const B2BMarketplacePage = () => {
         </div>
       </div>
 
+      {/* Supplier Registration Source Filter Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSupplierTypeFilter('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              supplierTypeFilter === 'all'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            <span>All Catalog Items</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-700/50 text-slate-200 font-bold">
+              {supplierProducts.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSupplierTypeFilter('third-party')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              supplierTypeFilter === 'third-party'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-indigo-50 text-indigo-700 border border-indigo-200/60 hover:bg-indigo-100'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Third-Party Suppliers (Portal)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              supplierTypeFilter === 'third-party' ? 'bg-indigo-800 text-white' : 'bg-indigo-200 text-indigo-900'
+            }`}>
+              {thirdPartyProductCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSupplierTypeFilter('tie-up')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              supplierTypeFilter === 'tie-up'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'bg-teal-50 text-teal-700 border border-teal-200/60 hover:bg-teal-100'
+            }`}
+          >
+            <Handshake className="w-3.5 h-3.5" />
+            <span>Tie-up Suppliers (Main System)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              supplierTypeFilter === 'tie-up' ? 'bg-teal-800 text-white' : 'bg-teal-200 text-teal-900'
+            }`}>
+              {tieUpProductCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-slate-500 font-medium hidden lg:block">
+          Differentiating wholesale catalog items by supplier registration origin
+        </div>
+      </div>
+
       {/* Category Pills Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {SUPPLIER_CATEGORIES.map((cat) => {
@@ -285,11 +397,14 @@ export const B2BMarketplacePage = () => {
             className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500 text-slate-700 font-medium"
           >
             <option value="all">All Partner Suppliers ({suppliers.length})</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.categories?.[0] || 'Wholesale'})
-              </option>
-            ))}
+            {suppliers.map((s) => {
+              const type = s.supplierType || (s.planName || s.registeredVia === 'supplier_portal' ? 'Third-Party' : 'Tie-up');
+              return (
+                <option key={s.id} value={s.id}>
+                  {s.name} [{type} Supplier]
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -348,16 +463,38 @@ export const B2BMarketplacePage = () => {
               {/* Product Info */}
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
-                  {/* Supplier Attribution */}
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="text-xs font-bold text-slate-600 truncate max-w-[170px]">
-                      {prod.supplierName}
-                    </span>
-                    <span className="text-[10px] text-amber-600 font-bold flex items-center gap-0.5 ml-auto">
-                      <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                      {prod.supplierRating || 4.9}
-                    </span>
+                  {/* Supplier Attribution & Supplier Type Tag */}
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <div className="flex items-center gap-1.5 truncate max-w-[140px]">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="text-xs font-bold text-slate-700 truncate" title={prod.supplierName}>
+                        {prod.supplierName}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                      {(() => {
+                        const supType = getProductSupplierType(prod);
+                        const isTieUp = supType === 'Tie-up Supplier';
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold ${
+                              isTieUp
+                                ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                                : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                            }`}
+                            title={isTieUp ? 'Tie-up Supplier (Added via Main System)' : 'Third-Party Supplier (External Supplier Portal)'}
+                          >
+                            {isTieUp ? <Handshake className="w-2.5 h-2.5 text-teal-600" /> : <Globe className="w-2.5 h-2.5 text-indigo-600" />}
+                            <span>{isTieUp ? 'Tie-up' : 'Third-Party'}</span>
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[10px] text-amber-600 font-bold flex items-center gap-0.5">
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                        {prod.supplierRating || 4.9}
+                      </span>
+                    </div>
                   </div>
 
                   <h4 className="text-sm font-bold text-slate-900 line-clamp-1 group-hover:text-emerald-700 transition-colors">
