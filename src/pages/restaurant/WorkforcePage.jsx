@@ -1252,7 +1252,6 @@ export const WorkforcePage = () => {
                                 </Button>
                               </div>
                             )
-                          )
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">
                               Reviewed by {leave.reviewedBy || 'Manager'}
