@@ -119,29 +119,31 @@ export const RestaurantDashboard = () => {
           ) : null
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ShoppingBag}
-              onClick={() => navigate('/purchase-orders')}
-            >
-              Purchase Orders ({activePendingOrders.length})
-            </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
-              onClick={() => navigate('/inventory?action=add')}
-            >
-              Add Ingredient
-            </Button>
-          </div>
+          currentUser?.role === 'inventory_manager' ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ShoppingBag}
+                onClick={() => navigate('/purchase-orders')}
+              >
+                Purchase Orders ({activePendingOrders.length})
+              </Button>
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={() => navigate('/inventory?action=add')}
+              >
+                Add Ingredient
+              </Button>
+            </div>
+          ) : null
         }
       />
 
       {/* Critical Stock Alert Banner if any out of stock or low stock items (hidden for restaurant manager) */}
-      {currentUser?.role !== 'restaurant_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (
+      {currentUser?.role === 'inventory_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
