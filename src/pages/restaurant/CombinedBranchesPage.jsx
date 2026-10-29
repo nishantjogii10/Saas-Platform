@@ -51,8 +51,9 @@ export const CombinedBranchesPage = () => {
     addToast,
   } = useApp();
 
+  const isOwner = currentUser?.role === 'restaurant_owner';
   const branchList =
-    currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin'
+    isOwner || currentUser?.role === 'super_admin'
       ? organizationBranches || branches
       : branches;
 
@@ -209,14 +210,16 @@ export const CombinedBranchesPage = () => {
         subtitle="Comprehensive overview, operational performance, staff allocation, and complete outlet configurations."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => navigate('/staff-transfers')}
+              >
+                Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -281,7 +284,7 @@ export const CombinedBranchesPage = () => {
       )}
 
       {/* KPI Cards: High-Level Overview Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className={`grid grid-cols-2 sm:grid-cols-2 ${isOwner ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-3 sm:gap-4`}>
         <StatCard
           title="Total Branches"
           value={totalBranches}
@@ -310,13 +313,15 @@ export const CombinedBranchesPage = () => {
           icon={Building2}
           variant="default"
         />
-        <StatCard
-          title="Staff Transfers"
-          value={pendingTransfers}
-          subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
-          icon={ArrowLeftRight}
-          variant={pendingTransfers > 0 ? "warning" : "default"}
-        />
+        {!isOwner && (
+          <StatCard
+            title="Staff Transfers"
+            value={pendingTransfers}
+            subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
+            icon={ArrowLeftRight}
+            variant={pendingTransfers > 0 ? "warning" : "default"}
+          />
+        )}
       </div>
 
       {/* Search, Filter & View Controls */}
@@ -687,55 +692,57 @@ export const CombinedBranchesPage = () => {
       )}
 
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-        <div
-          onClick={() => navigate('/branch-staff')}
-          className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Users className="w-5 h-5" />
+      {!isOwner && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+          <div
+            onClick={() => navigate('/branch-staff')}
+            className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Users className="w-5 h-5" />
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+            <h4 className="text-sm font-bold text-slate-900 mt-3">Staff &amp; Managers</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              Assign branch managers, set PINs, view active rosters, and manage cross-branch teams.
+            </p>
           </div>
-          <h4 className="text-sm font-bold text-slate-900 mt-3">Staff &amp; Managers</h4>
-          <p className="text-xs text-slate-500 mt-1">
-            Assign branch managers, set PINs, view active rosters, and manage cross-branch teams.
-          </p>
-        </div>
 
-        <div
-          onClick={() => navigate('/staff-transfers')}
-          className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-5 h-5" />
+          <div
+            onClick={() => navigate('/staff-transfers')}
+            className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <ArrowLeftRight className="w-5 h-5" />
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+            <h4 className="text-sm font-bold text-slate-900 mt-3">Staff Transfers</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              Transfer cooks, chefs, and managers between outlets with automated quota checks.
+            </p>
           </div>
-          <h4 className="text-sm font-bold text-slate-900 mt-3">Staff Transfers</h4>
-          <p className="text-xs text-slate-500 mt-1">
-            Transfer cooks, chefs, and managers between outlets with automated quota checks.
-          </p>
-        </div>
 
-        <div
-          onClick={() => navigate('/billing')}
-          className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <CreditCard className="w-5 h-5" />
+          <div
+            onClick={() => navigate('/billing')}
+            className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
             </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+            <h4 className="text-sm font-bold text-slate-900 mt-3">Billing &amp; Tax Invoices</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              View GST-compliant tax invoices, download receipts, and manage renewal dates.
+            </p>
           </div>
-          <h4 className="text-sm font-bold text-slate-900 mt-3">Billing &amp; Tax Invoices</h4>
-          <p className="text-xs text-slate-500 mt-1">
-            View GST-compliant tax invoices, download receipts, and manage renewal dates.
-          </p>
         </div>
-      </div>
+      )}
 
       {/* Add Branch Modal */}
       <Modal
