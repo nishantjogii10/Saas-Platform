@@ -102,7 +102,7 @@ export const WorkforcePage = () => {
 
   // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
   const initialTab = searchParams.get('tab') || 'roster';
-  const resolvedTab = initialTab === 'calendar' && isOwner ? 'roster' : initialTab;
+  const resolvedTab = (initialTab === 'calendar' || initialTab === 'leave') && isOwner ? 'roster' : initialTab;
   const [activeTab, setActiveTab] = useState(resolvedTab);
 
   // Search & Filter State
@@ -393,7 +393,11 @@ export const WorkforcePage = () => {
       {/* Page Header */}
       <PageHeader
         title="People &amp; Workforce"
-        subtitle="Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers."
+        subtitle={
+          isOwner
+            ? 'Unified team management: staff directory, live station clock-in, payroll disbursements, and branch transfers.'
+            : 'Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers.'
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -461,7 +465,7 @@ export const WorkforcePage = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className={`grid grid-cols-2 sm:grid-cols-2 ${isOwner ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-3 sm:gap-4`}>
         <StatCard
           title="Staff Directory"
           value={totalEmployees}
@@ -478,14 +482,16 @@ export const WorkforcePage = () => {
           variant={totalOnDuty > 0 ? 'success' : 'default'}
           onClick={() => handleTabChange('attendance')}
         />
-        <StatCard
-          title="Leave Requests"
-          value={pendingLeavesCount}
-          subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
-          icon={Calendar}
-          variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
-          onClick={() => handleTabChange('leave')}
-        />
+        {!isOwner && (
+          <StatCard
+            title="Leave Requests"
+            value={pendingLeavesCount}
+            subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
+            icon={Calendar}
+            variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
+            onClick={() => handleTabChange('leave')}
+          />
+        )}
         <StatCard
           title="Payroll Disbursed"
           value={formatINR(totalMonthlyPayrollDisbursed)}
@@ -554,22 +560,24 @@ export const WorkforcePage = () => {
           )}
 
           {/* Tab 3: Leave & Shifts */}
-          <button
-            onClick={() => handleTabChange('leave')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'leave'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Leave &amp; Shifts</span>
-            {pendingLeavesCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
-                {pendingLeavesCount} Pending
-              </span>
-            )}
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('leave')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'leave'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Leave &amp; Shifts</span>
+              {pendingLeavesCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                  {pendingLeavesCount} Pending
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Tab 4: Payroll */}
           <button
@@ -1116,7 +1124,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 3: LEAVE & SHIFTS */}
-      {activeTab === 'leave' && (
+      {!isOwner && activeTab === 'leave' && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -2102,7 +2110,7 @@ export const WorkforcePage = () => {
 
       {/* Manager Personal Leave Modal */}
       <LeaveRequestModal
-        isOpen={isManagerLeaveModalOpen}
+        isOpen={isManagerLeaveModalOpen && !isOwner}
         onClose={() => setIsManagerLeaveModalOpen(false)}
       />
 
