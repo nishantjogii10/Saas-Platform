@@ -85,6 +85,7 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isOwner = currentUser?.role === 'restaurant_owner';
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [correctingRecord, setCorrectingRecord] = useState(null);
   const [isManagerLeaveModalOpen, setIsManagerLeaveModalOpen] = useState(false);
@@ -101,7 +102,8 @@ export const WorkforcePage = () => {
 
   // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
   const initialTab = searchParams.get('tab') || 'roster';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const resolvedTab = initialTab === 'calendar' && isOwner ? 'roster' : initialTab;
+  const [activeTab, setActiveTab] = useState(resolvedTab);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -534,17 +536,19 @@ export const WorkforcePage = () => {
           </button>
 
           {/* Tab 2.5: Monthly Attendance Calendar */}
-          <button
-            onClick={() => handleTabChange('calendar')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'calendar'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Monthly Attendance Calendar</span>
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('calendar')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'calendar'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>Monthly Attendance Calendar</span>
+            </button>
+          )}
 
           {/* Tab 3: Leave & Shifts */}
           <button
@@ -1100,7 +1104,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 2.5: MONTHLY ATTENDANCE CALENDAR */}
-      {activeTab === 'calendar' && (
+      {!isOwner && activeTab === 'calendar' && (
         <div className="space-y-6">
           <MonthlyAttendanceCalendar />
         </div>
