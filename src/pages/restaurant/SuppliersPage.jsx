@@ -162,7 +162,7 @@ export const SuppliersPage = () => {
               Export to Excel
             </Button>
 
-            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+            {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -173,7 +173,7 @@ export const SuppliersPage = () => {
               </Button>
             )}
 
-            {currentUser.role !== 'kitchen_staff' && (
+            {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && (
               <Button
                 variant="brand"
                 size="sm"
@@ -269,7 +269,7 @@ export const SuppliersPage = () => {
                 </span>
               ),
             },
-            {
+            ...(currentUser?.role !== 'restaurant_owner' ? [{
               header: 'Actions',
               accessor: 'id',
               render: (sup) => (
@@ -309,7 +309,7 @@ export const SuppliersPage = () => {
                   )}
                 </div>
               ),
-            },
+            }] : []),
           ]}
           data={filteredSuppliers}
           keyField="id"
@@ -345,7 +345,7 @@ export const SuppliersPage = () => {
                       </div>
                     </div>
 
-                    {currentUser.role !== 'kitchen_staff' && (
+                    {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEdit(sup)}
