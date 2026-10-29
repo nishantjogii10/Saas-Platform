@@ -85,6 +85,7 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isOwner = currentUser?.role === 'restaurant_owner';
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [correctingRecord, setCorrectingRecord] = useState(null);
   const [isManagerLeaveModalOpen, setIsManagerLeaveModalOpen] = useState(false);
@@ -101,7 +102,9 @@ export const WorkforcePage = () => {
 
   // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
   const initialTab = searchParams.get('tab') || 'roster';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const ownerBlockedTabs = ['calendar', 'leave', 'payroll', 'transfers'];
+  const resolvedTab = ownerBlockedTabs.includes(initialTab) && isOwner ? 'roster' : initialTab;
+  const [activeTab, setActiveTab] = useState(resolvedTab);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -272,6 +275,7 @@ export const WorkforcePage = () => {
 
   // Tab change handler
   const handleTabChange = (tab) => {
+    if (isOwner && ownerBlockedTabs.includes(tab)) return;
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -347,6 +351,7 @@ export const WorkforcePage = () => {
   // Transfer submit
   const handleNewTransferSubmit = (e) => {
     e.preventDefault();
+    if (isOwner) return;
     if (!selectedStaffId || !toBranchId || !transferReason.trim()) {
       addToast('Please select staff member, destination branch, and enter transfer reason', 'error');
       return;
@@ -390,7 +395,11 @@ export const WorkforcePage = () => {
       {/* Page Header */}
       <PageHeader
         title="People &amp; Workforce"
-        subtitle="Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers."
+        subtitle={
+          isOwner
+            ? 'Unified team management: staff directory and live station clock-in.'
+            : 'Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers.'
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -411,28 +420,32 @@ export const WorkforcePage = () => {
                 Import Staff
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              icon={IndianRupee}
-              onClick={() => {
-                setSalaryTargetStaff(null);
-                setIsSalaryModalOpen(true);
-              }}
-            >
-              Disburse Salary
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => {
-                setSelectedStaffId(branchStaff[0]?.id || '');
-                setIsNewTransferOpen(true);
-              }}
-            >
-              Request Transfer
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={IndianRupee}
+                onClick={() => {
+                  setSalaryTargetStaff(null);
+                  setIsSalaryModalOpen(true);
+                }}
+              >
+                Disburse Salary
+              </Button>
+            )}
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => {
+                  setSelectedStaffId(branchStaff[0]?.id || '');
+                  setIsNewTransferOpen(true);
+                }}
+              >
+                Request Transfer
+              </Button>
+            )}
             {currentUser?.role === 'restaurant_owner' && (
               <Button
                 variant="outline"
@@ -456,7 +469,7 @@ export const WorkforcePage = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className={`grid grid-cols-2 sm:grid-cols-2 ${isOwner ? 'lg:grid-cols-2' : 'lg:grid-cols-5'} gap-3 sm:gap-4`}>
         <StatCard
           title="Staff Directory"
           value={totalEmployees}
@@ -473,30 +486,36 @@ export const WorkforcePage = () => {
           variant={totalOnDuty > 0 ? 'success' : 'default'}
           onClick={() => handleTabChange('attendance')}
         />
-        <StatCard
-          title="Leave Requests"
-          value={pendingLeavesCount}
-          subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
-          icon={Calendar}
-          variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
-          onClick={() => handleTabChange('leave')}
-        />
-        <StatCard
-          title="Payroll Disbursed"
-          value={formatINR(totalMonthlyPayrollDisbursed)}
-          subtitle="Recent Settlements"
-          icon={IndianRupee}
-          variant="default"
-          onClick={() => handleTabChange('payroll')}
-        />
-        <StatCard
-          title="Transfers"
-          value={pendingTransfersCount}
-          subtitle={pendingTransfersCount > 0 ? 'Pending Authorization' : 'All Processed'}
-          icon={ArrowLeftRight}
-          variant={pendingTransfersCount > 0 ? 'warning' : 'default'}
-          onClick={() => handleTabChange('transfers')}
-        />
+        {!isOwner && (
+          <StatCard
+            title="Leave Requests"
+            value={pendingLeavesCount}
+            subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
+            icon={Calendar}
+            variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
+            onClick={() => handleTabChange('leave')}
+          />
+        )}
+        {!isOwner && (
+          <StatCard
+            title="Payroll Disbursed"
+            value={formatINR(totalMonthlyPayrollDisbursed)}
+            subtitle="Recent Settlements"
+            icon={IndianRupee}
+            variant="default"
+            onClick={() => handleTabChange('payroll')}
+          />
+        )}
+        {!isOwner && (
+          <StatCard
+            title="Transfers"
+            value={pendingTransfersCount}
+            subtitle={pendingTransfersCount > 0 ? 'Pending Authorization' : 'All Processed'}
+            icon={ArrowLeftRight}
+            variant={pendingTransfersCount > 0 ? 'warning' : 'default'}
+            onClick={() => handleTabChange('transfers')}
+          />
+        )}
       </div>
 
       {/* Navigation Tabs */}
@@ -534,66 +553,74 @@ export const WorkforcePage = () => {
           </button>
 
           {/* Tab 2.5: Monthly Attendance Calendar */}
-          <button
-            onClick={() => handleTabChange('calendar')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'calendar'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Monthly Attendance Calendar</span>
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('calendar')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'calendar'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>Monthly Attendance Calendar</span>
+            </button>
+          )}
 
           {/* Tab 3: Leave & Shifts */}
-          <button
-            onClick={() => handleTabChange('leave')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'leave'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Leave &amp; Shifts</span>
-            {pendingLeavesCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
-                {pendingLeavesCount} Pending
-              </span>
-            )}
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('leave')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'leave'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Leave &amp; Shifts</span>
+              {pendingLeavesCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                  {pendingLeavesCount} Pending
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Tab 4: Payroll */}
-          <button
-            onClick={() => handleTabChange('payroll')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'payroll'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <IndianRupee className="w-4 h-4" />
-            <span>Payroll</span>
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('payroll')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'payroll'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <IndianRupee className="w-4 h-4" />
+              <span>Payroll</span>
+            </button>
+          )}
 
           {/* Tab 5: Staff Transfers */}
-          <button
-            onClick={() => handleTabChange('transfers')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'transfers'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-            <span>Staff Transfers</span>
-            {pendingTransfersCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold">
-                {pendingTransfersCount} Action
-              </span>
-            )}
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('transfers')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'transfers'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+              <span>Staff Transfers</span>
+              {pendingTransfersCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold">
+                  {pendingTransfersCount} Action
+                </span>
+              )}
+            </button>
+          )}
         </nav>
       </div>
 
@@ -762,32 +789,36 @@ export const WorkforcePage = () => {
 
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => {
-                                  setSalaryTargetStaff(staff);
-                                  setIsSalaryModalOpen(true);
-                                }}
-                                title="Disburse salary"
-                                className="text-emerald-800 border-emerald-200 hover:bg-emerald-50"
-                              >
-                                <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
-                                Pay
-                              </Button>
+                              {!isOwner && (
+                                <Button
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => {
+                                    setSalaryTargetStaff(staff);
+                                    setIsSalaryModalOpen(true);
+                                  }}
+                                  title="Disburse salary"
+                                  className="text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+                                >
+                                  <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                                  Pay
+                                </Button>
+                              )}
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => {
-                                  setSelectedStaffId(staff.id);
-                                  setIsNewTransferOpen(true);
-                                }}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
+                              {!isOwner && (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => {
+                                    setSelectedStaffId(staff.id);
+                                    setIsNewTransferOpen(true);
+                                  }}
+                                  title="Request Branch Transfer"
+                                  className="text-slate-600 hover:bg-slate-100"
+                                >
+                                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
 
                               <Button
                                 variant="ghost"
@@ -824,7 +855,7 @@ export const WorkforcePage = () => {
       {activeTab === 'attendance' && (
         <div className="space-y-6">
           {/* Manager's Personal Shift Terminal & Punch Clock */}
-          <PunchClockWidget />
+          {currentUser?.role !== 'restaurant_owner' && <PunchClockWidget />}
           {/* Live Station Clock-In Board */}
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1100,14 +1131,14 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 2.5: MONTHLY ATTENDANCE CALENDAR */}
-      {activeTab === 'calendar' && (
+      {!isOwner && activeTab === 'calendar' && (
         <div className="space-y-6">
           <MonthlyAttendanceCalendar />
         </div>
       )}
 
       {/* TAB 3: LEAVE & SHIFTS */}
-      {activeTab === 'leave' && (
+      {!isOwner && activeTab === 'leave' && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -1224,7 +1255,11 @@ export const WorkforcePage = () => {
 
                         <td className="py-3.5 px-4 text-right">
                           {leave.status === 'pending' ? (
-                            leave.staffId === currentUser?.id && isManager ? (
+                            currentUser?.role === 'restaurant_owner' ? (
+                              <span className="text-[11px] text-amber-600 font-medium italic">
+                                Pending Manager Review
+                              </span>
+                            ) : leave.staffId === currentUser?.id && isManager ? (
                               <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg inline-block" title="Managers cannot approve own leave. Owner approval required.">
                                 Manager Self-Approval Prohibited
                               </span>
@@ -1265,7 +1300,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 4: PAYROLL */}
-      {activeTab === 'payroll' && (
+      {!isOwner && activeTab === 'payroll' && (
         <div className="space-y-6">
           <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -1425,7 +1460,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 5: STAFF TRANSFERS */}
-      {activeTab === 'transfers' && (
+      {!isOwner && activeTab === 'transfers' && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -1785,7 +1820,7 @@ export const WorkforcePage = () => {
 
       {/* New Transfer Modal */}
       <Modal
-        isOpen={isNewTransferOpen}
+        isOpen={isNewTransferOpen && !isOwner}
         onClose={() => setIsNewTransferOpen(false)}
         title="Initiate Staff Branch Transfer"
         maxWidth="max-w-xl"
@@ -1906,7 +1941,7 @@ export const WorkforcePage = () => {
       </Modal>
 
       {/* Reject Transfer Modal */}
-      {rejectingTransfer && (
+      {rejectingTransfer && !isOwner && (
         <Modal
           isOpen={!!rejectingTransfer}
           onClose={() => setRejectingTransfer(null)}
@@ -1944,7 +1979,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* Audit Log Modal */}
-      {selectedTransferForAudit && (
+      {selectedTransferForAudit && !isOwner && (
         <Modal
           isOpen={!!selectedTransferForAudit}
           onClose={() => setSelectedTransferForAudit(null)}
@@ -2089,7 +2124,7 @@ export const WorkforcePage = () => {
 
       {/* Manager Personal Leave Modal */}
       <LeaveRequestModal
-        isOpen={isManagerLeaveModalOpen}
+        isOpen={isManagerLeaveModalOpen && !isOwner}
         onClose={() => setIsManagerLeaveModalOpen(false)}
       />
 
@@ -2117,7 +2152,7 @@ export const WorkforcePage = () => {
 
       {/* Salary Disbursement Modal */}
       <ProcessSalaryModal
-        isOpen={isSalaryModalOpen}
+        isOpen={isSalaryModalOpen && !isOwner}
         onClose={() => {
           setIsSalaryModalOpen(false);
           setSalaryTargetStaff(null);
@@ -2127,7 +2162,7 @@ export const WorkforcePage = () => {
 
       {/* Salary Slip Inspection Modal */}
       <SalarySlipModal
-        isOpen={!!viewingSalarySlip}
+        isOpen={!!viewingSalarySlip && !isOwner}
         onClose={() => setViewingSalarySlip(null)}
         paymentRecord={viewingSalarySlip}
       />

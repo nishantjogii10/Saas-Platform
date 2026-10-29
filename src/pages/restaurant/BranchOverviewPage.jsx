@@ -37,8 +37,10 @@ export const BranchOverviewPage = () => {
     branchStaff,
     staffTransfers,
     ownerNotifications,
+    currentUser,
     addToast,
   } = useApp();
+  const isOwner = currentUser?.role === 'restaurant_owner';
 
   const [selectedBranchForInfo, setSelectedBranchForInfo] = useState(null);
 
@@ -72,14 +74,16 @@ export const BranchOverviewPage = () => {
         subtitle="Manage all 5 Spice Garden outlets, operational records, manager assignments, and branch subscription plans."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => navigate('/staff-transfers')}
+              >
+                Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -164,13 +168,15 @@ export const BranchOverviewPage = () => {
           icon={TrendingUp}
           variant="success"
         />
-        <StatCard
-          title="Pending Transfers"
-          value={pendingTransfers}
-          subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
-          icon={ArrowLeftRight}
-          variant={pendingTransfers > 0 ? "warning" : "default"}
-        />
+        {!isOwner && (
+          <StatCard
+            title="Pending Transfers"
+            value={pendingTransfers}
+            subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
+            icon={ArrowLeftRight}
+            variant={pendingTransfers > 0 ? "warning" : "default"}
+          />
+        )}
         <StatCard
           title="Plan Tiers"
           value="3 Active"
@@ -352,7 +358,8 @@ export const BranchOverviewPage = () => {
       </div>
 
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+      {!isOwner && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
         <div
           onClick={() => navigate('/branch-staff')}
           className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
@@ -401,6 +408,7 @@ export const BranchOverviewPage = () => {
           </p>
         </div>
       </div>
+      )}
 
       {/* Branch Info Modal */}
       {selectedBranchForInfo && (

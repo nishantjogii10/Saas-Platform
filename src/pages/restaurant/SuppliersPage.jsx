@@ -162,7 +162,7 @@ export const SuppliersPage = () => {
               Export to Excel
             </Button>
 
-            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+            {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -173,7 +173,7 @@ export const SuppliersPage = () => {
               </Button>
             )}
 
-            {currentUser.role !== 'kitchen_staff' && (
+            {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && (
               <Button
                 variant="brand"
                 size="sm"
@@ -269,21 +269,23 @@ export const SuppliersPage = () => {
                 </span>
               ),
             },
-            {
+            ...(currentUser?.role !== 'restaurant_owner' ? [{
               header: 'Actions',
               accessor: 'id',
               render: (sup) => (
                 <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    icon={ShoppingBag}
-                    title="Create Purchase Order"
-                    className="text-emerald-700 hover:bg-emerald-50"
-                    onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
-                  >
-                    PO
-                  </Button>
+                  {currentUser?.role !== 'restaurant_owner' && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      icon={ShoppingBag}
+                      title="Create Purchase Order"
+                      className="text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
+                    >
+                      PO
+                    </Button>
+                  )}
                   {currentUser.role !== 'kitchen_staff' && (
                     <>
                       <button
@@ -307,7 +309,7 @@ export const SuppliersPage = () => {
                   )}
                 </div>
               ),
-            },
+            }] : []),
           ]}
           data={filteredSuppliers}
           keyField="id"
@@ -343,7 +345,7 @@ export const SuppliersPage = () => {
                       </div>
                     </div>
 
-                    {currentUser.role !== 'kitchen_staff' && (
+                    {currentUser?.role !== 'restaurant_owner' && currentUser.role !== 'kitchen_staff' && (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEdit(sup)}
@@ -402,14 +404,16 @@ export const SuppliersPage = () => {
                     {activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''} in pipeline
                   </span>
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={ShoppingBag}
-                    onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
-                  >
-                    Create PO
-                  </Button>
+                  {currentUser?.role !== 'restaurant_owner' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ShoppingBag}
+                      onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
+                    >
+                      Create PO
+                    </Button>
+                  )}
                 </div>
               </div>
             );

@@ -39,6 +39,10 @@ export const PunchClockWidget = () => {
     KITCHEN_STATIONS,
   } = useApp();
 
+  if (currentUser?.role === 'restaurant_owner') {
+    return null;
+  }
+
   // Wall clock state
   const [currentTime, setCurrentTime] = useState(new Date());
 

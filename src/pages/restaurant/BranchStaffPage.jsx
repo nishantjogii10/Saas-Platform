@@ -397,14 +397,16 @@ export const BranchStaffPage = () => {
             >
               Disburse Salary
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff
-            </Button>
+            {currentUser?.role !== 'restaurant_owner' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => navigate('/staff-transfers')}
+              >
+                Transfer Staff
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -764,15 +766,17 @@ export const BranchStaffPage = () => {
                                 Pay
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => navigate('/staff-transfers')}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
+                              {currentUser?.role !== 'restaurant_owner' && (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => navigate('/staff-transfers')}
+                                  title="Request Branch Transfer"
+                                  className="text-slate-600 hover:bg-slate-100"
+                                >
+                                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
 
                               <Button
                                 variant="ghost"
@@ -1042,6 +1046,11 @@ export const BranchStaffPage = () => {
 
                         <td className="py-3.5 px-4 text-right">
                           {leave.status === 'pending' ? (
+                            currentUser?.role === 'restaurant_owner' ? (
+                              <span className="text-[11px] text-amber-600 font-medium italic">
+                                Pending Manager Review
+                              </span>
+                            ) : (
                             <div className="flex items-center justify-end gap-1.5">
                               <Button
                                 variant="outline"
@@ -1059,6 +1068,7 @@ export const BranchStaffPage = () => {
                                 Accept
                               </Button>
                             </div>
+                            )
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">
                               Reviewed by {leave.reviewedBy || 'Manager'}

@@ -55,7 +55,7 @@ export const InventoryPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(initialAction === 'add');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(initialAction === 'add' && currentUser?.role !== 'restaurant_owner');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConsumeModalOpen, setIsConsumeModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState(null);
@@ -84,10 +84,10 @@ export const InventoryPage = () => {
   const [consumeReason, setConsumeReason] = useState('Line prep for service');
 
   useEffect(() => {
-    if (initialAction === 'add') {
+    if (initialAction === 'add' && currentUser?.role !== 'restaurant_owner') {
       setIsAddModalOpen(true);
     }
-  }, [initialAction]);
+  }, [initialAction, currentUser?.role]);
 
   // Handle supplier change in form to sync name
   const handleSupplierChange = (supId) => {
@@ -269,7 +269,7 @@ export const InventoryPage = () => {
         </div>
       ),
     },
-    {
+    ...(currentUser?.role !== 'restaurant_owner' ? [{
       header: 'Actions',
       accessor: 'id',
       render: (row) => (
@@ -309,14 +309,14 @@ export const InventoryPage = () => {
           )}
         </div>
       ),
-    },
+    }] : []),
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Kitchen Inventory Items"
-        subtitle="Track on-hand ingredient volumes, minimum thresholds, unit costing, and consumption (Workflow B)"
+        subtitle={currentUser?.role === 'restaurant_owner' ? 'Track on-hand ingredient volumes, minimum thresholds, and unit costing' : 'Track on-hand ingredient volumes, minimum thresholds, unit costing, and consumption (Workflow B)'}
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Inventory' },
@@ -331,7 +331,7 @@ export const InventoryPage = () => {
             >
               Export to Excel
             </Button>
-            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+            {currentUser?.role !== 'restaurant_owner' && currentUser?.role !== 'kitchen_staff' && currentUser?.role !== 'supplier' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -341,20 +341,23 @@ export const InventoryPage = () => {
                 Import Excel
               </Button>
             )}
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
-              onClick={handleOpenAdd}
-            >
-              Add New Ingredient
-            </Button>
+            {currentUser?.role !== 'restaurant_owner' && (
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={handleOpenAdd}
+              >
+                Add New Ingredient
+              </Button>
+            )}
           </div>
         }
       />
 
       {/* Workflow B Step Indicator Notice */}
-      <div className="p-4 rounded-2xl glass-panel bg-emerald-50/40 border-emerald-200/70 flex items-start gap-3 text-xs text-emerald-950">
+      {currentUser?.role !== 'restaurant_owner' && (
+        <div className="p-4 rounded-2xl glass-panel bg-emerald-50/40 border-emerald-200/70 flex items-start gap-3 text-xs text-emerald-950">
         <span className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0 font-bold text-[11px]">
           B
         </span>
@@ -363,6 +366,7 @@ export const InventoryPage = () => {
           Click <strong>"Use"</strong> on any ingredient (or add/edit quantity) to record consumption. When the stock balance drops below the minimum threshold, it will automatically transition to <strong>Low Stock</strong> and trigger real-time alerts across your dashboard and alerts page!
         </div>
       </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 glass-panel p-4">
