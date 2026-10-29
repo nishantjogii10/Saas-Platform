@@ -824,7 +824,7 @@ export const WorkforcePage = () => {
       {activeTab === 'attendance' && (
         <div className="space-y-6">
           {/* Manager's Personal Shift Terminal & Punch Clock */}
-          <PunchClockWidget />
+          {currentUser?.role !== 'restaurant_owner' && <PunchClockWidget />}
           {/* Live Station Clock-In Board */}
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
