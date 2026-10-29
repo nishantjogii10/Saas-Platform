@@ -1224,7 +1224,11 @@ export const WorkforcePage = () => {
 
                         <td className="py-3.5 px-4 text-right">
                           {leave.status === 'pending' ? (
-                            leave.staffId === currentUser?.id && isManager ? (
+                            currentUser?.role === 'restaurant_owner' ? (
+                              <span className="text-[11px] text-amber-600 font-medium italic">
+                                Pending Manager Review
+                              </span>
+                            ) : leave.staffId === currentUser?.id && isManager ? (
                               <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg inline-block" title="Managers cannot approve own leave. Owner approval required.">
                                 Manager Self-Approval Prohibited
                               </span>
@@ -1248,6 +1252,7 @@ export const WorkforcePage = () => {
                                 </Button>
                               </div>
                             )
+                          )
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">
                               Reviewed by {leave.reviewedBy || 'Manager'}

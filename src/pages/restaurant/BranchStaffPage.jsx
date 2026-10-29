@@ -1042,6 +1042,11 @@ export const BranchStaffPage = () => {
 
                         <td className="py-3.5 px-4 text-right">
                           {leave.status === 'pending' ? (
+                            currentUser?.role === 'restaurant_owner' ? (
+                              <span className="text-[11px] text-amber-600 font-medium italic">
+                                Pending Manager Review
+                              </span>
+                            ) : (
                             <div className="flex items-center justify-end gap-1.5">
                               <Button
                                 variant="outline"

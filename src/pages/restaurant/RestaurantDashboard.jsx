@@ -56,8 +56,6 @@ export const RestaurantDashboard = () => {
     restaurantMovements,
     restaurantAlerts,
     attendanceRecords,
-    leaveRequests,
-    reviewLeaveRequest,
     branchStaff,
     staffTransfers,
     currentBranch,
@@ -70,7 +68,6 @@ export const RestaurantDashboard = () => {
   }
 
   const activeStaffAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
-  const pendingLeaves = leaveRequests?.filter((l) => l.status === 'pending') || [];
   const totalStaffCount = branchStaff?.length || 0;
   const pendingTransfers = staffTransfers?.filter(
     (t) => t.status === 'Pending' && (!currentBranch?.id || t.fromBranchId === currentBranch.id || t.toBranchId === currentBranch.id)
@@ -239,78 +236,6 @@ export const RestaurantDashboard = () => {
             onClick={() => navigate('/expiry-tracking')}
           />
         </div>
-
-      {/* Pending Staff Leave Requests Approval Alert */}
-      {currentUser?.role !== 'inventory_manager' && pendingLeaves.length > 0 && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  Staff Leave Requests Awaiting Your Approval ({pendingLeaves.length})
-                </h4>
-                <p className="text-xs text-slate-600">
-                  Review time-off applications from kitchen line staff and adjust shift scheduling.
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => navigate('/branch-staff?tab=leave')}
-            >
-              Open Leave Console →
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            {pendingLeaves.map((leave) => (
-              <div
-                key={leave.id}
-                className="p-3.5 rounded-xl bg-white border border-amber-200 shadow-2xs flex flex-col justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-slate-900 text-xs">{leave.staffName}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                      {leave.leaveType}
-                    </span>
-                  </div>
-                  <div className="text-xs font-semibold text-emerald-800 mt-1">
-                    📅 {leave.startDate} to {leave.endDate} ({leave.durationDays} days)
-                  </div>
-                  <p className="text-xs text-slate-600 mt-1 line-clamp-2 italic">
-                    "{leave.reason}"
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    icon={XCircle}
-                    onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Declined due to kitchen shift coverage requirements')}
-                    className="text-rose-600 hover:bg-rose-50"
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    variant="brand"
-                    size="xs"
-                    icon={CheckCircle2}
-                    onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager. Have a safe leave!')}
-                  >
-                    Accept / Approve
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Live Kitchen Staff Attendance Widget for Managers */}
       {currentUser?.role !== 'inventory_manager' && (
