@@ -397,14 +397,16 @@ export const BranchStaffPage = () => {
             >
               Disburse Salary
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff
-            </Button>
+            {currentUser?.role !== 'restaurant_owner' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => navigate('/staff-transfers')}
+              >
+                Transfer Staff
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -764,15 +766,17 @@ export const BranchStaffPage = () => {
                                 Pay
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => navigate('/staff-transfers')}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
+                              {currentUser?.role !== 'restaurant_owner' && (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => navigate('/staff-transfers')}
+                                  title="Request Branch Transfer"
+                                  className="text-slate-600 hover:bg-slate-100"
+                                >
+                                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
 
                               <Button
                                 variant="ghost"

@@ -349,6 +349,7 @@ export const WorkforcePage = () => {
   // Transfer submit
   const handleNewTransferSubmit = (e) => {
     e.preventDefault();
+    if (isOwner) return;
     if (!selectedStaffId || !toBranchId || !transferReason.trim()) {
       addToast('Please select staff member, destination branch, and enter transfer reason', 'error');
       return;
@@ -424,17 +425,19 @@ export const WorkforcePage = () => {
             >
               Disburse Salary
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => {
-                setSelectedStaffId(branchStaff[0]?.id || '');
-                setIsNewTransferOpen(true);
-              }}
-            >
-              Request Transfer
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeftRight}
+                onClick={() => {
+                  setSelectedStaffId(branchStaff[0]?.id || '');
+                  setIsNewTransferOpen(true);
+                }}
+              >
+                Request Transfer
+              </Button>
+            )}
             {currentUser?.role === 'restaurant_owner' && (
               <Button
                 variant="outline"
@@ -780,18 +783,20 @@ export const WorkforcePage = () => {
                                 Pay
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => {
-                                  setSelectedStaffId(staff.id);
-                                  setIsNewTransferOpen(true);
-                                }}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
+                              {!isOwner && (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  onClick={() => {
+                                    setSelectedStaffId(staff.id);
+                                    setIsNewTransferOpen(true);
+                                  }}
+                                  title="Request Branch Transfer"
+                                  className="text-slate-600 hover:bg-slate-100"
+                                >
+                                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
 
                               <Button
                                 variant="ghost"
@@ -1793,7 +1798,7 @@ export const WorkforcePage = () => {
 
       {/* New Transfer Modal */}
       <Modal
-        isOpen={isNewTransferOpen}
+        isOpen={isNewTransferOpen && !isOwner}
         onClose={() => setIsNewTransferOpen(false)}
         title="Initiate Staff Branch Transfer"
         maxWidth="max-w-xl"
