@@ -162,15 +162,15 @@ export const PlatformAnalytics = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-1 glass-pill p-1 shadow-glass-sm">
               {['3m', '6m', '12m', 'all'].map((range) => (
                 <button
                   key={range}
                   onClick={() => setDateRange(range)}
                   className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase transition-all ${
                     dateRange === range
-                      ? 'bg-emerald-800 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-sm font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
                 >
                   {range}
@@ -234,7 +234,7 @@ export const PlatformAnalytics = () => {
       </div>
 
       {/* Table 1: Platform Monthly Growth & Registration Velocity Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden shadow-glass">
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
@@ -255,7 +255,7 @@ export const PlatformAnalytics = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+              <tr className="bg-gradient-to-b from-white/90 to-slate-50/70 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200/80 backdrop-blur-sm">
                 <th className="py-3 px-4">Reporting Month</th>
                 <th className="py-3 px-4 text-center">New Restaurants Registered</th>
                 <th className="py-3 px-4 text-center">Cumulative Active Tenants</th>
@@ -267,7 +267,7 @@ export const PlatformAnalytics = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {enrichedRegistrations.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                <tr key={idx} className="hover:bg-emerald-50/30 transition-colors transition-colors">
                   <td className="py-3 px-4 font-bold text-slate-900">
                     {row.month}
                   </td>
@@ -323,7 +323,7 @@ export const PlatformAnalytics = () => {
       </div>
 
       {/* Table 2: Active Tier Market Share & Subscriber Distribution Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden shadow-glass">
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
@@ -344,7 +344,7 @@ export const PlatformAnalytics = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+              <tr className="bg-gradient-to-b from-white/90 to-slate-50/70 text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200/80 backdrop-blur-sm">
                 <th className="py-3 px-4">Subscription Tier</th>
                 <th className="py-3 px-4 text-center">Active Accounts</th>
                 <th className="py-3 px-4 text-right">Base Monthly Fee</th>
@@ -356,7 +356,7 @@ export const PlatformAnalytics = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {enrichedPlanDistribution.map((plan, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                <tr key={idx} className="hover:bg-emerald-50/30 transition-colors transition-colors">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <span

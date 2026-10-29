@@ -2,49 +2,49 @@ import React from 'react';
 
 const BADGE_STYLES = {
   // Stock Statuses
-  in_stock: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-  low_stock: 'bg-amber-50 text-amber-700 border-amber-200/80',
-  out_of_stock: 'bg-rose-50 text-rose-700 border-rose-200/80',
+  in_stock: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  low_stock: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  out_of_stock: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Expiry Statuses
-  safe: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-  expiring_soon: 'bg-amber-50 text-amber-700 border-amber-200/80',
-  expired: 'bg-rose-50 text-rose-700 border-rose-200/80',
+  safe: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  expiring_soon: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  expired: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Account / Restaurant Statuses
-  active: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-  pending: 'bg-amber-50 text-amber-700 border-amber-200/80',
-  suspended: 'bg-rose-50 text-rose-700 border-rose-200/80',
+  active: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  pending: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  suspended: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Purchase Order Statuses
-  accepted: 'bg-blue-50 text-blue-700 border-blue-200/80',
-  dispatched: 'bg-purple-50 text-purple-700 border-purple-200/80',
-  delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-  cancelled: 'bg-slate-100 text-slate-600 border-slate-200',
-  rejected: 'bg-rose-50 text-rose-700 border-rose-200/80',
+  accepted: 'bg-blue-50/90 text-blue-800 border-blue-200/90',
+  dispatched: 'bg-purple-50/90 text-purple-800 border-purple-200/90',
+  delivered: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  cancelled: 'bg-slate-100 text-slate-700 border-slate-200',
+  rejected: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Movement Types
-  received: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-  consumption: 'bg-blue-50 text-blue-700 border-blue-200/80',
-  wastage: 'bg-rose-50 text-rose-700 border-rose-200/80',
-  adjustment: 'bg-amber-50 text-amber-700 border-amber-200/80',
+  received: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  consumption: 'bg-blue-50/90 text-blue-800 border-blue-200/90',
+  wastage: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
+  adjustment: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
 
   // Roles
-  super_admin: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
-  restaurant_owner: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
-  restaurant_manager: 'bg-blue-50 text-blue-800 border-blue-200/80',
-  inventory_manager: 'bg-teal-50 text-teal-700 border-teal-200/80',
-  kitchen_staff: 'bg-amber-50 text-amber-800 border-amber-200/80',
-  supplier: 'bg-sky-50 text-sky-700 border-sky-200/80',
+  super_admin: 'bg-indigo-50/90 text-indigo-800 border-indigo-200/90',
+  restaurant_owner: 'bg-emerald-50/90 text-emerald-900 border-emerald-200/90',
+  restaurant_manager: 'bg-blue-50/90 text-blue-900 border-blue-200/90',
+  inventory_manager: 'bg-teal-50/90 text-teal-900 border-teal-200/90',
+  kitchen_staff: 'bg-amber-50/90 text-amber-900 border-amber-200/90',
+  supplier: 'bg-sky-50/90 text-sky-900 border-sky-200/90',
 
   // Severities
-  critical: 'bg-rose-100 text-rose-800 border-rose-300',
-  high: 'bg-amber-100 text-amber-800 border-amber-300',
-  medium: 'bg-blue-100 text-blue-800 border-blue-200',
+  critical: 'bg-rose-100 text-rose-900 border-rose-300 font-bold',
+  high: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+  medium: 'bg-blue-100 text-blue-900 border-blue-200',
   low: 'bg-slate-100 text-slate-700 border-slate-200',
 
   // Generic
-  default: 'bg-slate-100 text-slate-700 border-slate-200',
+  default: 'bg-slate-100/90 text-slate-700 border-slate-200',
 };
 
 const FORMATTED_LABELS = {
@@ -80,18 +80,17 @@ export const Badge = ({ status, label, size = 'sm', className = '' }) => {
   const displayLabel = label || FORMATTED_LABELS[normalizedKey] || status;
 
   const sizeClass = size === 'xs'
-    ? 'text-[11px] px-2 py-0.5'
+    ? 'text-[10px] px-2 py-0.5'
     : size === 'md'
     ? 'text-xs px-3 py-1'
-    : 'text-xs px-2.5 py-0.5';
+    : 'text-[11px] px-2.5 py-0.5';
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${sizeClass} ${styleClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 font-semibold rounded-full border shadow-2xs ${sizeClass} ${styleClass} ${className}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-      {displayLabel}
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80 shrink-0"></span>
+      <span>{displayLabel}</span>
     </span>
   );
 };
-

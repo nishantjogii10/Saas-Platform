@@ -130,6 +130,51 @@ export const BASE_PLANS = {
   },
 };
 
+export const calculatePlanSavings = (monthlyPrice, annualPrice) => {
+  const m = Math.max(0, Number(monthlyPrice) || 0);
+  const a = Math.max(0, Number(annualPrice) || 0);
+  const annualWithoutDiscount = m * 12;
+  const annualSavings = Math.max(0, annualWithoutDiscount - a);
+  const savingsPercent = annualWithoutDiscount > 0 ? Math.round((annualSavings / annualWithoutDiscount) * 100) : 0;
+  const effectiveMonthlyAnnual = a > 0 ? Math.round(a / 12) : 0;
+  return { annualSavings, savingsPercent, effectiveMonthlyAnnual };
+};
+
+export const syncPricingEnginePlans = (plansList) => {
+  if (!plansList) return BASE_PLANS;
+  const list = Array.isArray(plansList) ? plansList : Object.values(plansList);
+  list.forEach((p) => {
+    if (!p || !p.id) return;
+    const targetPlan = BASE_PLANS[p.id];
+    const { annualSavings, savingsPercent, effectiveMonthlyAnnual } = calculatePlanSavings(
+      p.monthlyPrice,
+      p.annualPrice ?? (Number(p.monthlyPrice || 0) * 12 * 0.8)
+    );
+    if (targetPlan) {
+      if (p.name !== undefined) targetPlan.name = p.name;
+      if (p.badge !== undefined) targetPlan.badge = p.badge;
+      if (p.monthlyPrice !== undefined) targetPlan.monthlyPrice = Number(p.monthlyPrice) || 0;
+      if (p.annualPrice !== undefined) targetPlan.annualPrice = Number(p.annualPrice) || 0;
+      targetPlan.annualSavings = annualSavings;
+      targetPlan.savingsPercent = savingsPercent;
+      targetPlan.effectiveMonthlyAnnual = effectiveMonthlyAnnual;
+      if (p.description !== undefined) targetPlan.target = p.description;
+      if (p.target !== undefined) targetPlan.target = p.target;
+      if (p.status !== undefined) targetPlan.status = p.status;
+      if (Array.isArray(p.features) && p.features.length > 0) {
+        targetPlan.features = [...p.features];
+      }
+      if (p.limits) {
+        if (p.limits.maxIngredients !== undefined) targetPlan.maxIngredients = Number(p.limits.maxIngredients) || targetPlan.maxIngredients;
+        if (p.limits.maxStaff !== undefined) targetPlan.includedStaff = Number(p.limits.maxStaff) || targetPlan.includedStaff;
+        if (p.limits.branches !== undefined) targetPlan.includedOutlets = Number(p.limits.branches) || targetPlan.includedOutlets;
+        if (p.limits.support !== undefined) targetPlan.supportLevel = p.limits.support;
+      }
+    }
+  });
+  return BASE_PLANS;
+};
+
 // Configurable Add-On Modules and Unit Rates
 export const MODULE_CATALOG = [
   {

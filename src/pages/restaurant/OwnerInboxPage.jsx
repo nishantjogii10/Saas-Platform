@@ -1,3 +1,4 @@
+import { StockMateEmailShell } from '../../components/email/StockMateEmailShell';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
@@ -25,6 +26,7 @@ import {
   Download,
   ExternalLink,
   Check,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
   Info,
@@ -48,6 +50,7 @@ export const OwnerInboxPage = () => {
   const {
     currentUser,
     currentRestaurant,
+    transactions,
     announcements,
     announcementReads,
     announcementArchives,
@@ -144,8 +147,10 @@ export const OwnerInboxPage = () => {
       all: unarchived.length,
       unread: unarchived.filter((a) => !a.isRead).length,
       important: unarchived.filter((a) => a.priority === 'urgent' || a.priority === 'important').length,
-      policy: unarchived.filter((a) => a.category === 'policy').length,
+      receipt: unarchived.filter((a) => a.category === 'receipt').length,
       subscription: unarchived.filter((a) => a.category === 'subscription' || a.category === 'billing').length,
+      policy: unarchived.filter((a) => a.category === 'policy').length,
+      security: unarchived.filter((a) => a.category === 'security').length,
       maintenance: unarchived.filter((a) => a.category === 'maintenance').length,
       feature: unarchived.filter((a) => a.category === 'feature').length,
       archived: tenantAnnouncements.filter((a) => a.isArchived).length,
@@ -171,7 +176,9 @@ export const OwnerInboxPage = () => {
       ) {
         return false;
       }
+      if (activeFolder === 'receipt' && ann.category !== 'receipt') return false;
       if (activeFolder === 'policy' && ann.category !== 'policy') return false;
+      if (activeFolder === 'security' && ann.category !== 'security') return false;
       if (
         activeFolder === 'subscription' &&
         ann.category !== 'subscription' &&
@@ -244,19 +251,40 @@ export const OwnerInboxPage = () => {
     }, 400);
   };
 
-  // Interpolate body for reading pane
-  const interpolatedBody = useMemo(() => {
-    if (!activeAnnouncement) return '';
-    const ctx = {
+  // Context for interpolating recipient data into reading pane
+  const ownerContext = useMemo(() => {
+    if (!activeAnnouncement) return {};
+    const tx =
+      activeAnnouncement.verifiedTransaction ||
+      (transactions && transactions.find((t) => t.restaurantId === currentRestaurant?.id)) ||
+      null;
+
+    return {
       restaurantName: currentRestaurant?.name || 'Your Restaurant',
-      ownerName: currentUser?.name || 'Restaurant Partner',
-      planName: currentRestaurant?.planName || 'Professional Plan',
+      ownerName: currentRestaurant?.ownerName || currentUser?.name || 'Restaurant Partner',
+      ownerEmail: currentRestaurant?.ownerEmail || currentUser?.email || 'owner@restaurant.com',
+      planName: currentRestaurant?.planName ? `${currentRestaurant.planName} Plan` : 'Professional Plan',
+      amount: tx ? (typeof tx.amount === 'number' ? `₹${tx.amount.toLocaleString('en-IN')}` : tx.amount) : '₹0',
+      receiptNumber: tx?.receiptNumber || (tx?.id ? `RCP-${tx.id}` : 'RCP-2026-STM'),
+      paymentRef: tx?.paymentRef || tx?.gatewayRef || (tx?.id ? `REF-${tx.id}` : 'REF-STM-PAY'),
+      invoiceNumber: tx?.invoiceId || (tx?.id ? `INV-${tx.id}` : 'INV-2026-STM'),
       renewalDate: currentRestaurant?.renewalDate || 'Upcoming Cycle',
       effectiveDate: activeAnnouncement.effectiveDate || 'Immediately',
-      platformLink: '#/dashboard',
+      platformLink: activeAnnouncement.ctaLink || '#/dashboard',
     };
-    return interpolateTemplateVariables(activeAnnouncement.body, ctx);
-  }, [activeAnnouncement, currentRestaurant, currentUser]);
+  }, [activeAnnouncement, currentRestaurant, currentUser, transactions]);
+
+  const interpolatedTitle = useMemo(() => {
+    return activeAnnouncement ? interpolateTemplateVariables(activeAnnouncement.title, ownerContext) : '';
+  }, [activeAnnouncement, ownerContext]);
+
+  const interpolatedSummary = useMemo(() => {
+    return activeAnnouncement ? interpolateTemplateVariables(activeAnnouncement.summary || '', ownerContext) : '';
+  }, [activeAnnouncement, ownerContext]);
+
+  const interpolatedBody = useMemo(() => {
+    return activeAnnouncement ? interpolateTemplateVariables(activeAnnouncement.body, ownerContext) : '';
+  }, [activeAnnouncement, ownerContext]);
 
   const activeCategoryObj = activeAnnouncement
     ? ANNOUNCEMENT_CATEGORIES[activeAnnouncement.category] || ANNOUNCEMENT_CATEGORIES.general
@@ -267,7 +295,7 @@ export const OwnerInboxPage = () => {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5">
       {/* Page Header */}
       <PageHeader
         title="Inbox & Announcements"
@@ -307,8 +335,10 @@ export const OwnerInboxPage = () => {
               { id: 'all', label: 'All Announcements', icon: Inbox, count: folderCounts.all },
               { id: 'unread', label: 'Unread Only', icon: Mail, count: folderCounts.unread, highlight: folderCounts.unread > 0 },
               { id: 'important', label: 'Urgent & Important', icon: AlertOctagon, count: folderCounts.important },
+              { id: 'receipt', label: 'Payment Receipts', icon: Receipt, count: folderCounts.receipt },
+              { id: 'subscription', label: 'Subscription & Invoices', icon: CreditCard, count: folderCounts.subscription },
               { id: 'policy', label: 'Platform Policies', icon: FileCheck2, count: folderCounts.policy },
-              { id: 'subscription', label: 'Subscription & Billing', icon: CreditCard, count: folderCounts.subscription },
+              { id: 'security', label: 'Security Advisories', icon: ShieldAlert, count: folderCounts.security },
               { id: 'maintenance', label: 'Maintenance Windows', icon: Wrench, count: folderCounts.maintenance },
               { id: 'feature', label: 'New Product Features', icon: Sparkles, count: folderCounts.feature },
               { id: 'archived', label: 'Archived Bulletins', icon: Archive, count: folderCounts.archived },
@@ -436,11 +466,11 @@ export const OwnerInboxPage = () => {
                         !ann.isRead ? 'font-black text-slate-900' : 'font-semibold text-slate-700'
                       }`}
                     >
-                      {ann.title}
+                      {interpolateTemplateVariables(ann.title, { restaurantName: currentRestaurant?.name, ownerName: currentRestaurant?.ownerName })}
                     </h4>
 
                     <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                      {ann.summary || ann.body}
+                      {interpolateTemplateVariables(ann.summary || ann.body, { restaurantName: currentRestaurant?.name, ownerName: currentRestaurant?.ownerName })}
                     </p>
 
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -473,181 +503,115 @@ export const OwnerInboxPage = () => {
         {/* Right: Message Details Reading Pane (5 cols) */}
         <div className="lg:col-span-5">
           {activeAnnouncement ? (
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[620px]">
-              {/* Reading Header */}
-              <div className="p-5 border-b border-slate-100 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${activeCategoryObj.badgeClass}`}>
-                      {activeCategoryObj.label}
-                    </span>
-                    {activeAnnouncement.priority !== 'normal' && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${activePriorityObj.badgeClass}`}>
-                        {activePriorityObj.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Actions: Mark read/unread & Archive */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRead(activeAnnouncement)}
-                      className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                      title={activeAnnouncement.isRead ? 'Mark as Unread' : 'Mark as Read'}
-                    >
-                      {activeAnnouncement.isRead ? (
-                        <MailCheck className="w-4 h-4 text-emerald-700" />
-                      ) : (
-                        <Mail className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleArchive(activeAnnouncement)}
-                      className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                      title={activeAnnouncement.isArchived ? 'Restore to Inbox' : 'Archive Announcement'}
-                    >
-                      {activeAnnouncement.isArchived ? (
-                        <ArchiveRestore className="w-4 h-4 text-blue-600" />
-                      ) : (
-                        <Archive className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <h3 className="text-base font-bold text-slate-900 leading-snug">
-                  {activeAnnouncement.title}
-                </h3>
-
-                {/* Sender Details */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
-                      SM
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 font-bold text-slate-900">
-                        <span>StockMate Platform Administration</span>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      </div>
-                      <span className="text-[11px] text-slate-400">
-                        {activeAnnouncement.author || 'Platform Governance Lead'}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-slate-400">
-                    {new Date(activeAnnouncement.publishedAt).toLocaleString([], {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Reading Content Body */}
-              <div className="p-5 flex-1 space-y-4 overflow-y-auto max-h-[460px]">
-                {/* Policy Compliance Banner */}
-                {activeAnnouncement.requiresAcknowledgment && (
-                  <div className="p-4 rounded-xl bg-purple-50 border border-purple-200/90 space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-bold text-purple-950">
-                      <FileCheck2 className="w-4 h-4 text-purple-700" />
-                      <span>
-                        Policy Compliance Review Required (Version {activeAnnouncement.policyVersion || 'v2.4'})
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-purple-900/90 leading-relaxed">
-                      This platform policy applies to all operations at {currentRestaurant?.name}. Formal review and acknowledgment must be submitted by the restaurant owner before the effective date ({activeAnnouncement.effectiveDate}).
-                    </p>
-
-                    {activeAnnouncement.acknowledged ? (
-                      <div className="pt-2 border-t border-purple-200/60 flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>
-                          Formally Acknowledged by {activeAnnouncement.acknowledgedBy} on{' '}
-                          {new Date(activeAnnouncement.acknowledgedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="pt-2 border-t border-purple-200/60 flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-semibold text-purple-800">
-                          Status: Pending Owner Digital Acknowledgment
-                        </span>
-                        <Button
-                          variant="brand"
-                          size="xs"
-                          icon={Check}
-                          onClick={() => setShowAckModal(true)}
-                        >
-                          Review &amp; Formally Acknowledge
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Formatted Message Body */}
-                <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                  {interpolatedBody}
-                </div>
-
-                {/* Attachments Section */}
-                {activeAnnouncement.attachments && activeAnnouncement.attachments.length > 0 && (
-                  <div className="pt-4 border-t border-slate-100 space-y-2">
-                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                      Attached Documents ({activeAnnouncement.attachments.length})
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {activeAnnouncement.attachments.map((att, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 hover:bg-slate-100/70 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <Paperclip className="w-4 h-4 text-slate-400 shrink-0" />
-                            <div className="truncate">
-                              <span className="font-semibold block truncate">{att.name}</span>
-                              <span className="text-[10px] text-slate-400">{att.size}</span>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            icon={Download}
-                            onClick={() => addToast(`Simulated download: "${att.name}"`, 'success')}
-                            title="Download verified document"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reading Footer / CTA */}
-              {activeAnnouncement.ctaLabel && (
-                <div className="p-4 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl flex items-center justify-between">
-                  <div className="text-xs text-slate-500">
-                    Target Route: <code className="font-mono text-emerald-800">{activeAnnouncement.ctaLink}</code>
-                  </div>
-                  <Button
-                    variant="brand"
-                    size="sm"
-                    iconRight={ExternalLink}
-                    onClick={() => navigate(activeAnnouncement.ctaLink)}
+            <div className="space-y-3">
+              {/* Top Quick Actions Bar for Reading Pane */}
+              <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAnnouncementId(null)}
+                    className="lg:hidden px-2 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold mr-1"
+                    title="Back to Announcement List"
                   >
-                    {activeAnnouncement.ctaLabel}
-                  </Button>
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Back</span>
+                  </button>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${activeCategoryObj.badgeClass}`}>
+                    {activeCategoryObj.label}
+                  </span>
+                  {activeAnnouncement.priority !== 'normal' && (
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${activePriorityObj.badgeClass}`}>
+                      {activePriorityObj.label}
+                    </span>
+                  )}
                 </div>
-              )}
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleRead(activeAnnouncement)}
+                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
+                    title={activeAnnouncement.isRead ? 'Mark as Unread' : 'Mark as Read'}
+                  >
+                    {activeAnnouncement.isRead ? (
+                      <>
+                        <MailCheck className="w-4 h-4 text-emerald-700" />
+                        <span className="hidden sm:inline">Mark Unread</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4 text-slate-500" />
+                        <span className="hidden sm:inline">Mark Read</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleArchive(activeAnnouncement)}
+                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold"
+                    title={activeAnnouncement.isArchived ? 'Restore to Inbox' : 'Archive Announcement'}
+                  >
+                    {activeAnnouncement.isArchived ? (
+                      <>
+                        <ArchiveRestore className="w-4 h-4 text-blue-600" />
+                        <span className="hidden sm:inline">Restore</span>
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="w-4 h-4 text-slate-500" />
+                        <span className="hidden sm:inline">Archive</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Shared Branded StockMate Email Shell */}
+              <div className="max-h-[640px] overflow-y-auto rounded-2xl">
+                <StockMateEmailShell
+                  subject={activeAnnouncement.title}
+                  summary={activeAnnouncement.summary}
+                  body={interpolatedBody}
+                  category={activeAnnouncement.category}
+                  priority={activeAnnouncement.priority}
+                  author={activeAnnouncement.author}
+                  authorRole={activeAnnouncement.authorRole}
+                  publishedAt={activeAnnouncement.publishedAt}
+                  recipient={{
+                    ownerName: currentRestaurant?.ownerName || currentUser?.name || 'Restaurant Partner',
+                    restaurantName: currentRestaurant?.name || 'Your Restaurant',
+                    ownerEmail: currentRestaurant?.ownerEmail || currentUser?.email || 'owner@restaurant.com',
+                    planName: currentRestaurant?.planName || 'Professional Plan',
+                  }}
+                  ctaLabel={activeAnnouncement.ctaLabel}
+                  ctaLink={activeAnnouncement.ctaLink}
+                  onCtaClick={() => {
+                    if (activeAnnouncement.ctaLink) {
+                      navigate(activeAnnouncement.ctaLink);
+                    }
+                  }}
+                  attachments={activeAnnouncement.attachments}
+                  requiresAcknowledgment={activeAnnouncement.requiresAcknowledgment}
+                  policyVersion={activeAnnouncement.policyVersion}
+                  isAcknowledged={activeAnnouncement.acknowledged}
+                  acknowledgedBy={activeAnnouncement.acknowledgedBy}
+                  acknowledgedAt={activeAnnouncement.acknowledgedAt}
+                  onAcknowledge={() => setShowAckModal(true)}
+                  verifiedTransaction={activeAnnouncement.verifiedTransaction}
+                  previewDevice="desktop"
+                  showDeviceToggle={false}
+                  simulated={activeAnnouncement.emailDelivery?.simulated}
+                />
+              </div>
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-12 text-center text-xs text-slate-400 min-h-[620px] flex flex-col items-center justify-center">
-              <Mail className="w-12 h-12 text-slate-300 mb-3" />
-              <h4 className="text-sm font-bold text-slate-700">Select an Announcement</h4>
-              <p className="text-slate-400 max-w-xs mt-1">
-                Choose a bulletin from the list to inspect full details, policy compliance guidelines, and documents.
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
+                <Mail className="w-7 h-7" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">Select an Official Dispatch</h4>
+              <p className="text-slate-500 max-w-xs mt-1 leading-relaxed">
+                Choose a bulletin from the list to inspect full details, verified payment receipts, policy compliance guidelines, and documents.
               </p>
             </div>
           )}

@@ -406,30 +406,34 @@ function App() {
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <ExpiryTrackingPage />
-                </RoleGuard>   
+                </RoleGuard>
               </AppLayout>
             }
           />
           <Route
             path="/suppliers"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SuppliersPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+           element={
+  <AppLayout>
+    <RoleGuard
+      allowedRoles={[
+        'restaurant_owner',
+        'inventory_manager',
+        'super_admin',
+      ]}
+    >
+      <SuppliersPage />
+    </RoleGuard>
+  </AppLayout>
+}
           />
           <Route
             path="/purchase-orders"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <PurchaseOrdersPage />
-                </RoleGuard>
-              </AppLayout>
+  <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
+    <PurchaseOrdersPage />
+  </RoleGuard>
+</AppLayout>
             }
           />
           <Route
@@ -475,24 +479,29 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SupplierReturnsPage />
-                </RoleGuard>
-              </AppLayout>
+  <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
+    <SupplierBillingPage />
+  </RoleGuard>
+</AppLayout>
             }
           />
           <Route
             path="/supplier-billing"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SupplierBillingPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
+           element={
+  <AppLayout>
+    <RoleGuard
+      allowedRoles={[
+        'restaurant_owner',
+        'inventory_manager',
+        'super_admin',
+      ]}
+    >
+      <SupplierBillingPage />
+    </RoleGuard>
+  </AppLayout>
+}
+/>
+
           <Route
             path="/stock-movements"
             element={

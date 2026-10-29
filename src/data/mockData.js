@@ -277,6 +277,35 @@ export const initialPlans = [
       support: '24/7 Dedicated CSM',
     },
     popular: false,
+  },
+  {
+    id: 'plan-custom',
+    name: 'Custom',
+    badge: 'Tailored Scale',
+    monthlyPrice: 0,
+    annualPrice: 0,
+    effectiveMonthlyAnnual: 0,
+    annualSavings: 0,
+    savingsPercent: 20,
+    description: 'Fully tailored tier with custom ingredient caps, user seats, add-on modules, and multi-location deployment.',
+    features: [
+      'Tailored ingredients quota (500 to unlimited)',
+      'Configurable staff user seats (10 to unlimited)',
+      'Multi-branch commissary sync & franchise ops',
+      'Selectable enterprise add-on modules',
+      'Automated rule-based instant quotes',
+      'Dedicated Customer Success Manager (SLA 30m)',
+      'Full ERP & POS bidirectional connectors',
+      'Audit Trail Export & Role Matrix RBAC',
+    ],
+    limits: {
+      maxIngredients: 1000,
+      maxStaff: 20,
+      branches: 5,
+      support: 'Dedicated CSM & 30m SLA',
+    },
+    popular: false,
+    status: 'active',
   }
 ];
 
