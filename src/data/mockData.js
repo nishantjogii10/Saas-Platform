@@ -1496,8 +1496,6 @@ export const initialAlerts = [
     ingredientId: 'ing-10',
     read: false,
     timestamp: '2026-10-21T08:00:00Z',
-    actionLink: '/inventory',
-    actionLabel: 'Reorder Now',
   },
   {
     id: 'alt-2',

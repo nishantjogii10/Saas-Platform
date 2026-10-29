@@ -197,7 +197,12 @@ export const AlertsPage = () => {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-center" onClick={(e) => e.stopPropagation()}>
-                {alt.actionLink && (
+                {alt.actionLink && alt.actionLabel !== 'Reorder Now' && !(currentUser?.role === 'restaurant_owner' && (
+                  alt.actionLabel?.toLowerCase().includes('reorder') ||
+                  alt.actionLabel?.toLowerCase().includes('order stock') ||
+                  alt.actionLabel?.toLowerCase().includes('order more') ||
+                  alt.actionLabel?.toLowerCase().includes('create po')
+                )) && (
                   <Button
                     variant="brand"
                     size="xs"
