@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
@@ -26,6 +26,17 @@ import {
   Store,
   Users,
   Package,
+  Truck,
+  Receipt,
+  Search,
+  Filter,
+  CheckCircle2,
+  Download,
+  Printer,
+  Globe,
+  Handshake,
+  Tag,
+  ExternalLink,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -34,18 +45,30 @@ import { Modal } from '../../components/common/Modal';
 import { FormInput } from '../../components/common/FormInput';
 import { formatINR } from '../../data/inventoryBillingData';
 import { calculatePlanSavings } from '../../services/pricingEngine';
+import { SUPPLIER_SUBSCRIPTION_PLANS } from '../../data/supplierMarketplaceData';
 
 export const SubscriptionPlans = () => {
   const navigate = useNavigate();
   const {
     plans,
     restaurants,
+    suppliers,
+    supplierPlanPayments,
     updatePlan,
     resetPlansToDefaults,
     assignPlanToRestaurant,
     customPlanRequests,
     currentUser,
   } = useApp();
+
+  // Top navigation tabs: Restaurant Plans, Third-Party Supplier Plans, Supplier Payment History
+  const [mainTab, setMainTab] = useState('restaurant_plans'); // 'restaurant_plans' | 'supplier_plans' | 'supplier_payments'
+
+  // Supplier Payment History Search, Filter & Receipt Modal
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentPlanFilter, setPaymentPlanFilter] = useState('all');
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
 
   const pendingReviewsCount = (customPlanRequests || []).filter(
     (r) => (r.path === 'PATH_C' || r.requiresManualReview) && r.status === 'pending_review'
@@ -82,6 +105,21 @@ export const SubscriptionPlans = () => {
     restaurantId: restaurants[0]?.id || '',
     planId: plans[0]?.id || '',
   });
+
+  // Filtered Supplier Plan Payments
+  const filteredPayments = useMemo(() => {
+    return (supplierPlanPayments || []).filter((p) => {
+      const matchSearch =
+        !paymentSearch ||
+        p.supplierName?.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+        p.invoiceNumber?.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+        p.referenceNumber?.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+        p.transactionId?.toLowerCase().includes(paymentSearch.toLowerCase());
+
+      const matchPlan = paymentPlanFilter === 'all' || p.planName === paymentPlanFilter;
+      return matchSearch && matchPlan;
+    });
+  }, [supplierPlanPayments, paymentSearch, paymentPlanFilter]);
 
   const handleOpenEdit = (plan) => {
     setSelectedPlan(plan);
@@ -266,27 +304,68 @@ export const SubscriptionPlans = () => {
         }
       />
 
-      {/* Subscription Metrics Quick Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 glass-panel p-5">
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Subscriptions</span>
-          <div className="text-xl font-bold text-emerald-800 mt-1">{activeSubs} Accounts</div>
-        </div>
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trial Accounts</span>
-          <div className="text-xl font-bold text-blue-700 mt-1">{trialSubs} Account</div>
-        </div>
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Plan ARPU</span>
-          <div className="text-xl font-bold text-slate-800 mt-1">₹2,499 / mo</div>
-        </div>
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Tiers</span>
-          <div className="text-xl font-bold text-slate-800 mt-1">
-            {plans.filter((p) => p.status !== 'inactive').length} Active of {plans.length}
-          </div>
-        </div>
+      {/* Platform Plan Scope Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 w-fit">
+        <button
+          onClick={() => setMainTab('restaurant_plans')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            mainTab === 'restaurant_plans'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Restaurant SaaS Plans ({plans.length})</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('supplier_plans')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            mainTab === 'supplier_plans'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Truck className="w-3.5 h-3.5" />
+          <span>Third-Party Supplier Plans ({SUPPLIER_SUBSCRIPTION_PLANS.length})</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('supplier_payments')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            mainTab === 'supplier_payments'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Supplier Plan Payment History ({(supplierPlanPayments || []).length})</span>
+        </button>
       </div>
+
+      {mainTab === 'restaurant_plans' && (
+        <>
+          {/* Subscription Metrics Quick Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 glass-panel p-5">
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Subscriptions</span>
+              <div className="text-xl font-bold text-emerald-800 mt-1">{activeSubs} Accounts</div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trial Accounts</span>
+              <div className="text-xl font-bold text-blue-700 mt-1">{trialSubs} Account</div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Plan ARPU</span>
+              <div className="text-xl font-bold text-slate-800 mt-1">₹2,499 / mo</div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Tiers</span>
+              <div className="text-xl font-bold text-slate-800 mt-1">
+                {plans.filter((p) => p.status !== 'inactive').length} Active of {plans.length}
+              </div>
+            </div>
+          </div>
 
       {/* Dynamic Sync Helper Notice */}
       <div className="p-4 rounded-2xl glass-panel bg-indigo-50/40 border-indigo-200/70 flex items-start gap-3 text-xs text-indigo-950">
@@ -629,6 +708,362 @@ export const SubscriptionPlans = () => {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {/* 2. THIRD-PARTY SUPPLIER PLANS TAB */}
+      {mainTab === 'supplier_plans' && (
+        <div className="space-y-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 glass-panel p-5">
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Supplier Tiers</span>
+              <div className="text-xl font-bold text-emerald-800 mt-1">{SUPPLIER_SUBSCRIPTION_PLANS.length} Plans</div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Enrolled Third-Party Vendors</span>
+              <div className="text-xl font-bold text-blue-700 mt-1">
+                {(suppliers || []).filter((s) => s.supplierType === 'Third-Party Supplier' || s.registeredVia === 'supplier_portal').length} Suppliers
+              </div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Commission Spread</span>
+              <div className="text-xl font-bold text-slate-800 mt-1">1.0% – 5.0%</div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Fastest Payout Cycle</span>
+              <div className="text-xl font-bold text-indigo-700 mt-1">Same Day (Instant)</div>
+            </div>
+          </div>
+
+          {/* Supplier Plan Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {SUPPLIER_SUBSCRIPTION_PLANS.map((plan) => {
+              const enrolledSuppliers = (suppliers || []).filter(
+                (s) => s.planName === plan.name || s.planId === plan.id
+              );
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative rounded-3xl p-6 transition-all duration-200 flex flex-col justify-between ${
+                    plan.popular
+                      ? 'glass-panel border-emerald-500 ring-2 ring-emerald-500/30 shadow-glass-hover bg-gradient-to-b from-white/95 to-emerald-50/20'
+                      : 'glass-panel hover:shadow-glass-hover'
+                  }`}
+                >
+                  <div>
+                    {/* Header Badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span
+                        className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                          plan.popular
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {plan.badge}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <Truck className="w-3 h-3" />
+                        {enrolledSuppliers.length} Enrolled
+                      </span>
+                    </div>
+
+                    <h3 className="text-xl font-extrabold text-slate-900 mb-1">{plan.name}</h3>
+                    <p className="text-xs text-slate-500 mb-4 min-h-[32px]">{plan.description}</p>
+
+                    {/* Pricing */}
+                    <div className="mb-5 pb-5 border-b border-slate-200/60">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-slate-900">
+                          {plan.price === 0 ? 'Free Starter' : formatINR(plan.price)}
+                        </span>
+                        {plan.price > 0 && <span className="text-xs text-slate-500">/ month</span>}
+                      </div>
+                      {plan.yearlyPrice > 0 && (
+                        <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                          {formatINR(plan.yearlyPrice)} billed annually (Save 17%)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Key Wholesale Limits */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/70 space-y-2 mb-5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Platform Commission:</span>
+                        <span className="font-bold text-emerald-700">{plan.commissionRate}% per order</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Bank Payout SLA:</span>
+                        <span className="font-bold text-slate-800">{plan.payoutDays}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Listing SKU Capacity:</span>
+                        <span className="font-bold text-slate-800">{plan.maxProducts} Products</span>
+                      </div>
+                    </div>
+
+                    {/* Features List */}
+                    <div className="space-y-2 mb-6">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Included Tier Features ({plan.features?.length || 0})
+                      </span>
+                      {plan.features.map((feat, fIdx) => (
+                        <div key={fIdx} className="flex items-start gap-2 text-xs text-slate-700">
+                          <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span className="leading-snug">{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Enrolled Partners Footer */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <span className="text-[11px] text-slate-400 uppercase font-bold block mb-1.5">
+                      Active Vendors ({enrolledSuppliers.length})
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {enrolledSuppliers.slice(0, 3).map((s) => (
+                        <span
+                          key={s.id}
+                          className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium"
+                        >
+                          {s.name}
+                        </span>
+                      ))}
+                      {enrolledSuppliers.length > 3 && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500">
+                          +{enrolledSuppliers.length - 3} more
+                        </span>
+                      )}
+                      {enrolledSuppliers.length === 0 && (
+                        <span className="text-xs text-slate-400 italic">No suppliers enrolled yet</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Enrolled Third-Party Suppliers Directory Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs p-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Third-Party Supplier Plan Directory</h3>
+                <p className="text-xs text-slate-500">
+                  Comprehensive listing of all registered third-party suppliers, assigned plan tiers, and commission terms.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Receipt}
+                onClick={() => setMainTab('supplier_payments')}
+              >
+                View Payment Records
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse min-w-[750px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 font-bold">
+                    <th className="py-3 px-4">Supplier Partner</th>
+                    <th className="py-3 px-4">Classification</th>
+                    <th className="py-3 px-4">Supplied Categories</th>
+                    <th className="py-3 px-4">Current Plan</th>
+                    <th className="py-3 px-4">Commission</th>
+                    <th className="py-3 px-4">Payout SLA</th>
+                    <th className="py-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(suppliers || [])
+                    .filter((s) => (s.supplierType === 'Third-Party Supplier' || s.registeredVia === 'supplier_portal') && s.supplierType !== 'Tie-up Supplier' && s.registeredVia !== 'main_system')
+                    .map((sup) => (
+                      <tr key={sup.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">{sup.name}</div>
+                          <div className="text-[11px] text-slate-500">{sup.contactPerson} • {sup.email}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Globe className="w-3 h-3" />
+                            Third-Party Supplier
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {(Array.isArray(sup.categories) ? sup.categories : [sup.categories || 'All Categories']).map((c, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-medium">
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-slate-900">{sup.planName || 'Pro Vendor'}</span>
+                          <div className="text-[11px] text-emerald-700 font-medium">
+                            {sup.billingCycle === 'yearly' ? 'Annual Plan' : 'Monthly Plan'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-emerald-800">
+                          {sup.commissionRate || 2.5}%
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-700">
+                          {sup.paymentTerms || 'Net 2 (48h Payout)'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Active
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. SUPPLIER PLAN PAYMENT HISTORY TAB */}
+      {mainTab === 'supplier_payments' && (
+        <div className="space-y-6">
+          {/* Payment Revenue KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 glass-panel p-5">
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Supplier Plan Revenue</span>
+              <div className="text-xl font-bold text-emerald-800 mt-1">
+                {formatINR((supplierPlanPayments || []).reduce((acc, p) => acc + (p.amount || 0), 0))}
+              </div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Invoices Processed</span>
+              <div className="text-xl font-bold text-blue-700 mt-1">
+                {(supplierPlanPayments || []).length} Transactions
+              </div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Paying Vendors</span>
+              <div className="text-xl font-bold text-slate-800 mt-1">
+                {new Set((supplierPlanPayments || []).map((p) => p.supplierId)).size} Vendors
+              </div>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Platform Settlement Status</span>
+              <div className="text-xl font-bold text-indigo-700 mt-1">100% Reconciled</div>
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search by supplier, invoice #, UTR..."
+                value={paymentSearch}
+                onChange={(e) => setPaymentSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={paymentPlanFilter}
+                onChange={(e) => setPaymentPlanFilter(e.target.value)}
+                className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              >
+                <option value="all">All Plan Tiers</option>
+                <option value="Pro Vendor">Pro Vendor (₹1,499)</option>
+                <option value="Enterprise Distributor">Enterprise Distributor (₹4,999)</option>
+                <option value="Free Starter">Free Starter (₹0)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Payment History Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse min-w-[850px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 font-bold">
+                    <th className="py-3 px-4">Invoice #</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Third-Party Supplier</th>
+                    <th className="py-3 px-4">Plan Tier & Cycle</th>
+                    <th className="py-3 px-4">Amount Paid</th>
+                    <th className="py-3 px-4">Payment Method / UTR</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredPayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        {payment.invoiceNumber}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {payment.paymentDate}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{payment.supplierName}</div>
+                        <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">
+                          Third-Party Supplier
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-slate-800">{payment.planName}</span>
+                        <div className="text-[11px] text-slate-500 capitalize">{payment.billingCycle}</div>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-emerald-800">
+                        {payment.amount === 0 ? '₹0 (Free)' : formatINR(payment.amount)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-slate-800">{payment.paymentMethod}</div>
+                        <div className="font-mono text-[11px] text-slate-500">{payment.referenceNumber}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          {payment.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Eye}
+                          onClick={() => {
+                            setSelectedReceipt(payment);
+                            setReceiptModalOpen(true);
+                          }}
+                        >
+                          View Receipt
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredPayments.length === 0 && (
+                    <tr>
+                      <td colSpan="8" className="py-12 text-center text-slate-400">
+                        No supplier plan payments match the filter criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* COMPREHENSIVE EDIT PLAN MODAL */}
       <Modal
@@ -1091,6 +1526,90 @@ export const SubscriptionPlans = () => {
             <strong>Instant Provisioning:</strong> The tenant's limits for ingredient counts and allowed staff seats will be automatically updated immediately upon confirmation.
           </div>
         </form>
+      </Modal>
+
+      {/* SUPPLIER PLAN PAYMENT RECEIPT MODAL */}
+      <Modal
+        isOpen={receiptModalOpen}
+        onClose={() => setReceiptModalOpen(false)}
+        title={`Payment Receipt: ${selectedReceipt?.invoiceNumber || ''}`}
+        subtitle="Official Platform Subscription Tax Receipt"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Printer}
+              onClick={() => window.print()}
+            >
+              Print Receipt
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setReceiptModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {selectedReceipt && (
+          <div className="space-y-4 p-2">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
+                  B2B Supplier Subscription
+                </span>
+                <h4 className="text-lg font-black">{selectedReceipt.planName} Tier</h4>
+                <div className="text-xs text-slate-300 mt-0.5">
+                  Invoice Ref: {selectedReceipt.invoiceNumber}
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {selectedReceipt.status}
+                </span>
+                <div className="text-xl font-black mt-2">
+                  {selectedReceipt.amount === 0 ? '₹0' : formatINR(selectedReceipt.amount)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <div>
+                <span className="text-slate-500 block text-[11px]">Billed To (Supplier):</span>
+                <strong className="text-slate-800 text-sm">{selectedReceipt.supplierName}</strong>
+                <div className="text-slate-500 mt-0.5">Supplier ID: {selectedReceipt.supplierId}</div>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Billing Platform:</span>
+                <strong className="text-slate-800 text-sm">StockMate SaaS Procurement</strong>
+                <div className="text-slate-500 mt-0.5">GSTIN: 27AABCU9603R1ZM</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs border border-slate-200 rounded-xl p-3">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Payment Date:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.paymentDate}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Transaction ID:</span>
+                <span className="font-mono text-slate-800">{selectedReceipt.transactionId || 'TXN-98214'}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">UTR / Reference:</span>
+                <span className="font-mono text-emerald-700 font-bold">{selectedReceipt.referenceNumber}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Payment Mode:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">Next Renewal Date:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.nextBillingDate || '2026-11-15'}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

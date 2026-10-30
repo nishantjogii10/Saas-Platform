@@ -13,6 +13,7 @@ import {
   Plus,
   Scale,
   ShoppingBag,
+  Truck,
   ArrowRight,
   Sparkles,
   Layers,
@@ -55,6 +56,7 @@ export const RestaurantDashboard = () => {
     restaurantOrders,
     restaurantMovements,
     restaurantAlerts,
+    restaurantSuppliers,
     attendanceRecords,
     leaveRequests,
     reviewLeaveRequest,
@@ -88,6 +90,10 @@ export const RestaurantDashboard = () => {
 
   const activePendingOrders = restaurantOrders.filter(o => o.status === 'pending' || o.status === 'accepted' || o.status === 'dispatched');
 
+  const recentSupplierAlert =
+    (restaurantAlerts || []).find((a) => a.type === 'supplier_joined' && !a.read) ||
+    (restaurantAlerts || []).find((a) => a.type === 'supplier_joined');
+
   const CATEGORY_COLORS = ['#0E5C38', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B'];
 
   return (
@@ -120,14 +126,26 @@ export const RestaurantDashboard = () => {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ShoppingBag}
-              onClick={() => navigate('/purchase-orders')}
-            >
-              Purchase Orders ({activePendingOrders.length})
-            </Button>
+            {currentUser?.role !== 'restaurant_owner' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ShoppingBag}
+                onClick={() => navigate('/purchase-orders')}
+              >
+                Purchase Orders ({activePendingOrders.length})
+              </Button>
+            )}
+            {currentUser?.role === 'restaurant_owner' && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Truck}
+                onClick={() => navigate('/suppliers')}
+              >
+                Supplier List ({(restaurantSuppliers || []).length})
+              </Button>
+            )}
             <Button
               variant="brand"
               size="sm"
@@ -139,6 +157,43 @@ export const RestaurantDashboard = () => {
           </div>
         }
       />
+
+      {/* Real-time New Third-Party Supplier Registration Notification Banner for Restaurant Owner */}
+      {currentUser?.role === 'restaurant_owner' && recentSupplierAlert && (
+        <div className="p-4 rounded-2xl bg-indigo-50/90 border border-indigo-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wide">
+                  New Supplier Partner Joined
+                </span>
+                <span className="text-[10px] bg-indigo-200/60 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                  Real-time Alert
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-slate-900 mt-0.5">
+                {recentSupplierAlert.title}
+              </h4>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {recentSupplierAlert.message}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="xs"
+              className="bg-white border-indigo-300 text-indigo-900 hover:bg-indigo-50"
+              onClick={() => navigate('/suppliers')}
+            >
+              View Supplier List
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Critical Stock Alert Banner if any out of stock or low stock items (hidden for restaurant manager) */}
       {currentUser?.role !== 'restaurant_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (

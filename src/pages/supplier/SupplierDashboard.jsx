@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
@@ -19,12 +19,19 @@ import {
   Boxes,
   Store,
   ShieldCheck,
+  Check,
+  Zap,
+  Eye,
+  Printer,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
 import { Card, CardHeader } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Modal } from '../../components/common/Modal';
 import { formatINR } from '../../data/inventoryBillingData';
 import { SUPPLIER_SUBSCRIPTION_PLANS } from '../../data/supplierMarketplaceData';
 
@@ -38,15 +45,38 @@ export const SupplierDashboard = () => {
     supplierReturns,
     supplierProducts,
     suppliers,
+    supplierPlanPayments,
+    switchSupplierPlan,
   } = useApp();
+
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [isPaymentHistoryModalOpen, setIsPaymentHistoryModalOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
 
   const currentSupplierId = currentUser?.supplierId;
   const mySupplier = suppliers.find((s) => s.id === currentSupplierId || s.name === currentUser?.supplierName) || {
     id: currentSupplierId,
     name: currentUser?.supplierName || currentUser?.name || 'Partner',
+    supplierType: currentUser?.supplierType || (currentUser?.registeredVia === 'main_system' ? 'Tie-up Supplier' : 'Third-Party Supplier'),
+    registeredVia: currentUser?.registeredVia || 'supplier_portal',
     planName: 'Pro Vendor',
     rating: 4.8,
   };
+
+  const resolvedSupplierType =
+    mySupplier.supplierType ||
+    currentUser?.supplierType ||
+    (mySupplier.registeredVia === 'main_system' || currentUser?.registeredVia === 'main_system' || mySupplier.id === 'sup-4' || mySupplier.id === 'sup-5'
+      ? 'Tie-up Supplier'
+      : 'Third-Party Supplier');
+  const isTieUp = resolvedSupplierType === 'Tie-up Supplier';
+
+  const myPlanPayments = (supplierPlanPayments || []).filter(
+    (p) =>
+      (currentSupplierId && p.supplierId === currentSupplierId) ||
+      (mySupplier.name && p.supplierName?.toLowerCase() === mySupplier.name?.toLowerCase()) ||
+      (currentUser?.supplierName && p.supplierName?.toLowerCase() === currentUser.supplierName?.toLowerCase())
+  );
 
   const myPlan =
     SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.name === mySupplier.planName) ||
@@ -113,42 +143,152 @@ export const SupplierDashboard = () => {
         }
       />
 
-      {/* Subscription Tier & B2B Marketplace Status Banner */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-bold border border-emerald-500/30">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-white">{myPlan.name} Subscription Active</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                Verified Vendor
-              </span>
+      {/* Third-Party Supplier Subscription Plan & Benefits Module */}
+      <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white border border-slate-800 shadow-lg relative overflow-hidden">
+        {/* Glow decoration */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-5 border-b border-slate-800">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-bold border border-emerald-500/30 shadow-inner">
+              <ShieldCheck className="w-6 h-6" />
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Commission: <strong className="text-emerald-400">{myPlan.commissionRate}%</strong> • Settlement: <strong className="text-white">{myPlan.payoutDays}</strong> • Catalog Limit: <strong className="text-white">{myProducts.length} / {myPlan.maxProducts} SKUs</strong>
-            </p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-black tracking-tight text-white">
+                  {myPlan.name} Subscription
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+                  {myPlan.badge}
+                </span>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  isTieUp
+                    ? 'bg-teal-500/25 text-teal-300 border border-teal-500/40'
+                    : 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                }`}>
+                  {isTieUp ? <Handshake className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                  <span>{resolvedSupplierType}</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-semibold">
+                  {mySupplier.billingCycle === 'yearly' ? 'Annual Plan' : 'Monthly Plan'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                {myPlan.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 self-stretch lg:self-auto justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Receipt}
+              className="border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white"
+              onClick={() => setIsPaymentHistoryModalOpen(true)}
+            >
+              Payment History ({myPlanPayments.length})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Sparkles}
+              className="border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white"
+              onClick={() => setIsPlanModalOpen(true)}
+            >
+              Explore / Change Plan
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Store}
+              onClick={() => navigate('/supplier/marketplace')}
+            >
+              Marketplace View
+            </Button>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={Boxes}
+              onClick={() => navigate('/supplier/products')}
+            >
+              + Add Products
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Store}
-            onClick={() => navigate('/supplier/marketplace')}
-          >
-            Marketplace View
-          </Button>
-          <Button
-            variant="brand"
-            size="sm"
-            icon={Boxes}
-            onClick={() => navigate('/supplier/products')}
-          >
-            + Add Products
-          </Button>
+        {/* Plan Entitlements & Key Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-5 relative z-10">
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+              Wholesale Platform Fee
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-xl font-black text-emerald-400">{myPlan.commissionRate}%</span>
+              <span className="text-xs text-slate-400">per fulfilled order</span>
+            </div>
+            <span className="text-[11px] text-slate-400 mt-1 block">Tier-discounted commission rate</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+              Bank Settlement Window
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-xl font-black text-white">{myPlan.payoutDays}</span>
+              <span className="text-xs text-slate-400">turnaround</span>
+            </div>
+            <span className="text-[11px] text-slate-400 mt-1 block">Automatic direct deposit</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                Catalog SKU Limit
+              </span>
+              <span className="text-[11px] font-bold text-slate-300">
+                {myProducts.length} / {myPlan.maxProducts}
+              </span>
+            </div>
+            <div className="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, Math.round((myProducts.length / (myPlan.maxProducts || 1)) * 100))}%`,
+                }}
+              />
+            </div>
+            <span className="text-[11px] text-slate-400 mt-1.5 block">
+              {myPlan.maxProducts - myProducts.length > 0
+                ? `${myPlan.maxProducts - myProducts.length} listings remaining`
+                : 'Limit reached'}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+              Plan Rate & Term
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-xl font-black text-white">
+                {myPlan.price === 0 ? 'FREE' : `₹${myPlan.price}`}
+              </span>
+              {myPlan.price > 0 && <span className="text-xs text-slate-400">/ month</span>}
+            </div>
+            <span className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
+              <Check className="w-3 h-3" /> Active & Compliant
+            </span>
+          </div>
+        </div>
+
+        {/* Feature List Preview */}
+        <div className="mt-4 pt-4 border-t border-slate-800/60 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-300">
+          {myPlan.features.slice(0, 4).map((feat, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>{feat}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -398,6 +538,292 @@ export const SupplierDashboard = () => {
           </Button>
         </div>
       </div>
+
+      {/* Third-Party Supplier Subscription Plans Comparison Modal */}
+      <Modal
+        isOpen={isPlanModalOpen}
+        onClose={() => setIsPlanModalOpen(false)}
+        title="Third-Party Supplier Subscription & Service Plans"
+        size="xl"
+      >
+        <div className="space-y-6">
+          <p className="text-xs text-slate-500">
+            Select a tailored wholesale tier to expand your restaurant market reach, unlock lower transaction commissions, and enjoy faster payout settlement cycles.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {SUPPLIER_SUBSCRIPTION_PLANS.map((plan) => {
+              const isCurrent = (myPlan?.id === plan.id) || (myPlan?.name === plan.name);
+              return (
+                <div
+                  key={plan.id}
+                  className={`rounded-2xl p-5 border flex flex-col justify-between transition-all ${
+                    isCurrent
+                      ? 'bg-emerald-50/50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-bold text-slate-900">{plan.name}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          plan.popular
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {plan.badge}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-1 my-3">
+                      <span className="text-2xl font-black text-slate-900">
+                        {plan.price === 0 ? '₹0' : `₹${plan.price}`}
+                      </span>
+                      <span className="text-xs text-slate-500">/ month</span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 mb-4">{plan.description}</p>
+
+                    <div className="space-y-2 py-3 border-y border-slate-100 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Commission Rate:</span>
+                        <strong className="text-emerald-700">{plan.commissionRate}%</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Payout Cycle:</span>
+                        <strong className="text-slate-800">{plan.payoutDays}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Listing Capacity:</span>
+                        <strong className="text-slate-800">{plan.maxProducts} SKUs</strong>
+                      </div>
+                    </div>
+
+                    <ul className="mt-4 space-y-2 text-xs text-slate-600">
+                      {plan.features.map((feat, fIdx) => (
+                        <li key={fIdx} className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-6 pt-3">
+                    {isCurrent ? (
+                      <div className="py-2 px-3 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold text-center">
+                        ✓ Current Active Tier
+                      </div>
+                    ) : (
+                      <Button
+                        variant={plan.popular ? 'brand' : 'outline'}
+                        className="w-full justify-center"
+                        size="sm"
+                        onClick={() => {
+                          switchSupplierPlan(plan.id);
+                          setIsPlanModalOpen(false);
+                        }}
+                      >
+                        Switch to {plan.name}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Third-Party Supplier Subscription Payment History Modal */}
+      <Modal
+        isOpen={isPaymentHistoryModalOpen}
+        onClose={() => setIsPaymentHistoryModalOpen(false)}
+        title="Subscription Payment History & Receipts"
+        subtitle={`Track plan purchase receipts, UTR numbers, and renewal dates for ${mySupplier.name}`}
+        size="lg"
+        footer={
+          <Button variant="secondary" size="sm" onClick={() => setIsPaymentHistoryModalOpen(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
+                Active Tier Subscription
+              </span>
+              <div className="text-base font-extrabold">{myPlan.name} Plan</div>
+              <div className="text-xs text-slate-300">
+                {myPlan.price === 0 ? 'Free Starter Tier' : `₹${myPlan.price} / month`}
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Active &amp; Compliant
+              </span>
+              <div className="text-xs text-slate-400 mt-1">
+                Settlement SLA: <strong className="text-white">{myPlan.payoutDays}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+            <div className="p-3 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-700 flex justify-between items-center">
+              <span>B2B Subscription Payment Ledger</span>
+              <span className="text-slate-400 font-medium">({myPlanPayments.length} Payments Recorded)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-100/60 text-slate-600 font-bold">
+                    <th className="py-2.5 px-3">Invoice #</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Plan Tier</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">UTR / Reference</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {myPlanPayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
+                        {payment.invoiceNumber}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600">{payment.paymentDate}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-800">
+                        {payment.planName}
+                        <span className="text-[10px] text-slate-400 block capitalize">
+                          {payment.billingCycle}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-800">
+                        {payment.amount === 0 ? '₹0 (Free)' : formatINR(payment.amount)}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
+                        {payment.referenceNumber}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                          {payment.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Eye}
+                          onClick={() => setSelectedReceipt(payment)}
+                        >
+                          View
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {myPlanPayments.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-slate-400 italic">
+                        No subscription plan payments recorded yet for this supplier.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Individual Plan Invoice Receipt Modal */}
+      <Modal
+        isOpen={Boolean(selectedReceipt)}
+        onClose={() => setSelectedReceipt(null)}
+        title={`Tax Invoice: ${selectedReceipt?.invoiceNumber || ''}`}
+        subtitle="Platform Subscription Tax Receipt"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Printer}
+              onClick={() => window.print()}
+            >
+              Print Receipt
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedReceipt(null)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {selectedReceipt && (
+          <div className="space-y-4 p-1">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
+                  Official B2B Subscription Invoice
+                </span>
+                <h4 className="text-lg font-black">{selectedReceipt.planName}</h4>
+                <div className="text-xs text-slate-300 mt-0.5">
+                  Invoice Ref: {selectedReceipt.invoiceNumber}
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {selectedReceipt.status}
+                </span>
+                <div className="text-xl font-black mt-2">
+                  {selectedReceipt.amount === 0 ? '₹0' : formatINR(selectedReceipt.amount)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <div>
+                <span className="text-slate-500 block text-[11px]">Billed To:</span>
+                <strong className="text-slate-800 text-sm">{selectedReceipt.supplierName}</strong>
+                <div className="text-slate-500 mt-0.5">Supplier ID: {selectedReceipt.supplierId}</div>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px]">Issued By:</span>
+                <strong className="text-slate-800 text-sm">StockMate SaaS Procurement</strong>
+                <div className="text-slate-500 mt-0.5">GSTIN: 27AABCU9603R1ZM</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs border border-slate-200 rounded-xl p-3">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Payment Date:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.paymentDate}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Transaction ID:</span>
+                <span className="font-mono text-slate-800">{selectedReceipt.transactionId || 'TXN-98214'}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">UTR / Reference:</span>
+                <span className="font-mono text-emerald-700 font-bold">{selectedReceipt.referenceNumber}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Payment Mode:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">Next Renewal Date:</span>
+                <span className="font-semibold text-slate-800">{selectedReceipt.nextBillingDate || '2026-11-15'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

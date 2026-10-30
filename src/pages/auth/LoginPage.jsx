@@ -19,6 +19,8 @@ import {
   Loader2,
   CheckCircle2,
   ChefHat,
+  Handshake,
+  Globe,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 
@@ -210,7 +212,7 @@ export const LoginPage = () => {
 
     setTimeout(() => {
       // Pass selectedRole to login engine for strict RBAC verification
-      const result = login(email, password, selectedRole);
+      const result = login(email, password, selectedRole, null, 'main_system');
       setIsLoading(false);
 
       if (!result.success) {
@@ -240,7 +242,7 @@ export const LoginPage = () => {
     setTwoFactorError(null);
 
     setTimeout(() => {
-      const result = login(email, password, selectedRole, twoFactorCode);
+      const result = login(email, password, selectedRole, twoFactorCode, 'main_system');
       setIsLoading(false);
 
       if (!result.success) {
@@ -411,6 +413,42 @@ export const LoginPage = () => {
               })}
             </div>
           </div>
+
+          {/* Requirement 2: Tie-up Supplier Helper Banner */}
+          {selectedRole === 'supplier' && (
+            <div className="mb-4 p-3 rounded-xl bg-teal-950/60 border border-teal-800/80 text-xs text-teal-200 flex flex-col gap-1.5 shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-1.5 font-bold text-teal-300">
+                <Handshake className="w-3.5 h-3.5 text-teal-400" />
+                <span>Tie-up Supplier Login (Main System Role)</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Logging in here assigns you the <strong>Tie-up Supplier</strong> type with direct restaurant procurement terms.
+              </p>
+              <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-slate-400 font-medium">Demo Accounts:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('karan@goldencrustbakery.com');
+                    setPassword('password123');
+                  }}
+                  className="px-2 py-0.5 rounded bg-teal-900/80 hover:bg-teal-800 text-teal-200 text-[10px] font-bold border border-teal-700/60 transition-colors"
+                >
+                  Karan (Golden Crust Bakery)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('sunil@amritdairy.com');
+                    setPassword('password123');
+                  }}
+                  className="px-2 py-0.5 rounded bg-teal-900/80 hover:bg-teal-800 text-teal-200 text-[10px] font-bold border border-teal-700/60 transition-colors"
+                >
+                  Sunil (Amrit Dairy)
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Authentication Error Banner */}
           {authError && (

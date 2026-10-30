@@ -19,6 +19,8 @@ import {
   Calendar,
   IndianRupee,
   UserCheck,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -196,12 +198,35 @@ export const PurchaseOrdersPage = () => {
       header: 'Assigned Supplier',
       accessor: 'supplierName',
       sortable: true,
-      render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">{row.supplierName}</div>
-          <div className="text-slate-400 truncate max-w-[160px]">{row.supplierContact}</div>
-        </div>
-      ),
+      render: (row) => {
+        const sup = (restaurantSuppliers || []).find((s) => s.id === row.supplierId || s.name === row.supplierName);
+        const isTieUp =
+          sup?.supplierType === 'Tie-up Supplier' ||
+          row.supplierType === 'Tie-up Supplier' ||
+          sup?.registeredVia === 'main_system' ||
+          sup?.id === 'sup-4' ||
+          sup?.id === 'sup-5' ||
+          row.supplierName?.toLowerCase().includes('golden crust') ||
+          row.supplierName?.toLowerCase().includes('amrit dairy');
+        const sType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+        const isThirdParty = !isTieUp;
+        return (
+          <div className="text-xs">
+            <div className="font-semibold text-slate-800">{row.supplierName}</div>
+            <div className="text-slate-400 truncate max-w-[160px]">{row.supplierContact}</div>
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${
+                isThirdParty
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  : 'bg-teal-50 text-teal-700 border border-teal-200'
+              }`}
+            >
+              {isThirdParty ? <Globe className="w-2.5 h-2.5" /> : <Handshake className="w-2.5 h-2.5" />}
+              <span>{sType}</span>
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'Items Ordered',
@@ -406,7 +431,14 @@ export const PurchaseOrdersPage = () => {
               type="select"
               value={poForm.supplierId}
               onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })}
-              options={restaurantSuppliers.map(s => ({ label: `${s.name} (${s.paymentTerms})`, value: s.id }))}
+              options={restaurantSuppliers.map(s => {
+                const isTieUp = s.supplierType === 'Tie-up Supplier' || s.registeredVia === 'main_system' || s.id === 'sup-4' || s.id === 'sup-5' || s.name?.toLowerCase().includes('golden crust') || s.name?.toLowerCase().includes('amrit dairy');
+                const sType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+                return {
+                  label: `${s.name} [${sType}] (${s.paymentTerms})`,
+                  value: s.id,
+                };
+              })}
               required
             />
 
