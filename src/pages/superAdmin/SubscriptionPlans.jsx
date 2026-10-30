@@ -37,6 +37,17 @@ import {
   Handshake,
   Tag,
   ExternalLink,
+  Monitor,
+  Tablet,
+  Bike,
+  ChefHat,
+  ToggleLeft,
+  ToggleRight,
+  Settings2,
+  Lock,
+  Clock,
+  Percent,
+  ShieldCheck,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -46,6 +57,16 @@ import { FormInput } from '../../components/common/FormInput';
 import { formatINR } from '../../data/inventoryBillingData';
 import { calculatePlanSavings } from '../../services/pricingEngine';
 import { SUPPLIER_SUBSCRIPTION_PLANS } from '../../data/supplierMarketplaceData';
+
+const STANDARD_MODULE_CATEGORIES = [
+  'Core POS',
+  'Pantry & Kitchen',
+  'Food Cost Optimization',
+  'Procurement & Supply Chain',
+  'Front of House',
+  'Multi-Unit Governance',
+  'Integrations',
+];
 
 export const SubscriptionPlans = () => {
   const navigate = useNavigate();
@@ -57,12 +78,21 @@ export const SubscriptionPlans = () => {
     updatePlan,
     resetPlansToDefaults,
     assignPlanToRestaurant,
-    customPlanRequests,
+    customPlanRequests = [],
     currentUser,
+    customPlanModules = [],
+    pricingUnitRates = {},
+    addCustomPlanModule,
+    updateCustomPlanModule,
+    deleteCustomPlanModule,
+    assignCustomPlanToRestaurant,
+    updatePricingUnitRates,
+    resetCustomPlanModulesToDefaults,
+    reviewCustomPlanRequest,
   } = useApp();
 
   // Top navigation tabs: Restaurant Plans, Third-Party Supplier Plans, Supplier Payment History
-  const [mainTab, setMainTab] = useState('restaurant_plans'); // 'restaurant_plans' | 'supplier_plans' | 'supplier_payments'
+  const [mainTab, setMainTab] = useState('restaurant_plans'); // 'restaurant_plans' | 'custom_plan_rules' | 'supplier_plans' | 'supplier_payments'
 
   // Supplier Payment History Search, Filter & Receipt Modal
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -120,6 +150,314 @@ export const SubscriptionPlans = () => {
       return matchSearch && matchPlan;
     });
   }, [supplierPlanPayments, paymentSearch, paymentPlanFilter]);
+
+  // Custom Plan Modules & Billing Rules Management State
+  const [moduleSearch, setModuleSearch] = useState('');
+  const [moduleCategoryFilter, setModuleCategoryFilter] = useState('all');
+  const [moduleStatusFilter, setModuleStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [moduleModalOpen, setModuleModalOpen] = useState(false);
+  const [moduleModalMode, setModuleModalMode] = useState('create'); // 'create' | 'edit'
+  const [moduleFormData, setModuleFormData] = useState({
+    id: '',
+    name: '',
+    description: '',
+    monthlyPrice: 0,
+    annualPrice: 0,
+    status: 'active',
+    category: 'Integrations',
+    isRequired: false,
+    isBaseModule: false,
+  });
+
+  const [deleteModuleModalOpen, setDeleteModuleModalOpen] = useState(false);
+  const [moduleToDelete, setModuleToDelete] = useState(null);
+
+  const [ratesModalOpen, setRatesModalOpen] = useState(false);
+  const [ratesFormData, setRatesFormData] = useState({
+    additionalTerminalMonthly: pricingUnitRates.additionalTerminalMonthly ?? 250,
+    additionalTerminalAnnual: pricingUnitRates.additionalTerminalAnnual ?? 2400,
+    additionalOutletMonthly: pricingUnitRates.additionalOutletMonthly ?? 499,
+    additionalOutletAnnual: pricingUnitRates.additionalOutletAnnual ?? 4788,
+    additionalStaffMonthly: pricingUnitRates.additionalStaffMonthly ?? 99,
+    additionalStaffAnnual: pricingUnitRates.additionalStaffAnnual ?? 948,
+    gstRate: pricingUnitRates.gstRate ?? 0.18,
+    annualDiscountPercent: pricingUnitRates.annualDiscountPercent ?? 20,
+    minimumPriceMarginFloorRatio: pricingUnitRates.minimumPriceMarginFloorRatio ?? 0.70,
+    minTerminals: pricingUnitRates.minTerminals ?? 1,
+    maxTerminals: pricingUnitRates.maxTerminals ?? 25,
+    minOutlets: pricingUnitRates.minOutlets ?? 1,
+    maxOutlets: pricingUnitRates.maxOutlets ?? 50,
+    minStaff: pricingUnitRates.minStaff ?? 1,
+    maxStaff: pricingUnitRates.maxStaff ?? 200,
+  });
+
+  const [inspectModalOpen, setInspectModalOpen] = useState(false);
+  const [inspectingTenant, setInspectingTenant] = useState(null);
+  const [customTenantsSearch, setCustomTenantsSearch] = useState('');
+  const [customTenantsStatusFilter, setCustomTenantsStatusFilter] = useState('all');
+
+  // Review Quote State
+  const [quoteReviewModalOpen, setQuoteReviewModalOpen] = useState(false);
+  const [reviewingRequest, setReviewingRequest] = useState(null);
+  const [quoteDecision, setQuoteDecision] = useState('approve'); // 'approve' | 'quote' | 'reject'
+  const [quoteAmount, setQuoteAmount] = useState('');
+  const [quoteAdminNotes, setQuoteAdminNotes] = useState('');
+  const [quoteRejectionReason, setQuoteRejectionReason] = useState('');
+
+  // Assign Custom Plan State
+  const [assignCustomModalOpen, setAssignCustomModalOpen] = useState(false);
+  const [assignCustomTenant, setAssignCustomTenant] = useState(null);
+  const [assignTargetRestaurantId, setAssignTargetRestaurantId] = useState('');
+
+  // Combined custom plan tenants and requests
+  const customPlanTenants = useMemo(() => {
+    const fromTenants = (restaurants || [])
+      .filter((r) => r.planId === 'plan-custom' || r.planName?.toLowerCase().includes('custom') || r.customPlanConfig)
+      .map((r) => ({
+        id: r.id,
+        restaurantId: r.id,
+        name: r.name,
+        cuisine: r.cuisine || 'Multi-Cuisine',
+        ownerName: r.ownerName,
+        ownerEmail: r.ownerEmail,
+        phone: r.phone,
+        outlets: r.branches || 1,
+        terminals: r.monthlyUsage?.posTerminals || (r.branches || 1) * 2,
+        staffCount: r.monthlyUsage?.staffCount || 6,
+        activeModules: r.customPlanConfig?.activeModules || ['pos_billing', 'recipe_costing', 'aggregator_integration'],
+        billingCycle: r.customPlanConfig?.billingCycle || 'annual',
+        status: r.status || 'active',
+        monthlyAmount: r.customPlanConfig?.monthlyAmount || 2477,
+        annualAmount: r.customPlanConfig?.annualAmount || 23775,
+        source: 'restaurant_tenant',
+      }));
+
+    const fromRequests = (customPlanRequests || []).map((req) => ({
+      id: req.id,
+      restaurantId: req.restaurantId,
+      name: req.restaurantName,
+      cuisine: 'Multi-Outlet Group',
+      ownerName: req.ownerName,
+      ownerEmail: req.ownerEmail,
+      phone: req.ownerPhone,
+      outlets: req.config?.branches || req.config?.outlets || 1,
+      terminals: req.config?.posTerminals || Math.max(1, (req.config?.branches || 1) * 2),
+      staffCount: req.config?.staffCount || 15,
+      activeModules: req.config?.selectedFeatureIds || req.config?.selectedModuleIds || ['pos_billing'],
+      billingCycle: req.config?.billingCycle || 'annual',
+      status: req.status === 'activated' ? 'active' : req.status === 'quoted' ? 'quoted' : req.status === 'approved' ? 'approved' : req.status === 'rejected' ? 'rejected' : 'pending_review',
+      monthlyAmount: req.systemMonthlyEquivalent || Math.round((req.proposedQuotation || req.systemCalculatedAmount || 25000) / 12),
+      annualAmount: req.proposedQuotation || req.systemCalculatedAmount || 25000,
+      source: 'custom_request',
+      rawRequest: req,
+    }));
+
+    return [...fromTenants, ...fromRequests];
+  }, [restaurants, customPlanRequests]);
+
+  const filteredCustomTenants = useMemo(() => {
+    let list = customPlanTenants;
+    if (customTenantsStatusFilter !== 'all') {
+      list = list.filter((t) => t.status === customTenantsStatusFilter);
+    }
+    if (customTenantsSearch) {
+      const q = customTenantsSearch.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.name?.toLowerCase().includes(q) ||
+          t.ownerName?.toLowerCase().includes(q) ||
+          t.ownerEmail?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [customPlanTenants, customTenantsSearch, customTenantsStatusFilter]);
+
+  const filteredCustomModules = useMemo(() => {
+    return (customPlanModules || []).filter((mod) => {
+      const matchSearch =
+        !moduleSearch ||
+        mod.name?.toLowerCase().includes(moduleSearch.toLowerCase()) ||
+        mod.description?.toLowerCase().includes(moduleSearch.toLowerCase()) ||
+        mod.category?.toLowerCase().includes(moduleSearch.toLowerCase());
+      const matchCat = moduleCategoryFilter === 'all' || mod.category === moduleCategoryFilter;
+      const matchStatus =
+        moduleStatusFilter === 'all' ||
+        (moduleStatusFilter === 'active' ? mod.status !== 'inactive' : mod.status === 'inactive');
+      return matchSearch && matchCat && matchStatus;
+    });
+  }, [customPlanModules, moduleSearch, moduleCategoryFilter, moduleStatusFilter]);
+
+  const moduleCategories = useMemo(() => {
+    const set = new Set([
+      ...STANDARD_MODULE_CATEGORIES,
+      ...(customPlanModules || []).map((m) => m.category).filter(Boolean),
+    ]);
+    return ['all', ...Array.from(set)];
+  }, [customPlanModules]);
+
+  const handleOpenCreateModule = () => {
+    setModuleModalMode('create');
+    setModuleFormData({
+      id: '',
+      name: '',
+      description: '',
+      monthlyPrice: 400,
+      annualPrice: 3840,
+      status: 'active',
+      category: 'Integrations',
+      isRequired: false,
+      isBaseModule: false,
+    });
+    setModuleModalOpen(true);
+  };
+
+  const handleOpenEditModule = (mod) => {
+    setModuleModalMode('edit');
+    setModuleFormData({
+      id: mod.id,
+      name: mod.name || '',
+      description: mod.description || '',
+      monthlyPrice: mod.monthlyPrice ?? 0,
+      annualPrice: mod.annualPrice ?? (mod.monthlyPrice ? Math.round(mod.monthlyPrice * 12 * 0.8) : 0),
+      status: mod.status || 'active',
+      category: mod.category || 'Integrations',
+      isRequired: Boolean(mod.isRequired || mod.isBaseModule),
+      isBaseModule: Boolean(mod.isBaseModule),
+    });
+    setModuleModalOpen(true);
+  };
+
+  const handleSaveModule = (e) => {
+    if (e) e.preventDefault();
+    if (!moduleFormData.name.trim()) return;
+
+    if (moduleModalMode === 'create') {
+      addCustomPlanModule({
+        ...moduleFormData,
+        name: moduleFormData.name.trim(),
+        description: moduleFormData.description.trim(),
+        monthlyPrice: Math.max(0, Number(moduleFormData.monthlyPrice) || 0),
+        annualPrice: Math.max(0, Number(moduleFormData.annualPrice) || 0),
+      });
+    } else {
+      updateCustomPlanModule(moduleFormData.id, {
+        name: moduleFormData.name.trim(),
+        description: moduleFormData.description.trim(),
+        monthlyPrice: Math.max(0, Number(moduleFormData.monthlyPrice) || 0),
+        annualPrice: Math.max(0, Number(moduleFormData.annualPrice) || 0),
+        status: moduleFormData.status,
+        category: moduleFormData.category,
+        isRequired: moduleFormData.isRequired,
+      });
+    }
+    setModuleModalOpen(false);
+  };
+
+  const handlePromptDeleteModule = (mod) => {
+    setModuleToDelete(mod);
+    setDeleteModuleModalOpen(true);
+  };
+
+  const handleConfirmDeleteModule = () => {
+    if (moduleToDelete) {
+      deleteCustomPlanModule(moduleToDelete.id);
+      setDeleteModuleModalOpen(false);
+      setModuleToDelete(null);
+    }
+  };
+
+  const handleToggleModuleStatus = (mod) => {
+    if (mod.isBaseModule || mod.id === 'pos_billing' || mod.isRequired) return;
+    const newStatus = mod.status === 'active' ? 'inactive' : 'active';
+    updateCustomPlanModule(mod.id, { status: newStatus });
+  };
+
+  const handleOpenRatesModal = () => {
+    setRatesFormData({
+      additionalTerminalMonthly: pricingUnitRates.additionalTerminalMonthly ?? 250,
+      additionalTerminalAnnual: pricingUnitRates.additionalTerminalAnnual ?? 2400,
+      additionalOutletMonthly: pricingUnitRates.additionalOutletMonthly ?? 499,
+      additionalOutletAnnual: pricingUnitRates.additionalOutletAnnual ?? 4788,
+      additionalStaffMonthly: pricingUnitRates.additionalStaffMonthly ?? 99,
+      additionalStaffAnnual: pricingUnitRates.additionalStaffAnnual ?? 948,
+      gstRate: pricingUnitRates.gstRate ?? 0.18,
+      annualDiscountPercent: pricingUnitRates.annualDiscountPercent ?? 20,
+      minimumPriceMarginFloorRatio: pricingUnitRates.minimumPriceMarginFloorRatio ?? 0.70,
+      minTerminals: pricingUnitRates.minTerminals ?? 1,
+      maxTerminals: pricingUnitRates.maxTerminals ?? 25,
+      minOutlets: pricingUnitRates.minOutlets ?? 1,
+      maxOutlets: pricingUnitRates.maxOutlets ?? 50,
+      minStaff: pricingUnitRates.minStaff ?? 1,
+      maxStaff: pricingUnitRates.maxStaff ?? 200,
+    });
+    setRatesModalOpen(true);
+  };
+
+  const handleSaveRates = (e) => {
+    if (e) e.preventDefault();
+    updatePricingUnitRates({
+      additionalTerminalMonthly: Math.max(0, Number(ratesFormData.additionalTerminalMonthly) || 0),
+      additionalTerminalAnnual: Math.max(0, Number(ratesFormData.additionalTerminalAnnual) || 0),
+      additionalOutletMonthly: Math.max(0, Number(ratesFormData.additionalOutletMonthly) || 0),
+      additionalOutletAnnual: Math.max(0, Number(ratesFormData.additionalOutletAnnual) || 0),
+      additionalStaffMonthly: Math.max(0, Number(ratesFormData.additionalStaffMonthly) || 0),
+      additionalStaffAnnual: Math.max(0, Number(ratesFormData.additionalStaffAnnual) || 0),
+      gstRate: Math.max(0, Math.min(1, Number(ratesFormData.gstRate) || 0.18)),
+      annualDiscountPercent: Math.max(0, Math.min(100, Number(ratesFormData.annualDiscountPercent) || 20)),
+      minimumPriceMarginFloorRatio: Math.max(0, Math.min(1, Number(ratesFormData.minimumPriceMarginFloorRatio) || 0.70)),
+      minTerminals: Math.max(1, Number(ratesFormData.minTerminals) || 1),
+      maxTerminals: Math.max(Number(ratesFormData.minTerminals) || 1, Number(ratesFormData.maxTerminals) || 25),
+      minOutlets: Math.max(1, Number(ratesFormData.minOutlets) || 1),
+      maxOutlets: Math.max(Number(ratesFormData.minOutlets) || 1, Number(ratesFormData.maxOutlets) || 50),
+      minStaff: Math.max(1, Number(ratesFormData.minStaff) || 1),
+      maxStaff: Math.max(Number(ratesFormData.minStaff) || 1, Number(ratesFormData.maxStaff) || 200),
+    });
+    setRatesModalOpen(false);
+  };
+
+  const handleOpenReviewQuote = (request) => {
+    setReviewingRequest(request);
+    setQuoteDecision('approve');
+    setQuoteAmount(request.proposedQuotation || request.systemCalculatedAmount || 25000);
+    setQuoteAdminNotes(request.adminNotes || '');
+    setQuoteRejectionReason('');
+    setQuoteReviewModalOpen(true);
+  };
+
+  const handleSaveReviewDecision = (e) => {
+    if (e) e.preventDefault();
+    if (!reviewingRequest) return;
+    reviewCustomPlanRequest(reviewingRequest.id, quoteDecision, {
+      quotedAmount: Number(quoteAmount) || reviewingRequest.systemCalculatedAmount,
+      adminNotes: quoteAdminNotes,
+      rejectionReason: quoteRejectionReason,
+    });
+    setQuoteReviewModalOpen(false);
+    setReviewingRequest(null);
+  };
+
+  const handleOpenAssignCustom = (tenant) => {
+    setAssignCustomTenant(tenant);
+    setAssignTargetRestaurantId(tenant.restaurantId || tenant.id || restaurants[0]?.id || '');
+    setAssignCustomModalOpen(true);
+  };
+
+  const handleConfirmAssignCustom = (e) => {
+    if (e) e.preventDefault();
+    if (!assignTargetRestaurantId || !assignCustomTenant) return;
+    assignCustomPlanToRestaurant(assignTargetRestaurantId, {
+      monthlyAmount: assignCustomTenant.monthlyAmount,
+      annualAmount: assignCustomTenant.annualAmount,
+      outlets: assignCustomTenant.outlets,
+      terminals: assignCustomTenant.terminals,
+      staffCount: assignCustomTenant.staffCount,
+      activeModules: assignCustomTenant.activeModules,
+      billingCycle: assignCustomTenant.billingCycle,
+      sourceRequestId: assignCustomTenant.rawRequest?.id || assignCustomTenant.id,
+    });
+    setAssignCustomModalOpen(false);
+    setAssignCustomTenant(null);
+  };
 
   const handleOpenEdit = (plan) => {
     setSelectedPlan(plan);
@@ -316,6 +654,21 @@ export const SubscriptionPlans = () => {
         >
           <Building2 className="w-3.5 h-3.5" />
           <span>Restaurant SaaS Plans ({plans.length})</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('custom_plan_rules')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            mainTab === 'custom_plan_rules'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>Custom Plan Modules &amp; Billing Rules</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
+            {customPlanModules.length} Modules
+          </span>
         </button>
 
         <button
@@ -711,7 +1064,707 @@ export const SubscriptionPlans = () => {
       </>
       )}
 
-      {/* 2. THIRD-PARTY SUPPLIER PLANS TAB */}
+      {/* 2. CUSTOM PLAN MODULES & BILLING RULES TAB */}
+      {mainTab === 'custom_plan_rules' && (
+        <div className="space-y-6">
+          {/* Section 0: High-Impact Pricing Summary Cards (6-grid) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
+            {/* Card 1: Total Modules */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Total Modules
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <Layers className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-slate-900">
+                  {customPlanModules.length}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">Catalog Capabilities</span>
+              </div>
+            </div>
+
+            {/* Card 2: Active in Builder */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-emerald-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Active in Builder
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-100 text-teal-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-teal-700">
+                  {customPlanModules.filter((m) => m.status !== 'inactive').length}
+                </div>
+                <span className="text-[11px] text-emerald-600 font-bold">Selectable in Configurator</span>
+              </div>
+            </div>
+
+            {/* Card 3: Required Base */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-blue-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Required Modules
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-blue-700">
+                  {customPlanModules.filter((m) => m.isBaseModule || m.isRequired || m.id === 'pos_billing').length}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">Locked Base POS</span>
+              </div>
+            </div>
+
+            {/* Card 4: Custom Subscribers */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-purple-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Subscribers
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center">
+                  <Building2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-purple-700">
+                  {restaurants.filter((r) => r.planId === 'plan-custom' || r.planName?.toLowerCase().includes('custom') || r.customPlanConfig).length}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">Active Custom Tenants</span>
+              </div>
+            </div>
+
+            {/* Card 5: Pending Quotes */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-amber-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Pending Quotes
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-amber-600">
+                  {(customPlanRequests || []).filter((r) => r.status === 'pending_review' || r.status === 'quoted').length}
+                </div>
+                <span className="text-[11px] text-amber-600 font-bold">Inbound Approvals</span>
+              </div>
+            </div>
+
+            {/* Card 6: Terminal Hardware Rate */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-sm hover:border-indigo-300 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  POS Device Rate
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <Tablet className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-black font-mono text-slate-900">
+                  {formatINR(pricingUnitRates.additionalTerminalMonthly || 250)}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">per device / mo</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1: Global Hardware & Billing Rules Card */}
+          <div className="bg-white border border-[#E5E7EB] p-6 sm:p-7 rounded-2xl sm:rounded-3xl space-y-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E5E7EB]">
+              <div>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/80">
+                  Authoritative Unit Scaling Rules
+                </span>
+                <h3 className="text-xl font-black text-slate-900 mt-2">
+                  Hardware Scaling &amp; Statutory Billing Rules
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  Configure unit prices, tax policies, annual discounts, and minimum/maximum resource limits.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={RotateCcw}
+                  onClick={resetCustomPlanModulesToDefaults}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border-slate-300 font-bold shadow-xs"
+                >
+                  Reset Defaults
+                </Button>
+                <Button
+                  size="sm"
+                  variant="brand"
+                  icon={Settings2}
+                  onClick={handleOpenRatesModal}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                >
+                  Configure Billing Rules
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+              {/* POS Terminal */}
+              <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 group">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-800">Extra POS Terminal Station</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Tablet className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black font-mono text-slate-900 tracking-tight">
+                      {formatINR(pricingUnitRates.additionalTerminalMonthly || 250)}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">/mo</span>
+                  </div>
+                  <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                    <span>{formatINR(pricingUnitRates.additionalTerminalAnnual || 2400)}/yr</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold">
+                      ~20% off
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">Station Limits:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-800 font-bold font-mono">
+                    {pricingUnitRates.minTerminals ?? 1} – {pricingUnitRates.maxTerminals ?? 25} devices
+                  </span>
+                </div>
+              </div>
+
+              {/* Outlet */}
+              <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 group">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-800">Additional Branch / Outlet</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Store className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black font-mono text-slate-900 tracking-tight">
+                      {formatINR(pricingUnitRates.additionalOutletMonthly || 499)}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">/mo</span>
+                  </div>
+                  <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                    <span>{formatINR(pricingUnitRates.additionalOutletAnnual || 4788)}/yr</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold">
+                      ~20% off
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">Outlet Limits:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-800 font-bold font-mono">
+                    {pricingUnitRates.minOutlets ?? 1} – {pricingUnitRates.maxOutlets ?? 50} locations
+                  </span>
+                </div>
+              </div>
+
+              {/* Staff */}
+              <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 group">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-800">Additional Staff Seat</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black font-mono text-slate-900 tracking-tight">
+                      {formatINR(pricingUnitRates.additionalStaffMonthly || 99)}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">/mo</span>
+                  </div>
+                  <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                    <span>{formatINR(pricingUnitRates.additionalStaffAnnual || 948)}/yr</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold">
+                      ~20% off
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">Seat Limits:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-800 font-bold font-mono">
+                    {pricingUnitRates.minStaff ?? 1} – {pricingUnitRates.maxStaff ?? 200} users
+                  </span>
+                </div>
+              </div>
+
+              {/* Tax & Guardrails */}
+              <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 group">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-800">Tax &amp; Annual Discount</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black font-mono text-slate-900 tracking-tight">
+                      {((Number(pricingUnitRates.gstRate ?? 0.18)) * 100).toFixed(0)}%
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">GST</span>
+                  </div>
+                  <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                    <span>{pricingUnitRates.annualDiscountPercent ?? 20}% Annual Discount</span>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">Margin Safeguard:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 text-slate-800 font-bold font-mono">
+                    Floor {((Number(pricingUnitRates.minimumPriceMarginFloorRatio ?? 0.70)) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Grandfathering Protection Notice */}
+            <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 flex items-start gap-3 text-xs text-emerald-950">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong className="text-emerald-900 font-bold">Grandfathered Agreement Protection:</strong> Existing active subscriptions retain their agreed rates and terms. Updates made to unit prices, discounts, and tax rates apply strictly to new custom plan configurations created in the public Custom Plan Builder and inbound custom quotations.
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Modular Add-on Capabilities Matrix */}
+          <div className="bg-white border border-[#E5E7EB] p-6 sm:p-7 rounded-2xl sm:rounded-3xl space-y-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-emerald-600" />
+                  <span>Configurable Modular Capabilities Matrix</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  Manage module pricing, categorize capabilities, and toggle live availability for the public custom plan builder.
+                </p>
+              </div>
+
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={handleOpenCreateModule}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+              >
+                Add New Module
+              </Button>
+            </div>
+
+            {/* Category Filter Pills & Search Controls */}
+            <div className="space-y-3 pt-1">
+              {/* Category Pills Bar */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {moduleCategories.map((cat) => {
+                  const isSelected = moduleCategoryFilter === cat;
+                  const count = cat === 'all'
+                    ? customPlanModules.length
+                    : customPlanModules.filter((m) => m.category === cat).length;
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setModuleCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+                      }`}
+                    >
+                      <span>{cat === 'all' ? 'All Modules' : cat}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected
+                          ? 'bg-emerald-950 text-emerald-200'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search & Status Filter Row */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="relative flex-1 min-w-[240px] max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={moduleSearch}
+                    onChange={(e) => setModuleSearch(e.target.value)}
+                    placeholder="Search by module name, keyword, or description..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E5E7EB] text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-xs"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={moduleStatusFilter}
+                    onChange={(e) => setModuleStatusFilter(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-[#E5E7EB] text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs font-medium"
+                  >
+                    <option value="all">All Statuses ({customPlanModules.length})</option>
+                    <option value="active">Active Only ({customPlanModules.filter(m => m.status !== 'inactive').length})</option>
+                    <option value="inactive">Disabled Only ({customPlanModules.filter(m => m.status === 'inactive').length})</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Modules Table */}
+            <div className="overflow-x-auto rounded-2xl border border-[#E5E7EB] shadow-xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4">Module Name &amp; Description</th>
+                    <th className="py-3.5 px-3">Category</th>
+                    <th className="py-3.5 px-3">Requirement</th>
+                    <th className="py-3.5 px-4 text-right">Monthly Rate</th>
+                    <th className="py-3.5 px-4 text-right">Annual Rate</th>
+                    <th className="py-3.5 px-4 text-right">Effective Monthly</th>
+                    <th className="py-3.5 px-3 text-center">Configurator Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB] bg-white">
+                  {filteredCustomModules.map((mod) => {
+                    const isBase = Boolean(mod.isBaseModule || mod.id === 'pos_billing');
+                    const isRequired = Boolean(mod.isRequired || isBase);
+                    const isActive = mod.status !== 'inactive';
+                    const effectiveMonthly = Math.round(Number(mod.annualPrice || 0) / 12);
+                    const annualSavings = Math.max(0, (Number(mod.monthlyPrice || 0) * 12) - Number(mod.annualPrice || 0));
+
+                    return (
+                      <tr key={mod.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <span>{mod.name}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-md">
+                            {mod.description}
+                          </p>
+                        </td>
+
+                        <td className="py-4 px-3 whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            {mod.category || 'Integrations'}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-3 whitespace-nowrap">
+                          {isRequired ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                              <Lock className="w-2.5 h-2.5" />
+                              Required Base
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                              Optional Add-on
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4 text-right whitespace-nowrap font-mono font-black text-slate-900 text-sm sm:text-base">
+                          {formatINR(mod.monthlyPrice)}
+                          <span className="text-xs font-normal text-slate-500 ml-0.5">/mo</span>
+                        </td>
+
+                        <td className="py-4 px-4 text-right whitespace-nowrap font-mono text-slate-700">
+                          <div className="font-bold text-xs sm:text-sm">{formatINR(mod.annualPrice)}/yr</div>
+                          {annualSavings > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
+                              Save {formatINR(annualSavings)}/yr
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4 text-right whitespace-nowrap font-mono font-black text-emerald-600 text-xs sm:text-base">
+                          {formatINR(effectiveMonthly)}
+                          <span className="text-[10px] font-normal text-slate-500 ml-0.5">/mo</span>
+                        </td>
+
+                        <td className="py-4 px-3 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleModuleStatus(mod)}
+                            disabled={isRequired}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-2xs ${
+                              isRequired
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-not-allowed opacity-90'
+                                : isActive
+                                  ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`} />
+                            <span>{isRequired ? 'Required Base' : isActive ? 'Active' : 'Disabled'}</span>
+                          </button>
+                        </td>
+
+                        <td className="py-4 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              icon={Edit3}
+                              onClick={() => handleOpenEditModule(mod)}
+                              className="bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
+                            >
+                              Edit
+                            </Button>
+                            {!isBase && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                icon={Trash2}
+                                onClick={() => handlePromptDeleteModule(mod)}
+                                title="Remove module"
+                                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredCustomModules.length === 0 && (
+                    <tr>
+                      <td colSpan="8" className="py-10 text-center text-slate-400">
+                        <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="font-semibold text-slate-600">No modules match your filter criteria.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Try resetting the category filter or search query.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Section 3: Custom Plan Subscriptions & Customer Quotations */}
+          <div className="bg-white border border-[#E5E7EB] p-6 sm:p-7 rounded-2xl sm:rounded-3xl space-y-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-emerald-600" />
+                  <span>Custom Subscribers &amp; Enterprise Quotation Queue</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  Inspect custom tenant configurations, evaluate inbound custom quote requests, submit commercial pricing, and assign plans.
+                </p>
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { id: 'all', label: 'All Accounts', count: customPlanTenants.length },
+                  { id: 'active', label: 'Active Subscribers', count: customPlanTenants.filter(t => t.status === 'active').length },
+                  { id: 'pending_review', label: 'Pending Review', count: customPlanTenants.filter(t => t.status === 'pending_review').length },
+                  { id: 'quoted', label: 'Quoted', count: customPlanTenants.filter(t => t.status === 'quoted').length },
+                  { id: 'rejected', label: 'Rejected', count: customPlanTenants.filter(t => t.status === 'rejected').length },
+                ].map((tab) => {
+                  const isSelected = customTenantsStatusFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setCustomTenantsStatusFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected ? 'bg-emerald-950 text-emerald-200' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={customTenantsSearch}
+                onChange={(e) => setCustomTenantsSearch(e.target.value)}
+                placeholder="Search by restaurant name, owner, or email..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E5E7EB] text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+              />
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-2xl border border-[#E5E7EB] shadow-xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-[#E5E7EB] bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4">Restaurant &amp; Inbound Contact</th>
+                    <th className="py-3.5 px-3">Capacity Specs</th>
+                    <th className="py-3.5 px-3">Selected Capabilities</th>
+                    <th className="py-3.5 px-3">Billing Cycle</th>
+                    <th className="py-3.5 px-4 text-right">Subscription Value</th>
+                    <th className="py-3.5 px-3 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB] bg-white">
+                  {filteredCustomTenants.map((tenant) => (
+                    <tr key={tenant.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-4 px-4">
+                        <strong className="text-slate-900 block font-bold text-sm">
+                          {tenant.name}
+                        </strong>
+                        <span className="text-xs text-slate-500 mt-0.5 block">
+                          {tenant.ownerName} &bull; {tenant.ownerEmail}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{tenant.phone}</span>
+                      </td>
+
+                      <td className="py-4 px-3 whitespace-nowrap">
+                        <div className="font-bold text-slate-800 text-xs">
+                          {tenant.outlets} Outlet{tenant.outlets > 1 ? 's' : ''} &bull; {tenant.terminals} Terminals
+                        </div>
+                        <span className="text-[11px] text-slate-500 mt-0.5 block">{tenant.staffCount} Staff Accounts</span>
+                      </td>
+
+                      <td className="py-4 px-3">
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {tenant.activeModules.slice(0, 3).map((modId) => {
+                            const mod = customPlanModules.find((m) => m.id === modId);
+                            return (
+                              <span
+                                key={modId}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+                              >
+                                {mod ? mod.name.split(' ')[0] : modId}
+                              </span>
+                            );
+                          })}
+                          {tenant.activeModules.length > 3 && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                              +{tenant.activeModules.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-3 whitespace-nowrap">
+                        <span className="capitalize font-bold text-xs text-slate-800">
+                          {tenant.billingCycle}
+                        </span>
+                      </td>
+
+                      <td className="py-4 px-4 text-right whitespace-nowrap font-mono font-black text-emerald-600 text-sm sm:text-base">
+                        {formatINR(tenant.monthlyAmount)}/mo
+                        <span className="text-xs text-slate-500 block font-normal">
+                          {formatINR(tenant.annualAmount)}/yr
+                        </span>
+                      </td>
+
+                      <td className="py-4 px-3 text-center whitespace-nowrap">
+                        <Badge
+                          variant={
+                            tenant.status === 'active'
+                              ? 'success'
+                              : tenant.status === 'quoted'
+                                ? 'info'
+                                : tenant.status === 'approved'
+                                  ? 'brand'
+                                  : tenant.status === 'rejected'
+                                    ? 'danger'
+                                    : 'warning'
+                          }
+                        >
+                          {tenant.status === 'active'
+                            ? 'Active'
+                            : tenant.status === 'quoted'
+                              ? 'Quoted'
+                              : tenant.status === 'approved'
+                                ? 'Approved'
+                                : tenant.status === 'rejected'
+                                  ? 'Rejected'
+                                  : 'Pending Review'}
+                        </Badge>
+                      </td>
+
+                      <td className="py-4 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={Eye}
+                            onClick={() => {
+                              setInspectingTenant(tenant);
+                              setInspectModalOpen(true);
+                            }}
+                          >
+                            Inspect
+                          </Button>
+
+                          {tenant.rawRequest && tenant.status === 'pending_review' && (
+                            <Button
+                              size="sm"
+                              variant="brand"
+                              icon={FileCheck}
+                              onClick={() => handleOpenReviewQuote(tenant.rawRequest)}
+                            >
+                              Review &amp; Quote
+                            </Button>
+                          )}
+
+                          {(tenant.status === 'quoted' || tenant.status === 'approved') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              icon={Building2}
+                              onClick={() => handleOpenAssignCustom(tenant)}
+                            >
+                              Assign Plan
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredCustomTenants.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="py-10 text-center text-slate-400">
+                        <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="font-semibold text-slate-600">No custom plan subscriptions or inquiries found.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. THIRD-PARTY SUPPLIER PLANS TAB */}
       {mainTab === 'supplier_plans' && (
         <div className="space-y-6">
           {/* Quick Metrics Bar */}
@@ -1609,6 +2662,748 @@ export const SubscriptionPlans = () => {
               </div>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* 1. ADD / EDIT CUSTOM MODULE MODAL */}
+      <Modal
+        isOpen={moduleModalOpen}
+        onClose={() => setModuleModalOpen(false)}
+        title={moduleModalMode === 'create' ? 'Add New Custom Plan Module' : `Edit Module: ${moduleFormData.name}`}
+        subtitle="Manage modular capability pricing, category, and public configurator availability."
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setModuleModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="brand" size="sm" onClick={handleSaveModule}>
+              {moduleModalMode === 'create' ? 'Create Module' : 'Save Module Changes'}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveModule} className="space-y-4">
+          <FormInput
+            label="Module Name"
+            value={moduleFormData.name}
+            onChange={(e) => setModuleFormData({ ...moduleFormData, name: e.target.value })}
+            placeholder="e.g. Loyalty & Rewards Engine"
+            required
+          />
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Description &amp; Operational Capability
+            </label>
+            <textarea
+              value={moduleFormData.description}
+              onChange={(e) => setModuleFormData({ ...moduleFormData, description: e.target.value })}
+              rows={2}
+              placeholder="Explain how this capability benefits restaurant kitchens..."
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Capability Category
+              </label>
+              <select
+                value={moduleFormData.category}
+                onChange={(e) => setModuleFormData({ ...moduleFormData, category: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                {STANDARD_MODULE_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 pt-6">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(moduleFormData.isRequired || moduleFormData.isBaseModule)}
+                  disabled={moduleFormData.isBaseModule || moduleFormData.id === 'pos_billing'}
+                  onChange={(e) =>
+                    setModuleFormData({ ...moduleFormData, isRequired: e.target.checked })
+                  }
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Required Foundation Module
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormInput
+              label="Monthly Price (₹)"
+              type="number"
+              value={moduleFormData.monthlyPrice}
+              onChange={(e) => {
+                const val = Math.max(0, Number(e.target.value) || 0);
+                setModuleFormData({
+                  ...moduleFormData,
+                  monthlyPrice: val,
+                  annualPrice: Math.round(val * 12 * 0.8),
+                });
+              }}
+              required
+            />
+
+            <FormInput
+              label="Annual Total Price (₹)"
+              type="number"
+              value={moduleFormData.annualPrice}
+              onChange={(e) =>
+                setModuleFormData({
+                  ...moduleFormData,
+                  annualPrice: Math.max(0, Number(e.target.value) || 0),
+                })
+              }
+              required
+            />
+          </div>
+
+          {/* Pricing Preview Pill */}
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+            <div>
+              <span className="text-slate-500 block">Effective Monthly Rate (on Annual):</span>
+              <strong className="text-emerald-700 dark:text-emerald-400 font-mono text-sm font-black">
+                {formatINR(Math.round((Number(moduleFormData.annualPrice) || 0) / 12))}/mo
+              </strong>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-200">
+              Save ~20% on Annual
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+            <div>
+              <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                Configurator Availability Status
+              </span>
+              <span className="text-[11px] text-slate-500">
+                When active, restaurants can select this module in the public Custom Plan Builder.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              disabled={moduleFormData.isBaseModule || moduleFormData.id === 'pos_billing'}
+              onClick={() =>
+                setModuleFormData({
+                  ...moduleFormData,
+                  status: moduleFormData.status === 'active' ? 'inactive' : 'active',
+                })
+              }
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                moduleFormData.isBaseModule || moduleFormData.id === 'pos_billing'
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 opacity-80 cursor-not-allowed'
+                  : moduleFormData.status === 'active'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {moduleFormData.isBaseModule || moduleFormData.id === 'pos_billing'
+                ? 'Required Base'
+                : moduleFormData.status === 'active'
+                  ? 'Active'
+                  : 'Disabled'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 2. DELETE MODULE CONFIRMATION MODAL */}
+      <Modal
+        isOpen={deleteModuleModalOpen}
+        onClose={() => setDeleteModuleModalOpen(false)}
+        title="Remove Custom Plan Module"
+        subtitle="Confirm deletion of optional module from the platform catalog"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setDeleteModuleModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleConfirmDeleteModule}>
+              Yes, Delete Module
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              Are you sure you want to delete module <strong>"{moduleToDelete?.name}"</strong>? This module will be removed from the public Custom Plan Builder.
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 3. CONFIGURE BILLING RULES MODAL */}
+      <Modal
+        isOpen={ratesModalOpen}
+        onClose={() => setRatesModalOpen(false)}
+        title="Configure Custom Plan Billing Rules"
+        subtitle="Global unit rates for hardware terminals, additional outlets, and statutory tax calculations"
+        maxWidth="max-w-2xl"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setRatesModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="brand" size="sm" onClick={handleSaveRates}>
+              Save Billing Rules
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveRates} className="space-y-4">
+          {/* Interactive Preview Scenario Card */}
+          <div className="p-4.5 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs text-slate-900 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                Live Scenario Preview
+              </span>
+              <span className="text-xs font-semibold text-slate-500">2 Outlets • 3 Terminals • 10 Staff</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-1">
+              <div>
+                <span className="text-slate-500 block text-[11px] font-medium">Monthly Gross:</span>
+                <span className="font-mono font-black text-slate-900 text-base">
+                  {formatINR(599 + (Number(ratesFormData.additionalOutletMonthly) || 499) + (2 * (Number(ratesFormData.additionalTerminalMonthly) || 250)) + (5 * (Number(ratesFormData.additionalStaffMonthly) || 99)))}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[11px] font-medium">With GST ({(Number(ratesFormData.gstRate || 0.18) * 100).toFixed(0)}%):</span>
+                <span className="font-mono font-black text-emerald-600 text-base">
+                  {formatINR(Math.round((599 + (Number(ratesFormData.additionalOutletMonthly) || 499) + (2 * (Number(ratesFormData.additionalTerminalMonthly) || 250)) + (5 * (Number(ratesFormData.additionalStaffMonthly) || 99))) * (1 + Number(ratesFormData.gstRate || 0.18))))}/mo
+                </span>
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <span className="text-slate-500 block text-[11px] font-medium">Annual Discount:</span>
+                <span className="font-mono font-black text-emerald-700 text-base">
+                  {ratesFormData.annualDiscountPercent || 20}% off
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormInput
+              label="Additional POS Terminal (Monthly ₹)"
+              type="number"
+              value={ratesFormData.additionalTerminalMonthly}
+              onChange={(e) => {
+                const val = Math.max(0, Number(e.target.value) || 0);
+                setRatesFormData({
+                  ...ratesFormData,
+                  additionalTerminalMonthly: val,
+                  additionalTerminalAnnual: Math.round(val * 12 * 0.8),
+                });
+              }}
+              required
+            />
+            <FormInput
+              label="Additional POS Terminal (Annual ₹)"
+              type="number"
+              value={ratesFormData.additionalTerminalAnnual}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, additionalTerminalAnnual: Math.max(0, Number(e.target.value) || 0) })
+              }
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormInput
+              label="Additional Outlet (Monthly ₹)"
+              type="number"
+              value={ratesFormData.additionalOutletMonthly}
+              onChange={(e) => {
+                const val = Math.max(0, Number(e.target.value) || 0);
+                setRatesFormData({
+                  ...ratesFormData,
+                  additionalOutletMonthly: val,
+                  additionalOutletAnnual: Math.round(val * 12 * 0.8),
+                });
+              }}
+              required
+            />
+            <FormInput
+              label="Additional Outlet (Annual ₹)"
+              type="number"
+              value={ratesFormData.additionalOutletAnnual}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, additionalOutletAnnual: Math.max(0, Number(e.target.value) || 0) })
+              }
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormInput
+              label="Additional Staff Seat (Monthly ₹)"
+              type="number"
+              value={ratesFormData.additionalStaffMonthly}
+              onChange={(e) => {
+                const val = Math.max(0, Number(e.target.value) || 0);
+                setRatesFormData({
+                  ...ratesFormData,
+                  additionalStaffMonthly: val,
+                  additionalStaffAnnual: Math.round(val * 12 * 0.8),
+                });
+              }}
+              required
+            />
+            <FormInput
+              label="Additional Staff Seat (Annual ₹)"
+              type="number"
+              value={ratesFormData.additionalStaffAnnual}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, additionalStaffAnnual: Math.max(0, Number(e.target.value) || 0) })
+              }
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <FormInput
+              label="Statutory GST Rate (e.g. 0.18)"
+              type="number"
+              step="0.01"
+              value={ratesFormData.gstRate}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, gstRate: Number(e.target.value) || 0.18 })
+              }
+              required
+            />
+            <FormInput
+              label="Annual Discount (%)"
+              type="number"
+              value={ratesFormData.annualDiscountPercent}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, annualDiscountPercent: Number(e.target.value) || 20 })
+              }
+              required
+            />
+            <FormInput
+              label="Margin Floor Ratio (e.g. 0.70)"
+              type="number"
+              step="0.01"
+              value={ratesFormData.minimumPriceMarginFloorRatio}
+              onChange={(e) =>
+                setRatesFormData({ ...ratesFormData, minimumPriceMarginFloorRatio: Number(e.target.value) || 0.70 })
+              }
+              required
+            />
+          </div>
+
+          {/* Limits Row */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+              Automated Configuration Limits
+            </span>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 block mb-1">POS Stations (Min / Max)</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={ratesFormData.minTerminals}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, minTerminals: Number(e.target.value) || 1 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                  <input
+                    type="number"
+                    value={ratesFormData.maxTerminals}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, maxTerminals: Number(e.target.value) || 25 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 block mb-1">Outlets (Min / Max)</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={ratesFormData.minOutlets}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, minOutlets: Number(e.target.value) || 1 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                  <input
+                    type="number"
+                    value={ratesFormData.maxOutlets}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, maxOutlets: Number(e.target.value) || 50 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 block mb-1">Staff Seats (Min / Max)</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={ratesFormData.minStaff}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, minStaff: Number(e.target.value) || 1 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                  <input
+                    type="number"
+                    value={ratesFormData.maxStaff}
+                    onChange={(e) => setRatesFormData({ ...ratesFormData, maxStaff: Number(e.target.value) || 200 })}
+                    className="w-1/2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-center font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 4. INSPECT CUSTOMER CONFIGURATION MODAL */}
+      <Modal
+        isOpen={inspectModalOpen}
+        onClose={() => setInspectModalOpen(false)}
+        title={`Custom Configuration: ${inspectingTenant?.name || ''}`}
+        subtitle="Detailed operational modules, terminal stations, and financial breakdown"
+        maxWidth="max-w-2xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-slate-400">
+              Account Status:{' '}
+              <strong className="text-emerald-600 capitalize">{inspectingTenant?.status || 'Active'}</strong>
+            </span>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setInspectModalOpen(false)}>
+                Close
+              </Button>
+              {inspectingTenant?.rawRequest && inspectingTenant?.status === 'pending_review' && (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  icon={FileCheck}
+                  onClick={() => {
+                    setInspectModalOpen(false);
+                    handleOpenReviewQuote(inspectingTenant.rawRequest);
+                  }}
+                >
+                  Review &amp; Quote
+                </Button>
+              )}
+            </div>
+          </div>
+        }
+      >
+        {inspectingTenant && (
+          <div className="space-y-4 text-xs">
+            {/* Primary Details */}
+            <div className="p-4.5 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs flex flex-col sm:flex-row justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 tracking-wider">
+                  Configured Tenant
+                </span>
+                <h4 className="text-base font-black text-slate-900 mt-1">{inspectingTenant.name}</h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {inspectingTenant.ownerName} &bull; {inspectingTenant.ownerEmail}
+                </p>
+                <p className="text-[11px] text-slate-400">{inspectingTenant.phone}</p>
+              </div>
+
+              <div className="sm:text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                  Subscription Value
+                </span>
+                <span className="text-2xl font-mono font-black text-emerald-600">
+                  {formatINR(inspectingTenant.monthlyAmount)}
+                  <span className="text-xs font-normal text-slate-500 ml-0.5">/mo</span>
+                </span>
+                <span className="text-[11px] text-slate-600 block font-medium">
+                  {formatINR(inspectingTenant.annualAmount)}/yr ({inspectingTenant.billingCycle})
+                </span>
+              </div>
+            </div>
+
+            {/* Hardware & Capacity Summary */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="p-3 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Outlets</span>
+                <span className="text-base font-black text-slate-900">
+                  {inspectingTenant.outlets}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">POS Stations</span>
+                <span className="text-base font-black text-slate-900">
+                  {inspectingTenant.terminals}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-[#E5E7EB] shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Staff Accounts</span>
+                <span className="text-base font-black text-slate-900">
+                  {inspectingTenant.staffCount}
+                </span>
+              </div>
+            </div>
+
+            {/* Itemized Modules Breakdown */}
+            <div className="space-y-2 border border-[#E5E7EB] rounded-2xl p-4 bg-white shadow-2xs">
+              <span className="font-bold text-slate-900 block pb-2 border-b border-slate-100">
+                Enabled Kitchen Capabilities &amp; Modules ({inspectingTenant.activeModules.length})
+              </span>
+
+              <div className="space-y-1.5 divide-y divide-slate-100">
+                <div className="flex justify-between items-center py-1 text-slate-700">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Base POS &amp; Cloud Billing (Primary Station)</span>
+                  </div>
+                  <span className="font-mono font-bold text-slate-900">₹599/mo</span>
+                </div>
+
+                {inspectingTenant.activeModules
+                  .filter((id) => id !== 'pos_billing')
+                  .map((modId) => {
+                    const mod = customPlanModules.find((m) => m.id === modId);
+                    return (
+                      <div key={modId} className="flex justify-between items-center py-1 text-slate-700">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{mod ? mod.name : modId}</span>
+                        </div>
+                        <span className="font-mono font-bold text-slate-900">
+                          +{formatINR(mod?.monthlyPrice || 400)}/mo
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                {inspectingTenant.terminals > 1 && (
+                  <div className="flex justify-between items-center py-1 text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{inspectingTenant.terminals - 1} Additional POS Station(s)</span>
+                    </div>
+                    <span className="font-mono font-bold text-slate-900">
+                      +{formatINR((inspectingTenant.terminals - 1) * (pricingUnitRates.additionalTerminalMonthly || 250))}/mo
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Inbound Request Reasons if Path C */}
+            {inspectingTenant.rawRequest && inspectingTenant.rawRequest.reviewReasons && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-1">
+                <strong className="block font-bold">Exceptions Requiring Review:</strong>
+                <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
+                  {inspectingTenant.rawRequest.reviewReasons.map((reason, i) => (
+                    <li key={i}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* 5. REVIEW & QUOTE REQUEST MODAL */}
+      <Modal
+        isOpen={quoteReviewModalOpen}
+        onClose={() => setQuoteReviewModalOpen(false)}
+        title={`Review Custom Plan Quote: ${reviewingRequest?.restaurantName || ''}`}
+        subtitle="Evaluate enterprise custom configuration, review reasons, and submit official quotation."
+        maxWidth="max-w-2xl"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setQuoteReviewModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={quoteDecision === 'reject' ? 'danger' : 'brand'}
+              size="sm"
+              onClick={handleSaveReviewDecision}
+            >
+              {quoteDecision === 'reject'
+                ? 'Reject Request'
+                : quoteDecision === 'quote'
+                  ? 'Send Quotation'
+                  : 'Approve Custom Plan'}
+            </Button>
+          </div>
+        }
+      >
+        {reviewingRequest && (
+          <form onSubmit={handleSaveReviewDecision} className="space-y-4 text-xs">
+            {/* Request Summary Banner */}
+            <div className="p-4 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 uppercase tracking-wider inline-block mb-1">
+                  Reference: {reviewingRequest.id}
+                </span>
+                <strong className="text-sm font-bold text-slate-900 block">{reviewingRequest.restaurantName}</strong>
+                <span className="text-slate-600 block text-[11px]">
+                  Owner: {reviewingRequest.ownerName} &bull; {reviewingRequest.ownerEmail}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">System Calculation</span>
+                <span className="font-mono font-black text-emerald-600 text-lg">
+                  {formatINR(reviewingRequest.systemCalculatedAmount || 25000)}/yr
+                </span>
+              </div>
+            </div>
+
+            {/* Decision Radio Group */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Super Admin Decision
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'approve', label: 'Approve Plan', desc: 'Accept calculated rates' },
+                  { id: 'quote', label: 'Send Custom Quote', desc: 'Specify custom price' },
+                  { id: 'reject', label: 'Reject Request', desc: 'Decline with reason' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setQuoteDecision(opt.id)}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      quoteDecision === opt.id
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-500/20'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <strong className="block font-bold">{opt.label}</strong>
+                    <span className="text-[10px] text-slate-500 block">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quoted Amount Field (if quote or approve) */}
+            {quoteDecision !== 'reject' && (
+              <FormInput
+                label="Quoted Subscription Amount (Annual ₹)"
+                type="number"
+                value={quoteAmount}
+                onChange={(e) => setQuoteAmount(e.target.value)}
+                required
+              />
+            )}
+
+            {/* Admin Notes */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Admin Notes &amp; Commercial Terms
+              </label>
+              <textarea
+                value={quoteAdminNotes}
+                onChange={(e) => setQuoteAdminNotes(e.target.value)}
+                rows={2}
+                placeholder="Add internal notes, discount rationale, or custom SLA terms..."
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+
+            {/* Rejection Reason (if reject) */}
+            {quoteDecision === 'reject' && (
+              <div>
+                <label className="block text-xs font-semibold text-rose-700 mb-1">
+                  Rejection Reason (Shared with Customer)
+                </label>
+                <textarea
+                  value={quoteRejectionReason}
+                  onChange={(e) => setQuoteRejectionReason(e.target.value)}
+                  rows={2}
+                  placeholder="Explain why this enterprise request cannot be fulfilled at this time..."
+                  className="w-full rounded-xl border border-rose-300 p-2.5 text-xs bg-rose-50/30 text-rose-950 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  required
+                />
+              </div>
+            )}
+          </form>
+        )}
+      </Modal>
+
+      {/* 6. ASSIGN CUSTOM PLAN TO RESTAURANT MODAL */}
+      <Modal
+        isOpen={assignCustomModalOpen}
+        onClose={() => setAssignCustomModalOpen(false)}
+        title="Assign Custom Plan to Restaurant"
+        subtitle="Activate custom operational configuration directly onto a restaurant tenant."
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setAssignCustomModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="brand" size="sm" onClick={handleConfirmAssignCustom}>
+              Confirm &amp; Assign Custom Plan
+            </Button>
+          </div>
+        }
+      >
+        {assignCustomTenant && (
+          <form onSubmit={handleConfirmAssignCustom} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Select Target Restaurant
+              </label>
+              <select
+                value={assignTargetRestaurantId}
+                onChange={(e) => setAssignTargetRestaurantId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                {restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({r.cuisine} • Currently on {r.planName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs space-y-2">
+              <span className="font-bold text-slate-900 block">
+                Custom Configuration Summary:
+              </span>
+              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-700">
+                <span className="text-slate-500">Outlets &amp; POS Stations:</span>
+                <span className="font-semibold text-slate-900">{assignCustomTenant.outlets} Outlets • {assignCustomTenant.terminals} Terminals</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-700">
+                <span className="text-slate-500">Staff Accounts:</span>
+                <span className="font-semibold text-slate-900">{assignCustomTenant.staffCount} Accounts</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-700">
+                <span className="text-slate-500">Active Modules:</span>
+                <span className="font-semibold text-slate-900">{assignCustomTenant.activeModules.length} Modules</span>
+              </div>
+              <div className="flex justify-between py-1 text-slate-700">
+                <span className="text-slate-500">Subscription Rate:</span>
+                <span className="font-mono font-bold text-emerald-600 text-sm">
+                  {formatINR(assignCustomTenant.monthlyAmount)}/mo ({formatINR(assignCustomTenant.annualAmount)}/yr)
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Instant Provisioning:</strong> The tenant's limits, allowed terminals, and modular capabilities will update immediately.
+              </span>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

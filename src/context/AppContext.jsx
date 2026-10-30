@@ -55,9 +55,13 @@ import {
   validateAndAuthorizePricing,
   BASE_PLANS,
   FEATURE_ADDONS,
+  MODULE_CATALOG,
+  PRICING_UNIT_RATES,
   AUTOMATION_LIMITS,
   calculatePlanSavings,
   syncPricingEnginePlans,
+  syncPricingEngineModules,
+  syncPricingEngineUnitRates,
 } from '../services/pricingEngine';
 
 import {
@@ -208,6 +212,16 @@ export const AppProvider = ({ children }) => {
     }
     if (typeof syncPricingEnginePlans === 'function') syncPricingEnginePlans(loaded);
     if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(loaded);
+    return loaded;
+  });
+  const [customPlanModules, setCustomPlanModules] = useState(() => {
+    const loaded = loadStored('customPlanModules', MODULE_CATALOG);
+    if (typeof syncPricingEngineModules === 'function') syncPricingEngineModules(loaded);
+    return loaded;
+  });
+  const [pricingUnitRates, setPricingUnitRates] = useState(() => {
+    const loaded = loadStored('pricingUnitRates', PRICING_UNIT_RATES);
+    if (typeof syncPricingEngineUnitRates === 'function') syncPricingEngineUnitRates(loaded);
     return loaded;
   });
   const [users, setUsers] = useState(() => {
@@ -381,6 +395,16 @@ export const AppProvider = ({ children }) => {
     if (typeof syncPricingEnginePlans === 'function') syncPricingEnginePlans(plans);
     if (typeof syncBranchPlansConfig === 'function') syncBranchPlansConfig(plans);
   }, [plans]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_customPlanModules`, JSON.stringify(customPlanModules));
+    if (typeof syncPricingEngineModules === 'function') syncPricingEngineModules(customPlanModules);
+  }, [customPlanModules]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_pricingUnitRates`, JSON.stringify(pricingUnitRates));
+    if (typeof syncPricingEngineUnitRates === 'function') syncPricingEngineUnitRates(pricingUnitRates);
+  }, [pricingUnitRates]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(users));
@@ -3184,6 +3208,230 @@ export const AppProvider = ({ children }) => {
     );
 
     addToast('All subscription plans have been reset to platform defaults.', 'info');
+    return true;
+  };
+
+  const updateCustomPlanModule = (moduleId, updates) => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can modify custom plan modules.', 'error');
+      return false;
+    }
+
+    let updatedModule = null;
+    setCustomPlanModules((prev) => {
+      const next = prev.map((m) => {
+        if (m.id === moduleId) {
+          const monthlyPrice = updates.monthlyPrice !== undefined ? Math.max(0, Number(updates.monthlyPrice) || 0) : m.monthlyPrice;
+          const annualPrice = updates.annualPrice !== undefined
+            ? Math.max(0, Number(updates.annualPrice) || 0)
+            : updates.monthlyPrice !== undefined
+              ? Math.round(monthlyPrice * 12 * 0.8)
+              : m.annualPrice;
+
+          updatedModule = {
+            ...m,
+            ...updates,
+            monthlyPrice,
+            annualPrice,
+            status: updates.status || m.status || 'active',
+          };
+          return updatedModule;
+        }
+        return m;
+      });
+      return next;
+    });
+
+    if (updatedModule) {
+      addPlatformLog(
+        currentUser?.name || 'Super Admin',
+        'Custom Plan Module Updated',
+        `${updatedModule.name} (${formatINR(updatedModule.monthlyPrice)}/mo, status: ${updatedModule.status})`,
+        'Billing',
+        'success'
+      );
+      addToast(`Custom plan module "${updatedModule.name}" updated successfully.`, 'success');
+      return true;
+    }
+    return false;
+  };
+
+  const addCustomPlanModule = (moduleData) => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can create custom plan modules.', 'error');
+      return false;
+    }
+
+    if (!moduleData.name || !moduleData.name.trim()) {
+      addToast('Module name is required.', 'error');
+      return false;
+    }
+
+    const id = moduleData.id?.trim() || `mod_${moduleData.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${Date.now().toString().slice(-4)}`;
+
+    if (customPlanModules.some((m) => m.id === id)) {
+      addToast('A module with this identifier already exists.', 'error');
+      return false;
+    }
+
+    const monthlyPrice = Math.max(0, Number(moduleData.monthlyPrice) || 0);
+    const annualPrice = moduleData.annualPrice !== undefined && Number(moduleData.annualPrice) > 0
+      ? Number(moduleData.annualPrice)
+      : Math.round(monthlyPrice * 12 * 0.8);
+
+    const newModule = {
+      id,
+      name: moduleData.name.trim(),
+      description: moduleData.description?.trim() || 'Custom operational capability for StockMate restaurants.',
+      category: moduleData.category || 'Integrations',
+      monthlyPrice,
+      annualPrice,
+      isBaseModule: Boolean(moduleData.isBaseModule),
+      isRequired: Boolean(moduleData.isRequired),
+      status: moduleData.status || 'active',
+      createdAt: new Date().toISOString(),
+    };
+
+    setCustomPlanModules((prev) => [...prev, newModule]);
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'New Custom Plan Module Added',
+      `${newModule.name} (${formatINR(newModule.monthlyPrice)}/mo in ${newModule.category})`,
+      'Billing',
+      'success'
+    );
+    addToast(`New module "${newModule.name}" created successfully.`, 'success');
+    return newModule;
+  };
+
+  const deleteCustomPlanModule = (moduleId) => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can delete custom plan modules.', 'error');
+      return false;
+    }
+
+    const mod = customPlanModules.find((m) => m.id === moduleId);
+    if (!mod) {
+      addToast('Module not found.', 'error');
+      return false;
+    }
+
+    if (mod.isBaseModule || mod.id === 'pos_billing' || mod.isRequired) {
+      addToast('Cannot delete Foundation Base POS or required modules.', 'error');
+      return false;
+    }
+
+    setCustomPlanModules((prev) => prev.filter((m) => m.id !== moduleId));
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'Custom Plan Module Deleted',
+      `${mod.name} was removed from the modular catalog.`,
+      'Billing',
+      'warning'
+    );
+    addToast(`Module "${mod.name}" was removed from the catalog.`, 'info');
+    return true;
+  };
+
+  const assignCustomPlanToRestaurant = (restaurantId, customConfig = {}) => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can assign custom plans.', 'error');
+      return false;
+    }
+
+    const restaurant = restaurants.find((r) => r.id === restaurantId);
+    if (!restaurant) {
+      addToast('Restaurant not found.', 'error');
+      return false;
+    }
+
+    const monthlyAmount = customConfig.monthlyAmount || 2477;
+    const annualAmount = customConfig.annualAmount || monthlyAmount * 12;
+
+    setRestaurants((prev) =>
+      prev.map((r) => {
+        if (r.id === restaurantId) {
+          return {
+            ...r,
+            planId: 'plan-custom',
+            planName: 'Custom Plan (Build Your Own)',
+            branches: customConfig.outlets || r.branches || 1,
+            customPlanConfig: {
+              ...customConfig,
+              assignedAt: new Date().toISOString(),
+              assignedBy: currentUser?.name || 'Super Admin',
+            },
+            monthlyUsage: {
+              ...(r.monthlyUsage || {}),
+              staffCount: customConfig.staffCount || r.monthlyUsage?.staffCount || 10,
+              posTerminals: customConfig.terminals || 2,
+            },
+            status: 'active',
+          };
+        }
+        return r;
+      })
+    );
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'Custom Plan Assigned to Restaurant',
+      `Assigned custom plan configuration to ${restaurant.name} (${formatINR(monthlyAmount)}/mo)`,
+      'Billing',
+      'success'
+    );
+    addToast(`Custom plan assigned to "${restaurant.name}" successfully.`, 'success');
+    return true;
+  };
+
+  const updatePricingUnitRates = (newRates) => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can modify pricing billing rules.', 'error');
+      return false;
+    }
+
+    setPricingUnitRates((prev) => {
+      const updated = {
+        ...prev,
+        ...newRates,
+      };
+      return updated;
+    });
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'Pricing Unit Rates Updated',
+      `Terminal rate: ${formatINR(newRates.additionalTerminalMonthly || pricingUnitRates.additionalTerminalMonthly)}/mo, GST: ${(Number(newRates.gstRate ?? pricingUnitRates.gstRate) * 100).toFixed(0)}%`,
+      'Billing',
+      'success'
+    );
+    addToast('Pricing unit scaling rates and billing rules updated successfully.', 'success');
+    return true;
+  };
+
+  const resetCustomPlanModulesToDefaults = () => {
+    if (currentUser?.role !== 'super_admin') {
+      addToast('Unauthorized: Only Super Admin can reset custom plan modules.', 'error');
+      return false;
+    }
+
+    setCustomPlanModules(MODULE_CATALOG);
+    setPricingUnitRates(PRICING_UNIT_RATES);
+    localStorage.setItem(`${STORAGE_KEY}_customPlanModules`, JSON.stringify(MODULE_CATALOG));
+    localStorage.setItem(`${STORAGE_KEY}_pricingUnitRates`, JSON.stringify(PRICING_UNIT_RATES));
+    if (typeof syncPricingEngineModules === 'function') syncPricingEngineModules(MODULE_CATALOG);
+    if (typeof syncPricingEngineUnitRates === 'function') syncPricingEngineUnitRates(PRICING_UNIT_RATES);
+
+    addPlatformLog(
+      currentUser?.name || 'Super Admin',
+      'Custom Plan Modules Reset',
+      'Reverted all modular add-ons and unit scaling rates to factory defaults.',
+      'Billing',
+      'warning'
+    );
+    addToast('Custom plan modules and unit rates reset to defaults.', 'info');
     return true;
   };
 
@@ -6434,6 +6682,8 @@ export const AppProvider = ({ children }) => {
         currentRestaurant,
         restaurants,
         plans,
+        customPlanModules,
+        pricingUnitRates,
         users,
         suppliers,
         ingredients,
@@ -6570,11 +6820,17 @@ export const AppProvider = ({ children }) => {
         updatePOStatus,
         verifyAndReceiveStock,
 
-        // Workflow D
+        // Workflow D & Custom Plan System
         updatePlan,
         resetPlansToDefaults,
         getPlanById,
         assignPlanToRestaurant,
+        addCustomPlanModule,
+        updateCustomPlanModule,
+        deleteCustomPlanModule,
+        assignCustomPlanToRestaurant,
+        updatePricingUnitRates,
+        resetCustomPlanModulesToDefaults,
 
         // Staff & Users
         addStaff,

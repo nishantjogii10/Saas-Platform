@@ -123,6 +123,35 @@ export const SignUpPage = () => {
         isTrial: planParam === 'plan-custom' ? false : prev.isTrial,
       }));
     }
+
+    // Hydrate custom plan configuration if set from Public Custom Plan Builder
+    try {
+      const savedCustom = localStorage.getItem('stockmate_custom_plan_config');
+      if (savedCustom) {
+        const parsed = JSON.parse(savedCustom);
+        if (parsed && (planParam === 'plan-custom' || parsed.basePlanId === 'plan-custom')) {
+          setCustomConfig((prev) => ({
+            ...prev,
+            outlets: parsed.outlets || prev.outlets,
+            staffAccounts: parsed.staffSeats || parsed.staffAccounts || prev.staffAccounts,
+            terminals: parsed.totalTerminals || (parsed.additionalTerminals !== undefined ? parsed.additionalTerminals + 1 : prev.terminals),
+            selectedModuleIds: Array.isArray(parsed.selectedModuleIds) && parsed.selectedModuleIds.length > 0
+              ? parsed.selectedModuleIds
+              : prev.selectedModuleIds,
+          }));
+          if (parsed.billingCycle) {
+            setFormData((prev) => ({
+              ...prev,
+              billingCycle: parsed.billingCycle,
+              planId: 'plan-custom',
+              isTrial: false,
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to parse saved custom plan config', err);
+    }
   }, [searchParams]);
 
   // Centralized Custom Pricing Calculation

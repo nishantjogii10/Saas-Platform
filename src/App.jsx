@@ -814,6 +814,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/home" element={<LandingPage />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/pricing" element={<LandingPage />} />
           <Route path="/app" element={<RootRedirect />} />
 
           {/* Default Fallback Route */}
