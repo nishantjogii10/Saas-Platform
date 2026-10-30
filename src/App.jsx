@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { AccessDenied } from './components/layout/AccessDenied';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -173,6 +174,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
+        <ThemeProvider>
         <Router>
           <Routes>
           {/* Public Auth Routes */}
@@ -821,7 +823,8 @@ function App() {
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </Router>
-    </AppProvider>
+        </ThemeProvider>
+      </AppProvider>
   </ErrorBoundary>
   );
 }

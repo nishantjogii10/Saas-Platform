@@ -5,6 +5,7 @@ import { Card, CardHeader } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { FormInput } from '../../components/common/FormInput';
+import { ThemeToggle } from '../../components/common/ThemeToggle';
 import {
   User,
   Mail,
@@ -588,6 +589,20 @@ export const MyProfilePage = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Appearance & Theme Mode Section */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-100 dark:border-white/10">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Appearance &amp; Theme Mode</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Choose Light, Dark, or automatically synchronize with your device preferences.</p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+              Saved to Account
+            </span>
+          </div>
+          <ThemeToggle variant="segmented" className="max-w-md" />
         </div>
 
         {/* Action Controls */}

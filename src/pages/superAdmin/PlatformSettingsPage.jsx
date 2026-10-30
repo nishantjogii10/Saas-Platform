@@ -31,6 +31,7 @@ import { Badge } from '../../components/common/Badge';
 import { FormInput } from '../../components/common/FormInput';
 import { Modal } from '../../components/common/Modal';
 import { ConfirmModal } from '../../components/common/ConfirmModal';
+import { ThemeToggle } from '../../components/common/ThemeToggle';
 import {
   AVAILABLE_CURRENCIES,
   AVAILABLE_TIMEZONES,
@@ -568,6 +569,24 @@ export const PlatformSettingsPage = () => {
                       onChange={(e) => setGeneralForm({ ...generalForm, termsOfServiceUrl: e.target.value })}
                       placeholder="https://stockmate.io/terms"
                     />
+                  </div>
+
+                  {/* Super Admin Appearance Mode */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 mt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">
+                          Platform Appearance Mode
+                        </span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Personal theme preference for your administrator console session (Light, Dark, or System).
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        Saved Per User
+                      </span>
+                    </div>
+                    <ThemeToggle variant="segmented" className="max-w-md" />
                   </div>
 
                   {/* Tenant Registration Approval Governance */}

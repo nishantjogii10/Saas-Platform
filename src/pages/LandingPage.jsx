@@ -5,7 +5,6 @@ import {
   Boxes,
   ChefHat,
   Building2,
-  CheckCircle2,
   ArrowRight,
   TrendingUp,
   ClockAlert,
@@ -20,38 +19,24 @@ import {
   Truck,
   Store,
   QrCode,
-  FileText,
   Sliders,
-  Wrench,
-  ArrowUpRight,
-  ShieldCheck,
-  AlertTriangle,
-  RotateCcw,
-  BarChart3,
-  Layers,
-  Clock,
-  Users,
-  ArrowLeftRight,
-  ShieldAlert,
-  Zap,
   Activity,
-  Calendar,
   Search,
-  Scale,
-  Printer,
-  FileSpreadsheet,
-  CheckCircle,
-  AlertCircle,
-  HelpCircle,
-  Filter,
   Monitor,
   Tablet,
   Bike,
   Plus,
+  Filter,
+  CheckCircle,
 } from 'lucide-react';
 import { formatINR } from '../data/inventoryBillingData';
 import { BASE_PLANS } from '../services/pricingEngine';
 import { CustomPlanBuilderModal } from '../components/pricing/CustomPlanBuilderModal';
+import { InventoryProductHotspots } from '../components/landing/InventoryProductHotspots';
+import { ExpandingFeatureAccordion } from '../components/landing/ExpandingFeatureAccordion';
+import { InteractiveBranchDirectory } from '../components/landing/InteractiveBranchDirectory';
+import { LiquidMetalBlob3D } from '../components/landing/LiquidMetalBlob3D';
+import { IngredientArcCarousel } from '../components/landing/IngredientArcCarousel';
 
 export const LandingPage = () => {
   const { currentUser, logout, plans: dynamicPlans, customPlanModules, pricingUnitRates } = useApp();
@@ -486,11 +471,20 @@ export const LandingPage = () => {
               <a href="#hero" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
                 Home
               </a>
+              <a href="#hotspots" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
+                Hotspots
+              </a>
+              <a href="#recipe-arc" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
+                Recipe Arc
+              </a>
               <a href="#features" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
                 Features
               </a>
               <a href="#how-it-works" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
                 How It Works
+              </a>
+              <a href="#branches" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
+                Branches
               </a>
               <a href="#calculator" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
                 Savings Calculator
@@ -580,6 +574,20 @@ export const LandingPage = () => {
               Home
             </a>
             <a
+              href="#hotspots"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-slate-300 py-1"
+            >
+              Hotspots
+            </a>
+            <a
+              href="#recipe-arc"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-slate-300 py-1"
+            >
+              Recipe Arc
+            </a>
+            <a
               href="#features"
               onClick={() => setMobileMenuOpen(false)}
               className="block text-sm font-medium text-slate-300 py-1"
@@ -592,6 +600,13 @@ export const LandingPage = () => {
               className="block text-sm font-medium text-slate-300 py-1"
             >
               How It Works
+            </a>
+            <a
+              href="#branches"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-sm font-medium text-slate-300 py-1"
+            >
+              Branches
             </a>
             <a
               href="#calculator"
@@ -668,65 +683,128 @@ export const LandingPage = () => {
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.12] mb-6">
               <span className="block animate-hero-title-1">
-                Stop Food Waste.{' '}
-                <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
-                  Save Money.
-                </span>
+                Take Control of Every Ingredient.{' '}
               </span>
-              <span className="block animate-hero-title-2 mt-1 sm:mt-2">
-                Keep Your Kitchen Stocked.
+              <span className="block animate-hero-title-2 mt-1 sm:mt-2 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
+                Maximize Every Profit.
               </span>
             </h1>
 
-            {/* Subheading */}
+            {/* Supporting Text */}
             <p className="animate-hero-desc text-base sm:text-lg lg:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed mb-8">
-              The complete kitchen inventory management suite. Track expiry with FEFO rotation, generate verified Goods Received Notes (GRNs) with pure SVG QR codes, reconcile supplier invoices, and control food costs across all restaurant branches.
+              Manage restaurant inventory, automate supplier workflows, track expiry with FEFO, and control food costs across every branch.
             </p>
 
             {/* Primary Action Buttons */}
-            <div className="animate-hero-cta flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            <div className="animate-hero-cta flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-10">
               <Link
                 to="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
               >
-                <span>Get Started Free</span>
+                <span>Start Free Trial</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
 
               <a
-                href="#how-it-works"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm border border-slate-700/80 transition-all hover:-translate-y-0.5 active:scale-[0.98]"
+                href="#features"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm border border-slate-700/80 transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-md"
               >
-                <span>See How It Works</span>
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>Explore Platform</span>
               </a>
 
               <Link
                 to="/login"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-800/80 transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-800/80 transition-colors"
               >
                 <ChefHat className="w-4 h-4" />
                 <span>Kitchen Terminal Login</span>
               </Link>
             </div>
+          </div>
 
-            {/* Verifiable Trust Indicators */}
-            <div className="animate-hero-trust mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-medium text-slate-400">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>14-day free trial</span>
+          {/* 🌟 3D LIQUID-METAL ORGANIC BLOB HERO SHOWCASE WITH FLOATING GLASS CARDS 🌟 */}
+          <div className="relative max-w-5xl mx-auto my-8 sm:my-12">
+            {/* Dynamic Ambient Radiant Refraction */}
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-indigo-500/15 rounded-full blur-[110px] pointer-events-none opacity-80" />
+
+            {/* Central Interactive 3D Liquid Metal Blob */}
+            <div className="relative z-10 flex items-center justify-center">
+              <LiquidMetalBlob3D className="mx-auto" />
+            </div>
+
+            {/* Floating Glassmorphism Information Cards */}
+            {/* Card 1: Top-Left — Real-Time Spoilage Rate */}
+            <div className="absolute top-4 -left-2 sm:left-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                <Activity className="w-5 h-5 animate-pulse" />
               </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>No credit card required</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-live-beacon" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">Live Kitchen Metric</span>
+                </div>
+                <div className="text-sm font-black text-white">0.4% Spoilage Rate</div>
+                <div className="text-[11px] text-slate-300 truncate">FEFO automated batch rotation</div>
               </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Quick 3-minute setup</span>
+            </div>
+
+            {/* Card 2: Top-Right — Receiving Dock GRN */}
+            <div className="absolute top-4 -right-2 sm:right-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center shrink-0">
+                <PackageCheck className="w-5 h-5" />
               </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Pure SVG QR batch labels</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-400">Dock GRN Verified</span>
+                </div>
+                <div className="text-sm font-black text-white">100% Reconciled</div>
+                <div className="text-[11px] text-slate-300 truncate">Zero invoice variance claims</div>
               </div>
+            </div>
+
+            {/* Card 3: Bottom-Left — Multi-Branch Network */}
+            <div className="absolute bottom-6 -left-2 sm:left-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-400">Multi-Unit SaaS</span>
+                <div className="text-sm font-black text-white">5 Active Branches</div>
+                <div className="text-[11px] text-slate-300 truncate">HQ commissary dispatch synced</div>
+              </div>
+            </div>
+
+            {/* Card 4: Bottom-Right — Food Cost Margin */}
+            <div className="absolute bottom-6 -right-2 sm:right-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">Average Profit Impact</span>
+                <div className="text-sm font-black text-white">+₹48,200 / Month</div>
+                <div className="text-[11px] text-slate-300 truncate">Eliminated walk-in waste</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Verifiable Trust Indicators */}
+          <div className="animate-hero-trust mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-medium text-slate-400">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>14-day free trial</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>No credit card required</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Quick 3-minute setup</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Pure SVG QR batch labels</span>
             </div>
           </div>
 
@@ -1168,6 +1246,20 @@ export const LandingPage = () => {
         </div>
       </section>
 
+      {/* 3.5. INTERACTIVE INVENTORY PRODUCT HOTSPOTS */}
+      <section id="hotspots" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <InventoryProductHotspots />
+        </div>
+      </section>
+
+      {/* 3.6. 3D FOOD INGREDIENT ARC CAROUSEL & RECIPE COSTING */}
+      <section id="recipe-arc" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <IngredientArcCarousel />
+        </div>
+      </section>
+
       {/* 4. GENUINELY INTERACTIVE 4-STEP OPERATIONAL FLOW */}
       <section id="how-it-works" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1263,6 +1355,22 @@ export const LandingPage = () => {
       {/* 5. BENTO-STYLE PRODUCT CAPABILITIES MATRIX */}
       <section id="features" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* 5A. Expanding Feature Accordion Showcase */}
+          <div className="mb-20">
+            <ExpandingFeatureAccordion />
+          </div>
+
+          {/* Divider between Accordion Showcase and Bento Deep Dive */}
+          <div className="relative my-16 text-center">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider text-emerald-300 bg-slate-900 border border-emerald-500/30 shadow-md">
+                Granular Technical Capabilities Matrix
+              </span>
+            </div>
+          </div>
           <div className="reveal-on-scroll text-center max-w-3xl mx-auto mb-16">
             <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-3.5 py-1 rounded-full">
               Enterprise Kitchen Architecture
@@ -1572,6 +1680,13 @@ export const LandingPage = () => {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* 6.5. INTERACTIVE MULTI-BRANCH DIRECTORY */}
+      <section id="branches" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <InteractiveBranchDirectory />
         </div>
       </section>
 

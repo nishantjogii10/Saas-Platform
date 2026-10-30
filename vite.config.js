@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    host: true, // Listen on all network interfaces (LAN sharing)
+    port: 5173,
+  },
   build: {
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
@@ -12,6 +16,7 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-charts': ['recharts'],
           'vendor-icons': ['lucide-react'],
+          'vendor-three': ['three'],
         },
       },
     },

@@ -17,6 +17,7 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { FormInput } from '../../components/common/FormInput';
+import { ThemeToggle } from '../../components/common/ThemeToggle';
 import { formatINR } from '../../data/inventoryBillingData';
 
 export const RestaurantSettingsPage = () => {
@@ -190,6 +191,18 @@ export const RestaurantSettingsPage = () => {
                 Update Notification Rules
               </Button>
             </form>
+          </Card>
+
+          {/* Appearance & Theme Mode */}
+          <Card>
+            <CardHeader
+              title="Appearance &amp; Theme Mode"
+              subtitle="Personalize your dashboard session (Light, Dark, or System)"
+              icon={Sparkles}
+            />
+            <div className="pt-1">
+              <ThemeToggle variant="segmented" className="max-w-md" />
+            </div>
           </Card>
         </div>
 

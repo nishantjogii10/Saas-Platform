@@ -10,12 +10,30 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
-      try {
-        localStorage.removeItem('stockmate_theme');
-        document.documentElement.classList.remove('dark');
-        document.documentElement.removeAttribute('data-theme');
-        document.documentElement.removeAttribute('data-theme-preference');
-      } catch (e) {}
+      (function() {
+        try {
+          var activeUserId = localStorage.getItem('stockmate_active_user_id');
+          var userKey = activeUserId ? ('stockmate_user_theme_' + activeUserId) : null;
+          var savedMode = userKey ? localStorage.getItem(userKey) : null;
+          if (!savedMode) {
+            savedMode = localStorage.getItem('stockmate_theme_mode') || 'light';
+          }
+          var effectiveTheme = savedMode;
+          if (savedMode === 'system') {
+            effectiveTheme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+          }
+          if (effectiveTheme !== 'dark' && effectiveTheme !== 'light') {
+            effectiveTheme = 'light';
+          }
+          document.documentElement.setAttribute('data-theme', effectiveTheme);
+          document.documentElement.setAttribute('data-theme-mode', savedMode);
+          if (effectiveTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
     </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-sans">

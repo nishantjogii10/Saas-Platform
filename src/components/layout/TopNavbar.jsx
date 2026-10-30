@@ -22,6 +22,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 const formatBranchName = (name) => {
   if (!name) return '';
@@ -394,7 +395,9 @@ const roleFilteredAlerts = React.useMemo(() => {
       </div>
 
       {/* Right: Notifications, Role Badge & User Profile Dropdown */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Global SaaS Theme Switcher */}
+        <ThemeToggle variant="dropdown" />
         {/* Role Badge */}
         <Badge status={currentUser?.role || 'active'} size="md" className="hidden sm:inline-flex" />
 
@@ -636,6 +639,14 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                     <span>Platform Settings</span>
                   </button>
                 )}
+
+                <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>Appearance Theme</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-500 font-semibold">Active</span>
+                  </div>
+                  <ThemeToggle variant="segmented" className="w-full justify-between" />
+                </div>
 
                 <button
                   onClick={() => {

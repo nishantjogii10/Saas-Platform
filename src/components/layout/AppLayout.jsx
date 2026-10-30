@@ -9,7 +9,7 @@ export const AppLayout = ({ children }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col bg-ambient-canvas text-slate-800 overflow-hidden">
+    <div className="h-screen flex flex-col bg-ambient-canvas text-slate-800 dark:text-slate-100 overflow-hidden transition-colors duration-200">
       {/* Main Workspace: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         <Sidebar
