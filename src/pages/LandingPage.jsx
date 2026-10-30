@@ -44,13 +44,19 @@ import {
   AlertCircle,
   HelpCircle,
   Filter,
+  Monitor,
+  Tablet,
+  Bike,
+  Plus,
 } from 'lucide-react';
 import { formatINR } from '../data/inventoryBillingData';
 import { BASE_PLANS } from '../services/pricingEngine';
+import { CustomPlanBuilderModal } from '../components/pricing/CustomPlanBuilderModal';
 
 export const LandingPage = () => {
-  const { currentUser, logout, plans: dynamicPlans } = useApp();
+  const { currentUser, logout, plans: dynamicPlans, customPlanModules, pricingUnitRates } = useApp();
   const [showFeatureComparison, setShowFeatureComparison] = useState(false);
+  const [isCustomBuilderOpen, setIsCustomBuilderOpen] = useState(false);
   const navigate = useNavigate();
 
   // Scroll detection for sticky navbar dynamic backdrop elevation
@@ -1613,8 +1619,8 @@ export const LandingPage = () => {
             </div>
           </div>
 
-          {/* 3 Core Dynamic Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-10">
+          {/* 4 Pricing Plans: Starter, Professional, Enterprise, and Custom Plan Builder */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch mb-10 pt-6">
             {((dynamicPlans && dynamicPlans.length > 0 ? dynamicPlans : Object.values(BASE_PLANS))
               .filter((p) => p.status !== 'inactive' && p.id !== 'plan-custom'))
               .map((plan) => {
@@ -1630,14 +1636,14 @@ export const LandingPage = () => {
                 return (
                   <div
                     key={plan.id}
-                    className={`reveal-on-scroll motion-card rounded-3xl p-8 flex flex-col justify-between transition-all duration-300 relative liquid-glass-card hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/30 ${
+                    className={`reveal-on-scroll motion-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative liquid-glass-card hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/30 ${
                       isPopular
                         ? 'border-2 border-emerald-500 shadow-2xl ring-2 ring-emerald-500/20'
                         : 'border border-white/10 hover:border-emerald-500/40'
                     }`}
                   >
                     {isPopular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md">
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md whitespace-nowrap z-10">
                         Most Popular Choice
                       </div>
                     )}
@@ -1728,7 +1734,7 @@ export const LandingPage = () => {
 
                     <Link
                       to={`/signup?plan=${plan.id}`}
-                      className={`mt-8 w-full py-3.5 rounded-xl font-bold text-xs text-center transition-all block shadow-sm ${
+                      className={`mt-8 w-full h-11 rounded-xl font-bold text-xs text-center transition-all flex items-center justify-center leading-normal shadow-sm ${
                         isPopular
                           ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm shadow-lg shadow-emerald-600/30'
                           : 'bg-slate-800 hover:bg-slate-700 text-white'
@@ -1739,6 +1745,205 @@ export const LandingPage = () => {
                   </div>
                 );
               })}
+
+            {/* Fourth Option: CUSTOM PLAN — Build Your Own */}
+            <div className="reveal-on-scroll motion-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative liquid-glass-card hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/40 border border-emerald-500/40 hover:border-emerald-400/80 bg-gradient-to-b from-emerald-950/30 via-slate-900/70 to-slate-950/95 group">
+              {/* Premium Gradient Top Badge */}
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-300 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap z-20 pointer-events-none">
+                <Sparkles className="w-3 h-3 text-slate-950 shrink-0" />
+                <span>Build Your Own</span>
+              </div>
+
+              <div>
+                {/* Header Badge */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
+                    Custom Plan
+                  </span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border text-emerald-300 bg-emerald-950/80 border-emerald-700/60 flex items-center gap-1">
+                    <Sliders className="w-2.5 h-2.5" />
+                    <span>Interactive</span>
+                  </span>
+                </div>
+
+                {/* Price Display */}
+                {(() => {
+                  const basePosMod = (customPlanModules || []).find((m) => m.id === 'pos_billing');
+                  const baseMonthlyRate = basePosMod?.monthlyPrice || 599;
+                  const baseAnnualRate = basePosMod?.annualPrice || 5748;
+                  const baseEffectiveMonthly = Math.round(baseAnnualRate / 12);
+                  const getModPrice = (id, fallback) => (customPlanModules || []).find((m) => m.id === id)?.monthlyPrice ?? fallback;
+                  const terminalRate = pricingUnitRates?.additionalTerminalMonthly || 250;
+
+                  return (
+                    <>
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-xs text-slate-400 font-bold">Starts at</span>
+                        <span className="text-4xl font-black text-white">
+                          {billingCycle === 'annual' ? formatINR(baseEffectiveMonthly) : formatINR(baseMonthlyRate)}
+                        </span>
+                        <span className="text-xs text-slate-400">/ month</span>
+                      </div>
+
+                      {/* Annual Savings Notice */}
+                      <div className="text-[11px] text-emerald-400 font-medium mb-3">
+                        {billingCycle === 'annual' ? (
+                          <span>Base starts at {formatINR(baseAnnualRate)}/yr (Save ~20% on all modules)</span>
+                        ) : (
+                          <span className="text-slate-400">Select only what you use, cancel anytime</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed mb-4 min-h-[34px]">
+                        Choose the features your restaurant needs. Pay only for the capabilities you select.
+                      </p>
+
+                      {/* Interactive Configurable Module Feature Chips */}
+                      <div className="space-y-2 mb-5">
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <span>Configurable Capabilities:</span>
+                          <span className="text-emerald-400 font-bold">Interactive Chips</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/90 border border-emerald-500/40 text-left hover:border-emerald-400 hover:bg-slate-800/80 transition-all group/item shadow-xs"
+                            title="Base POS & Cloud Billing (Included Foundation)"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Monitor className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Base POS</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">{formatINR(baseMonthlyRate)}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Cloud Register &amp; KOT</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
+                            title="Advanced Inventory & Recipe Costing"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <ChefHat className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Recipe Costing</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('recipe_costing', 600))}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Food Cost BOMs</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
+                            title="Zomato & Swiggy Integration"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Bike className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Aggregator</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('aggregator_integration', 400))}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Zomato / Swiggy</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
+                            title="Table & Captain Ordering Tablet Terminal"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Tablet className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Captain Tablet</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('table_captain_ordering', 300))}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Table Ordering</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
+                            title="Multi-Branch Management"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Store className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Multi-Branch</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('multi_store_mgmt', 800))}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Commissary Transfers</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomBuilderOpen(true)}
+                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
+                            title="Additional POS Terminals"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Plus className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-bold text-white text-[11px] truncate">Extra POS</span>
+                              </div>
+                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(terminalRate)}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">Per device / month</span>
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* Value Highlights List */}
+                <div className="space-y-2.5 text-xs text-slate-300 pt-3 border-t border-emerald-950/80">
+                  <div className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">1 Primary POS Station included free</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">Live interactive pricing calculator</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">Scale or reduce modules anytime</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Action Button */}
+              <div className="mt-8 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCustomBuilderOpen(true)}
+                  className="w-full h-11 rounded-xl font-black text-xs transition-all shadow-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 flex items-center justify-center gap-2 hover:shadow-emerald-500/30 active:scale-[0.99] leading-normal"
+                >
+                  <Sliders className="w-4 h-4 text-slate-950" />
+                  <span>Customize Your Plan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCustomBuilderOpen(true)}
+                  className="w-full text-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors py-1 hover:underline block"
+                >
+                  Calculate Live Monthly &amp; Annual Pricing &rarr;
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* View All Features & Plan Comparison Expandable Section */}
@@ -1792,11 +1997,19 @@ export const LandingPage = () => {
                           {billingCycle === 'annual' ? '₹4,499/mo' : '₹5,499/mo'}
                         </div>
                       </th>
+                      <th className="py-3.5 px-4 text-center bg-emerald-950/30 rounded-t-xl border-l border-emerald-500/20">
+                        <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 font-extrabold text-sm">
+                          Custom Plan
+                        </div>
+                        <div className="text-emerald-400 font-bold text-xs">
+                          {billingCycle === 'annual' ? 'Starts ₹479/mo' : 'Starts ₹599/mo'}
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-slate-300">
                     <tr className="bg-slate-900/60 font-bold text-white">
-                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                      <td colSpan={5} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
                         Resource Allocations &amp; Tenant Limits
                       </td>
                     </tr>
@@ -1805,28 +2018,32 @@ export const LandingPage = () => {
                       <td className="py-3 px-4 text-center font-bold text-white">Up to 100 SKUs</td>
                       <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 500 SKUs</td>
                       <td className="py-3 px-4 text-center font-bold text-white">Unlimited SKUs</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-400 bg-emerald-950/30 border-l border-emerald-500/20">Flexible (Custom)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Included Staff User Seats</td>
                       <td className="py-3 px-4 text-center font-bold text-white">Up to 5 seats</td>
                       <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 15 seats</td>
                       <td className="py-3 px-4 text-center font-bold text-white">Unlimited seats</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-400 bg-emerald-950/30 border-l border-emerald-500/20">5+ Included seats</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Included Restaurant Outlets</td>
                       <td className="py-3 px-4 text-center font-bold text-white">1 Location</td>
                       <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">Up to 3 Locations</td>
                       <td className="py-3 px-4 text-center font-bold text-white">Unlimited Outlets</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-400 bg-emerald-950/30 border-l border-emerald-500/20">1+ Tailored outlets</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">POS Terminals Included</td>
                       <td className="py-3 px-4 text-center font-bold text-white">1 Terminal</td>
                       <td className="py-3 px-4 text-center font-bold text-emerald-300 bg-emerald-950/20">2 Terminals</td>
                       <td className="py-3 px-4 text-center font-bold text-white">5+ Terminals</td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-400 bg-emerald-950/30 border-l border-emerald-500/20">1 Base + Extra Stations</td>
                     </tr>
 
                     <tr className="bg-slate-900/60 font-bold text-white">
-                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                      <td colSpan={5} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
                         Core POS &amp; Dining Room Management
                       </td>
                     </tr>
@@ -1835,22 +2052,25 @@ export const LandingPage = () => {
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">✔ Included (Base)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Interactive Table Layout Editor</td>
                       <td className="py-3 px-4 text-center text-slate-500">—</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">Modular (+₹300)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Split-Bill &amp; Multi-Payment Engine</td>
                       <td className="py-3 px-4 text-center text-slate-500">—</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">✔ Included (Base)</td>
                     </tr>
 
                     <tr className="bg-slate-900/60 font-bold text-white">
-                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                      <td colSpan={5} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
                         Inventory &amp; FEFO Expiry Control
                       </td>
                     </tr>
@@ -1859,28 +2079,32 @@ export const LandingPage = () => {
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Standard</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Real-time</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Automated</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">Modular Add-on</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Pure SVG QR Batch Labels</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Unlimited</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Unlimited</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Unlimited</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">Modular Add-on</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Central Commissary &amp; Outlet Transfers</td>
                       <td className="py-3 px-4 text-center text-slate-500">—</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Up to 3 outlets</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Multi-commissary</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">Modular (+₹800)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Dock GRN &amp; Damaged Credit Claims</td>
                       <td className="py-3 px-4 text-center text-slate-500">—</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">Modular Add-on</td>
                     </tr>
 
                     <tr className="bg-slate-900/60 font-bold text-white">
-                      <td colSpan={4} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
+                      <td colSpan={5} className="py-2.5 px-4 uppercase text-[10px] tracking-wider text-emerald-400">
                         Kitchen Execution &amp; Staff Operations
                       </td>
                     </tr>
@@ -1889,18 +2113,21 @@ export const LandingPage = () => {
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Multi-station</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Multi-station</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">✔ Included (Base)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Staff Shift Clock &amp; Attendance</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">✔ Included (Base)</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-4 font-medium text-slate-200">Role-Based Security &amp; Permissions</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Included</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/20">✔ Granular RBAC</td>
                       <td className="py-3 px-4 text-center text-emerald-400 font-bold">✔ Enterprise RBAC</td>
+                      <td className="py-3 px-4 text-center text-emerald-400 font-bold bg-emerald-950/30 border-l border-emerald-500/20">✔ Included (Base)</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1923,13 +2150,14 @@ export const LandingPage = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-              <Link
-                to="/signup?plan=plan-custom"
+              <button
+                type="button"
+                onClick={() => setIsCustomBuilderOpen(true)}
                 className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-colors flex items-center justify-center gap-2"
               >
-                <span>Live Plan Builder</span>
-                <ArrowUpRight className="w-4 h-4" />
-              </Link>
+                <Sliders className="w-4 h-4 text-emerald-400" />
+                <span>Live Custom Plan Builder</span>
+              </button>
               <Link
                 to="/signup?plan=plan-custom"
                 className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-black text-center shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
@@ -1940,6 +2168,13 @@ export const LandingPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Interactive Custom Plan Builder Modal */}
+        <CustomPlanBuilderModal
+          isOpen={isCustomBuilderOpen}
+          onClose={() => setIsCustomBuilderOpen(false)}
+          defaultBillingCycle={billingCycle}
+        />
       </section>
 
       {/* 8. FAQ ACCORDION */}
