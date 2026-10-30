@@ -85,6 +85,7 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isOwner = currentUser?.role === 'restaurant_owner';
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [correctingRecord, setCorrectingRecord] = useState(null);
   const [isManagerLeaveModalOpen, setIsManagerLeaveModalOpen] = useState(false);
@@ -101,7 +102,8 @@ export const WorkforcePage = () => {
 
   // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
   const initialTab = searchParams.get('tab') || 'roster';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const safeInitialTab = (currentUser?.role === 'restaurant_owner' && (initialTab === 'leave' || initialTab === 'payroll' || initialTab === 'calendar')) ? 'roster' : initialTab;
+  const [activeTab, setActiveTab] = useState(safeInitialTab);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -272,6 +274,7 @@ export const WorkforcePage = () => {
 
   // Tab change handler
   const handleTabChange = (tab) => {
+    if (isOwner && (tab === 'leave' || tab === 'payroll' || tab === 'calendar')) return;
     setActiveTab(tab);
     setSearchParams({ tab });
   };
@@ -411,17 +414,19 @@ export const WorkforcePage = () => {
                 Import Staff
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              icon={IndianRupee}
-              onClick={() => {
-                setSalaryTargetStaff(null);
-                setIsSalaryModalOpen(true);
-              }}
-            >
-              Disburse Salary
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon={IndianRupee}
+                onClick={() => {
+                  setSalaryTargetStaff(null);
+                  setIsSalaryModalOpen(true);
+                }}
+              >
+                Disburse Salary
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -456,7 +461,7 @@ export const WorkforcePage = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className={`grid grid-cols-2 sm:grid-cols-2 ${isOwner ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-3 sm:gap-4`}>
         <StatCard
           title="Staff Directory"
           value={totalEmployees}
@@ -473,22 +478,26 @@ export const WorkforcePage = () => {
           variant={totalOnDuty > 0 ? 'success' : 'default'}
           onClick={() => handleTabChange('attendance')}
         />
-        <StatCard
-          title="Leave Requests"
-          value={pendingLeavesCount}
-          subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
-          icon={Calendar}
-          variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
-          onClick={() => handleTabChange('leave')}
-        />
-        <StatCard
-          title="Payroll Disbursed"
-          value={formatINR(totalMonthlyPayrollDisbursed)}
-          subtitle="Recent Settlements"
-          icon={IndianRupee}
-          variant="default"
-          onClick={() => handleTabChange('payroll')}
-        />
+        {!isOwner && (
+          <StatCard
+            title="Leave Requests"
+            value={pendingLeavesCount}
+            subtitle={pendingLeavesCount > 0 ? 'Requires Approval' : 'All Clear'}
+            icon={Calendar}
+            variant={pendingLeavesCount > 0 ? 'warning' : 'default'}
+            onClick={() => handleTabChange('leave')}
+          />
+        )}
+        {!isOwner && (
+          <StatCard
+            title="Payroll Disbursed"
+            value={formatINR(totalMonthlyPayrollDisbursed)}
+            subtitle="Recent Settlements"
+            icon={IndianRupee}
+            variant="default"
+            onClick={() => handleTabChange('payroll')}
+          />
+        )}
         <StatCard
           title="Transfers"
           value={pendingTransfersCount}
@@ -534,48 +543,54 @@ export const WorkforcePage = () => {
           </button>
 
           {/* Tab 2.5: Monthly Attendance Calendar */}
-          <button
-            onClick={() => handleTabChange('calendar')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'calendar'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Monthly Attendance Calendar</span>
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('calendar')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'calendar'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>Monthly Attendance Calendar</span>
+            </button>
+          )}
 
           {/* Tab 3: Leave & Shifts */}
-          <button
-            onClick={() => handleTabChange('leave')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'leave'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Leave &amp; Shifts</span>
-            {pendingLeavesCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
-                {pendingLeavesCount} Pending
-              </span>
-            )}
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('leave')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'leave'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Leave &amp; Shifts</span>
+              {pendingLeavesCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
+                  {pendingLeavesCount} Pending
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Tab 4: Payroll */}
-          <button
-            onClick={() => handleTabChange('payroll')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'payroll'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <IndianRupee className="w-4 h-4" />
-            <span>Payroll</span>
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => handleTabChange('payroll')}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'payroll'
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}
+            >
+              <IndianRupee className="w-4 h-4" />
+              <span>Payroll</span>
+            </button>
+          )}
 
           {/* Tab 5: Staff Transfers */}
           <button
@@ -762,19 +777,21 @@ export const WorkforcePage = () => {
 
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => {
-                                  setSalaryTargetStaff(staff);
-                                  setIsSalaryModalOpen(true);
-                                }}
-                                title="Disburse salary"
-                                className="text-emerald-800 border-emerald-200 hover:bg-emerald-50"
-                              >
-                                <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
-                                Pay
-                              </Button>
+                              {!isOwner && (
+                                <Button
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => {
+                                    setSalaryTargetStaff(staff);
+                                    setIsSalaryModalOpen(true);
+                                  }}
+                                  title="Disburse salary"
+                                  className="text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+                                >
+                                  <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                                  Pay
+                                </Button>
+                              )}
 
                               <Button
                                 variant="ghost"
@@ -824,7 +841,7 @@ export const WorkforcePage = () => {
       {activeTab === 'attendance' && (
         <div className="space-y-6">
           {/* Manager's Personal Shift Terminal & Punch Clock */}
-          <PunchClockWidget />
+          {!isOwner && <PunchClockWidget />}
           {/* Live Station Clock-In Board */}
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -974,13 +991,13 @@ export const WorkforcePage = () => {
                     <th className="py-3 px-4">Hours</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4">Notes / Audit</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    {!isOwner && <th className="py-3 px-4 text-right">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedAttendance.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="py-8 text-center text-xs text-slate-400">
+                      <td colSpan={isOwner ? 10 : 11} className="py-8 text-center text-xs text-slate-400">
                         No shift records found matching your filters.
                       </td>
                     </tr>
@@ -1044,17 +1061,19 @@ export const WorkforcePage = () => {
                             rec.notes || '—'
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            icon={Edit2}
-                            onClick={() => setCorrectingRecord(rec)}
-                            className="text-slate-600 hover:text-emerald-700 cursor-pointer"
-                          >
-                            Correct
-                          </Button>
-                        </td>
+                        {!isOwner && (
+                          <td className="py-3 px-4 text-right">
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              icon={Edit2}
+                              onClick={() => setCorrectingRecord(rec)}
+                              className="text-slate-600 hover:text-emerald-700 cursor-pointer"
+                            >
+                              Correct
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
@@ -1100,14 +1119,14 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 2.5: MONTHLY ATTENDANCE CALENDAR */}
-      {activeTab === 'calendar' && (
+      {activeTab === 'calendar' && !isOwner && (
         <div className="space-y-6">
           <MonthlyAttendanceCalendar />
         </div>
       )}
 
       {/* TAB 3: LEAVE & SHIFTS */}
-      {activeTab === 'leave' && (
+      {activeTab === 'leave' && !isOwner && (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -1265,7 +1284,7 @@ export const WorkforcePage = () => {
       )}
 
       {/* TAB 4: PAYROLL */}
-      {activeTab === 'payroll' && (
+      {activeTab === 'payroll' && !isOwner && (
         <div className="space-y-6">
           <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>

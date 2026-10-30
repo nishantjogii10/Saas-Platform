@@ -5774,6 +5774,7 @@ export const AppProvider = ({ children }) => {
       const activeSupId = currentUser?.supplierId;
       const activeSupName = currentUser?.supplierName;
       return (supplierPayments || []).filter((pay) => {
+
         return (
           (activeSupId && pay.supplierId === activeSupId) ||
           (activeSupName && pay.supplierName === activeSupName)
@@ -5812,6 +5813,8 @@ export const AppProvider = ({ children }) => {
       return true;
     });
   }, [supplierPayments, supplierInvoices, currentRestaurantId, currentBranchId, currentUser]);
+
+
 
   const branchOwnerNotifications = useMemo(() => {
     return (ownerNotifications || []).filter((n) => {

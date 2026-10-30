@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Boxes,
-  Plus,
   Search,
   Filter,
   Edit3,
@@ -17,6 +16,7 @@ import {
   ShoppingBag,
   Globe,
   Handshake,
+  Eye,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -35,7 +35,6 @@ export const InventoryPage = () => {
   const {
     restaurantIngredients,
     restaurantSuppliers,
-    addIngredient,
     updateIngredient,
     deleteIngredient,
     recordConsumption,
@@ -57,10 +56,17 @@ export const InventoryPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(initialAction === 'add');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConsumeModalOpen, setIsConsumeModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const isOwner = currentUser?.role === 'restaurant_owner';
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewIngredient, setViewIngredient] = useState(null);
+
+  const handleOpenView = (ingredient) => {
+    setViewIngredient(ingredient);
+    setIsViewModalOpen(true);
+  };
 
   // Confirm delete dialog
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -85,11 +91,6 @@ export const InventoryPage = () => {
   const [consumeAmount, setConsumeAmount] = useState(1);
   const [consumeReason, setConsumeReason] = useState('Line prep for service');
 
-  useEffect(() => {
-    if (initialAction === 'add') {
-      setIsAddModalOpen(true);
-    }
-  }, [initialAction]);
 
   // Handle supplier change in form to sync name
   const handleSupplierChange = (supId) => {
@@ -101,24 +102,12 @@ export const InventoryPage = () => {
     });
   };
 
-  const handleOpenAdd = () => {
-    setFormData({
-      name: '',
-      category: 'Produce',
-      quantity: 10,
-      unit: 'kg',
-      minThreshold: 5,
-      costPerUnit: 3.50,
-      supplierId: restaurantSuppliers[0]?.id || '',
-      supplierName: restaurantSuppliers[0]?.name || 'Local Supplier',
-      batchNumber: `BCH-${Math.floor(100 + Math.random() * 900)}`,
-      storageLocation: 'Dry Storage',
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    });
-    setIsAddModalOpen(true);
-  };
 
   const handleOpenEdit = (ingredient) => {
+    if (isOwner) {
+      handleOpenView(ingredient);
+      return;
+    }
     setSelectedIngredient(ingredient);
     setFormData({
       name: ingredient.name,
@@ -143,14 +132,10 @@ export const InventoryPage = () => {
     setIsConsumeModalOpen(true);
   };
 
-  const handleSaveAdd = (e) => {
-    e.preventDefault();
-    addIngredient(formData);
-    setIsAddModalOpen(false);
-  };
 
   const handleSaveEdit = (e) => {
     e.preventDefault();
+    if (isOwner) return;
     if (selectedIngredient) {
       updateIngredient(selectedIngredient.id, formData);
       setIsEditModalOpen(false);
@@ -197,8 +182,8 @@ export const InventoryPage = () => {
       accessor: 'name',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.name}</div>
+        <div className={isOwner ? "cursor-pointer group" : ""} onClick={isOwner ? () => handleOpenView(row) : undefined}>
+          <div className={`font-bold text-slate-900 ${isOwner ? "group-hover:text-emerald-800 transition-colors" : ""}`}>{row.name}</div>
           <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
             <span className="font-medium text-slate-600">{row.category}</span>
             <span>•</span>
@@ -292,38 +277,53 @@ export const InventoryPage = () => {
       accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-1.5">
-          {/* Quick Record Usage shortcut for Workflow B */}
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={Scale}
-            title="Record kitchen consumption (Workflow B)"
-            className="text-emerald-800 hover:bg-emerald-50"
-            onClick={() => handleOpenConsume(row)}
-          >
-            Use
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={Edit3}
-            title="Edit item details"
-            onClick={() => handleOpenEdit(row)}
-          />
-
-          {currentUser.role !== 'kitchen_staff' && (
+          {isOwner ? (
             <Button
-              variant="ghost"
+              variant="outline"
               size="xs"
-              icon={Trash2}
-              title="Delete item"
-              className="text-rose-600 hover:bg-rose-50"
-              onClick={() => {
-                setIngredientToDelete(row);
-                setDeleteConfirmOpen(true);
-              }}
-            />
+              icon={Eye}
+              title="View item details"
+              className="text-emerald-800 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 font-semibold"
+              onClick={() => handleOpenView(row)}
+            >
+              View
+            </Button>
+          ) : (
+            <>
+              {/* Quick Record Usage shortcut for Workflow B */}
+              <Button
+                variant="ghost"
+                size="xs"
+                icon={Scale}
+                title="Record kitchen consumption"
+                className="text-emerald-800 hover:bg-emerald-50"
+                onClick={() => handleOpenConsume(row)}
+              >
+                Use
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="xs"
+                icon={Edit3}
+                title="Edit item details"
+                onClick={() => handleOpenEdit(row)}
+              />
+
+              {currentUser.role !== 'kitchen_staff' && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon={Trash2}
+                  title="Delete item"
+                  className="text-rose-600 hover:bg-rose-50"
+                  onClick={() => {
+                    setIngredientToDelete(row);
+                    setDeleteConfirmOpen(true);
+                  }}
+                />
+              )}
+            </>
           )}
         </div>
       ),
@@ -334,7 +334,7 @@ export const InventoryPage = () => {
     <div className="space-y-6">
       <PageHeader
         title="Kitchen Inventory Items"
-        subtitle="Track on-hand ingredient volumes, minimum thresholds, unit costing, and consumption (Workflow B)"
+        subtitle={isOwner ? "View on-hand ingredient volumes, minimum safety thresholds, and real-time stock levels (Read-Only Mode)" : "Track on-hand ingredient volumes, minimum thresholds, unit costing, and consumption"}
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Inventory' },
@@ -349,7 +349,7 @@ export const InventoryPage = () => {
             >
               Export to Excel
             </Button>
-            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+            {!isOwner && currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
               <Button
                 variant="outline"
                 size="sm"
@@ -359,14 +359,6 @@ export const InventoryPage = () => {
                 Import Excel
               </Button>
             )}
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
-              onClick={handleOpenAdd}
-            >
-              Add New Ingredient
-            </Button>
           </div>
         }
       />
@@ -377,8 +369,13 @@ export const InventoryPage = () => {
           B
         </span>
         <div>
-          <strong className="block font-semibold">Workflow B Interactive Flow:</strong>
-          Click <strong>"Use"</strong> on any ingredient (or add/edit quantity) to record consumption. When the stock balance drops below the minimum threshold, it will automatically transition to <strong>Low Stock</strong> and trigger real-time alerts across your dashboard and alerts page!
+          <strong className="block font-semibold">
+            Workflow B Interactive Flow:
+          </strong>
+          Click <strong>"Use"</strong> on any ingredient (or add/edit quantity)
+          to record consumption. When the stock balance drops below the minimum
+          threshold, it will automatically transition to <strong>Low Stock</strong>
+          and trigger real-time alerts across your dashboard and alerts page!
         </div>
       </div>
 
@@ -434,37 +431,31 @@ export const InventoryPage = () => {
         emptyDescription="Try adjusting your search criteria or add your first ingredient."
       />
 
-      {/* Add / Edit Ingredient Modal */}
+      {/* Edit Ingredient Modal */}
       <Modal
-        isOpen={isAddModalOpen || isEditModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setIsEditModalOpen(false);
-        }}
-        title={isAddModalOpen ? 'Add New Ingredient' : `Edit ${formData.name}`}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title={`Edit ${formData.name}`}
         subtitle="Manage inventory specifications, minimum safety thresholds, and vendor links"
         maxWidth="max-w-2xl"
         footer={
           <>
             <Button
               variant="secondary"
-              onClick={() => {
-                setIsAddModalOpen(false);
-                setIsEditModalOpen(false);
-              }}
+              onClick={() => setIsEditModalOpen(false)}
             >
               Cancel
             </Button>
             <Button
               variant="brand"
-              onClick={isAddModalOpen ? handleSaveAdd : handleSaveEdit}
+              onClick={handleSaveEdit}
             >
-              {isAddModalOpen ? 'Add Ingredient' : 'Update Ingredient'}
+              Update Ingredient
             </Button>
           </>
         }
       >
-        <form onSubmit={isAddModalOpen ? handleSaveAdd : handleSaveEdit} className="space-y-4">
+        <form onSubmit={handleSaveEdit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormInput
               label="Ingredient Name"
@@ -695,6 +686,125 @@ export const InventoryPage = () => {
         onImportConfirm={importIngredientsBulk}
       />
 
+      {/* Read-Only Ingredient View Modal for Owner */}
+      {viewIngredient && (
+        <Modal
+          isOpen={isViewModalOpen}
+          onClose={() => setIsViewModalOpen(false)}
+          title={viewIngredient.name}
+          subtitle={`Catalog Item: ${viewIngredient.name} • ${viewIngredient.category}`}
+          maxWidth="max-w-2xl"
+          footer={
+            <Button
+              variant="secondary"
+              onClick={() => setIsViewModalOpen(false)}
+            >
+              Close
+            </Button>
+          }
+        >
+          <div className="space-y-4 text-xs text-slate-700">
+            {/* Header Highlights Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-100 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                  <Boxes className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">{viewIngredient.name}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-medium text-slate-600">{viewIngredient.category}</span>
+                    <span>•</span>
+                    <span className="font-mono text-slate-500">Batch: {viewIngredient.batchNumber || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <Badge status={viewIngredient.status} />
+                <div className="text-[11px] text-slate-500 mt-1">
+                  Restocked: {viewIngredient.lastRestocked || 'Recent'}
+                </div>
+              </div>
+            </div>
+
+            {/* Metrics Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Available Stock</span>
+                <span className={`text-base font-extrabold ${
+                  viewIngredient.quantity === 0
+                    ? 'text-rose-600'
+                    : viewIngredient.quantity <= viewIngredient.minThreshold
+                    ? 'text-amber-600'
+                    : 'text-slate-900'
+                }`}>
+                  {viewIngredient.quantity} <span className="text-xs font-semibold text-slate-500">{viewIngredient.unit}</span>
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Min Threshold</span>
+                <span className="text-base font-extrabold text-slate-900">
+                  {viewIngredient.minThreshold} <span className="text-xs font-semibold text-slate-500">{viewIngredient.unit}</span>
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Unit Cost</span>
+                <span className="text-base font-extrabold text-emerald-800 font-mono">
+                  {formatINR(viewIngredient.costPerUnit)}
+                </span>
+              </div>
+
+              <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/80">
+                <span className="text-[10px] uppercase font-bold text-emerald-800 block">Total Value</span>
+                <span className="text-base font-black text-emerald-950 font-mono">
+                  {formatINR(viewIngredient.quantity * viewIngredient.costPerUnit)}
+                </span>
+              </div>
+            </div>
+
+            {/* Detailed Properties Grid */}
+            <div className="p-4 rounded-xl border border-slate-200/80 bg-white space-y-3">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Storage & Supplier Specifications</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Storage Location:</span>
+                  <span className="font-semibold text-slate-800">{viewIngredient.storageLocation || 'Main Kitchen Storage'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Preferred Supplier:</span>
+                  <span className="font-semibold text-slate-800">{viewIngredient.supplierName || 'Not Assigned'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Batch / Lot Number:</span>
+                  <span className="font-mono font-semibold text-slate-800">{viewIngredient.batchNumber || 'BCH-DEFAULT'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Expiry Date:</span>
+                  <span className={`font-semibold ${
+                    viewIngredient.daysUntilExpiry < 0
+                      ? 'text-rose-600 font-bold'
+                      : viewIngredient.daysUntilExpiry <= 3
+                      ? 'text-amber-600'
+                      : 'text-slate-800'
+                  }`}>
+                    {viewIngredient.expiryDate} ({viewIngredient.daysUntilExpiry < 0 ? 'Expired' : `${viewIngredient.daysUntilExpiry} days left`})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Assigned Outlet / Branch:</span>
+                  <span className="font-semibold text-slate-800">{currentBranch?.name || 'All Outlets'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Access Mode:</span>
+                  <span className="text-emerald-800 font-semibold">Owner View Only (No Edit Permissions)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
