@@ -521,3 +521,69 @@
     transition: none !important;
   }
 }
+
+
+/* ==========================================================================
+   STOCKMATE 3D SUBSCRIPTION PRICING FLIPBOOK (EDITORIAL MAGAZINE)
+   ========================================================================== */
+
+.font-serif-editorial {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+}
+
+.font-serif-display {
+  font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+}
+
+/* 3D Perspective Book Stage */
+.flipbook-perspective {
+  perspective: 2400px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Realistic Spine Shadow */
+.spine-shadow-left {
+  background: linear-gradient(to right, transparent 82%, rgba(7, 21, 16, 0.05) 92%, rgba(7, 21, 16, 0.28) 100%);
+}
+
+.spine-shadow-right {
+  background: linear-gradient(to left, transparent 82%, rgba(7, 21, 16, 0.05) 92%, rgba(7, 21, 16, 0.28) 100%);
+}
+
+/* Stacked paper edges */
+.paper-edge-left {
+  box-shadow:
+    -1px 0 0 #e8e3d6,
+    -2px 0 0 #ded8c9,
+    -3px 0 0 #d4cdbc,
+    -5px 0 0 #c8bfad,
+    -8px 0 16px rgba(0, 0, 0, 0.35);
+}
+
+.paper-edge-right {
+  box-shadow:
+    1px 0 0 #e8e3d6,
+    2px 0 0 #ded8c9,
+    3px 0 0 #d4cdbc,
+    5px 0 0 #c8bfad,
+    8px 0 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Subtle cream paper grain */
+.paper-cream {
+  background-color: #f4f1ea;
+  background-image:
+    radial-gradient(rgba(23, 35, 29, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, #f7f5ef 0%, #f4f1ea 50%, #eee8dc 100%);
+  background-size: 8px 8px, 100% 100%;
+}

@@ -59,6 +59,8 @@ import {
   INITIAL_ANNOUNCEMENT_TEMPLATES,
   interpolateTemplateVariables,
   getUnresolvedVariables,
+  resolveAnnouncementCategory,
+  resolveAnnouncementPriority,
 } from '../../data/announcementData';
 
 export const CommunicationCenterPage = () => {
@@ -165,19 +167,21 @@ export const CommunicationCenterPage = () => {
 
   // Handle template selection into composer
   const handleApplyTemplate = (tpl) => {
+    if (!tpl) return;
+    const cat = tpl.category || tpl.type || 'general';
     const isReceiptOrBilling =
-      tpl.category === 'billing' ||
-      tpl.category === 'receipt' ||
-      tpl.id.includes('receipt') ||
-      tpl.id.includes('invoice');
+      cat === 'billing' ||
+      cat === 'receipt' ||
+      String(tpl.id || '').includes('receipt') ||
+      String(tpl.id || '').includes('invoice');
 
     setComposerForm((prev) => ({
       ...prev,
-      title: tpl.title,
-      summary: tpl.summary,
-      body: tpl.body,
-      category: tpl.category,
-      priority: tpl.priority,
+      title: tpl.title || '',
+      summary: tpl.summary || '',
+      body: tpl.body || '',
+      category: cat,
+      priority: tpl.priority || 'normal',
       ctaLabel: tpl.ctaLabel || 'View in Workspace',
       ctaLink: tpl.ctaLink || '/dashboard',
       hasCta: !!tpl.ctaLabel,
@@ -261,12 +265,13 @@ export const CommunicationCenterPage = () => {
   };
 
   const handleEditDraft = (ann) => {
+    if (!ann) return;
     setComposerForm({
       id: ann.id,
       title: ann.title || '',
       summary: ann.summary || '',
       body: ann.body || '',
-      category: ann.category || 'general',
+      category: ann.category || ann.type || 'general',
       priority: ann.priority || 'normal',
       audienceType: ann.audienceType || 'ALL_RESTAURANTS',
       targetRestaurantIds: ann.targetRestaurantIds || [],
@@ -287,12 +292,13 @@ export const CommunicationCenterPage = () => {
   };
 
   const handleDuplicateAnnouncement = (ann) => {
+    if (!ann) return;
     setComposerForm({
       id: null,
       title: `${ann.title} (Copy)`,
       summary: ann.summary || '',
       body: ann.body || '',
-      category: ann.category || 'general',
+      category: ann.category || ann.type || 'general',
       priority: ann.priority || 'normal',
       audienceType: ann.audienceType || 'ALL_RESTAURANTS',
       targetRestaurantIds: ann.targetRestaurantIds || [],
@@ -363,7 +369,7 @@ export const CommunicationCenterPage = () => {
     ) {
       errors.audience = 'Please select at least one subscription tier.';
     }
-    if (composerForm.category === 'policy' && !composerForm.policyVersion.trim()) {
+    if ((composerForm?.category || composerForm?.type) === 'policy' && !composerForm?.policyVersion?.trim()) {
       errors.policyVersion = 'Policy version is required for platform policy updates.';
     }
     setFormErrors(errors);
@@ -515,16 +521,23 @@ export const CommunicationCenterPage = () => {
 
   // Filtered Sent History
   const filteredHistory = useMemo(() => {
-    return announcements.filter((ann) => {
+    return (announcements || []).filter((ann) => {
+      if (!ann) return false;
+      const annTitle = ann.title || '';
+      const annSummary = ann.summary || '';
+      const annBody = ann.body || '';
+      const query = (historySearch || '').toLowerCase();
       const matchesSearch =
-        !historySearch ||
-        ann.title.toLowerCase().includes(historySearch.toLowerCase()) ||
-        ann.summary?.toLowerCase().includes(historySearch.toLowerCase()) ||
-        ann.body?.toLowerCase().includes(historySearch.toLowerCase());
+        !query ||
+        annTitle.toLowerCase().includes(query) ||
+        annSummary.toLowerCase().includes(query) ||
+        annBody.toLowerCase().includes(query);
+      const annCategory = ann.category || ann.type || 'general';
       const matchesCategory =
-        historyCategoryFilter === 'all' || ann.category === historyCategoryFilter;
+        historyCategoryFilter === 'all' || annCategory === historyCategoryFilter;
+      const annPriority = ann.priority || 'normal';
       const matchesPriority =
-        historyPriorityFilter === 'all' || ann.priority === historyPriorityFilter;
+        historyPriorityFilter === 'all' || annPriority === historyPriorityFilter;
       const matchesStatus =
         historyStatusFilter === 'all' || (ann.status || 'published') === historyStatusFilter;
       return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
@@ -595,10 +608,8 @@ export const CommunicationCenterPage = () => {
     return getUnresolvedVariables(fullText);
   }, [composerForm.title, composerForm.summary, composerForm.body]);
 
-  const activeCategoryObj =
-    ANNOUNCEMENT_CATEGORIES[composerForm.category] || ANNOUNCEMENT_CATEGORIES.general;
-  const activePriorityObj =
-    PRIORITY_CONFIGS[composerForm.priority] || PRIORITY_CONFIGS.normal;
+  const activeCategoryObj = resolveAnnouncementCategory(composerForm);
+  const activePriorityObj = resolveAnnouncementPriority(composerForm);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -737,9 +748,16 @@ export const CommunicationCenterPage = () => {
                 </div>
 
                 <div className="divide-y divide-slate-100">
-                  {announcements.slice(0, 4).map((ann) => {
-                    const cat = ANNOUNCEMENT_CATEGORIES[ann.category] || ANNOUNCEMENT_CATEGORIES.general;
-                    const prio = PRIORITY_CONFIGS[ann.priority] || PRIORITY_CONFIGS.normal;
+                  {(announcements || []).filter(Boolean).slice(0, 4).length === 0 ? (
+                    <div className="p-8 text-center text-slate-400">
+                      <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-semibold text-slate-600">No announcements yet</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Create your first broadcast in the Announcement Studio.</p>
+                    </div>
+                  ) : (
+                    (announcements || []).filter(Boolean).slice(0, 4).map((ann) => {
+                      const cat = resolveAnnouncementCategory(ann);
+                      const prio = resolveAnnouncementPriority(ann);
 
                     return (
                       <div
@@ -803,7 +821,7 @@ export const CommunicationCenterPage = () => {
                         </div>
                       </div>
                     );
-                  })}
+                  }))}
                 </div>
               </Card>
             </div>
@@ -846,21 +864,27 @@ export const CommunicationCenterPage = () => {
                   Popular Templates
                 </h4>
                 <div className="space-y-1.5">
-                  {(announcementTemplates || INITIAL_ANNOUNCEMENT_TEMPLATES).slice(0, 3).map((tpl) => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => handleApplyTemplate(tpl)}
-                      className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between group border border-transparent hover:border-slate-200"
-                    >
-                      <div className="truncate pr-2">
-                        <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
-                          {tpl.title.replace('{{effective_date}}', 'Upcoming')}
-                        </div>
-                        <div className="text-[11px] text-slate-400 capitalize">{tpl.category} Notice</div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
-                    </button>
-                  ))}
+                  {(announcementTemplates || INITIAL_ANNOUNCEMENT_TEMPLATES)
+                    .filter(Boolean)
+                    .slice(0, 3)
+                    .map((tpl) => {
+                      const tplCat = resolveAnnouncementCategory(tpl);
+                      return (
+                        <button
+                          key={tpl.id}
+                          onClick={() => handleApplyTemplate(tpl)}
+                          className="w-full text-left p-2 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between group border border-transparent hover:border-slate-200"
+                        >
+                          <div className="truncate pr-2">
+                            <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
+                              {(tpl.title || '').replace('{{effective_date}}', 'Upcoming')}
+                            </div>
+                            <div className="text-[11px] text-slate-400 capitalize">{tplCat.id} Notice</div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" />
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             </div>
@@ -954,7 +978,7 @@ export const CommunicationCenterPage = () => {
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       {Object.values(ANNOUNCEMENT_CATEGORIES).map((cat) => {
-                        const isSelected = composerForm.category === cat.id;
+                        const isSelected = (composerForm.category || composerForm.type || 'general') === cat.id;
                         return (
                           <button
                             key={cat.id}
@@ -985,7 +1009,7 @@ export const CommunicationCenterPage = () => {
                   </div>
 
                   {/* Verified Transaction Selection for Billing & Receipts */}
-                  {(composerForm.category === 'billing' || composerForm.category === 'receipt') && (
+                  {((composerForm.category || 'general') === 'billing' || (composerForm.category || 'general') === 'receipt') && (
                     <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/90 rounded-xl space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-bold text-emerald-950 uppercase tracking-wider">
@@ -1565,8 +1589,8 @@ export const CommunicationCenterPage = () => {
                   subject={previewTitle}
                   summary={previewSummary}
                   body={previewBody}
-                  category={composerForm.category}
-                  priority={composerForm.priority}
+                  category={composerForm?.category || composerForm?.type || 'general'}
+                  priority={composerForm?.priority || 'normal'}
                   author={currentUser?.name || 'Alexander Vance (Super Admin)'}
                   authorRole="Platform Governance"
                   publishedAt={new Date().toISOString()}
@@ -1667,11 +1691,21 @@ export const CommunicationCenterPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredHistory.map((ann) => {
-                    const cat =
-                      ANNOUNCEMENT_CATEGORIES[ann.category] || ANNOUNCEMENT_CATEGORIES.general;
-                    const prio =
-                      PRIORITY_CONFIGS[ann.priority] || PRIORITY_CONFIGS.normal;
+                  {filteredHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="py-12 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center">
+                          <Megaphone className="w-8 h-8 text-slate-300 mb-2" />
+                          <p className="text-sm font-semibold text-slate-700">No announcements match your search or filter</p>
+                          <p className="text-xs text-slate-400 mt-1">Try resetting the category filter or searching with a different term.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredHistory.map((ann) => {
+                      if (!ann) return null;
+                      const cat = resolveAnnouncementCategory(ann);
+                      const prio = resolveAnnouncementPriority(ann);
 
                     // Compute reads for this announcement
                     const readCount = Object.keys(announcementReads || {}).filter(
@@ -1823,7 +1857,7 @@ export const CommunicationCenterPage = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  }))}
                 </tbody>
               </table>
             </div>
@@ -1921,25 +1955,57 @@ export const CommunicationCenterPage = () => {
           </div>
 
           {/* Template Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {(announcementTemplates || INITIAL_ANNOUNCEMENT_TEMPLATES)
+          {(() => {
+            const list = (announcementTemplates || INITIAL_ANNOUNCEMENT_TEMPLATES)
+              .filter(Boolean)
               .filter((tpl) => {
-                if (templateCategoryFilter !== 'all' && tpl.category !== templateCategoryFilter) {
+                const cat = tpl.category || tpl.type || 'general';
+                if (templateCategoryFilter !== 'all' && cat !== templateCategoryFilter) {
                   return false;
                 }
                 if (templateSearch.trim()) {
                   const query = templateSearch.toLowerCase();
                   return (
-                    tpl.title.toLowerCase().includes(query) ||
+                    (tpl.title || '').toLowerCase().includes(query) ||
                     (tpl.summary || '').toLowerCase().includes(query) ||
-                    tpl.body.toLowerCase().includes(query)
+                    (tpl.body || '').toLowerCase().includes(query)
                   );
                 }
                 return true;
-              })
-              .map((tpl) => {
-                const cat = ANNOUNCEMENT_CATEGORIES[tpl.category] || ANNOUNCEMENT_CATEGORIES.general;
-                const prio = PRIORITY_CONFIGS[tpl.priority] || PRIORITY_CONFIGS.normal;
+              });
+
+            if (list.length === 0) {
+              return (
+                <Card className="p-12 text-center col-span-full">
+                  <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800">No message templates found</h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      No templates match your search or filter. Try clearing your filters.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      className="mt-4"
+                      onClick={() => {
+                        setTemplateCategoryFilter('all');
+                        setTemplateSearch('');
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
+                </Card>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {list.map((tpl) => {
+                  const cat = resolveAnnouncementCategory(tpl);
+                  const prio = resolveAnnouncementPriority(tpl);
 
                 return (
                   <div
@@ -2029,7 +2095,9 @@ export const CommunicationCenterPage = () => {
                   </div>
                 );
               })}
-          </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2228,8 +2296,9 @@ export const CommunicationCenterPage = () => {
       {/* ============================================================== */}
       {selectedAnnouncementForInspector && (() => {
         const ann = selectedAnnouncementForInspector;
-        const cat = ANNOUNCEMENT_CATEGORIES[ann.category] || ANNOUNCEMENT_CATEGORIES.general;
-        const prio = PRIORITY_CONFIGS[ann.priority] || PRIORITY_CONFIGS.normal;
+        if (!ann) return null;
+        const cat = resolveAnnouncementCategory(ann);
+        const prio = resolveAnnouncementPriority(ann);
         const isDraft = ann.status === 'draft';
 
         // Compute metrics
@@ -2752,7 +2821,7 @@ export const CommunicationCenterPage = () => {
                   Template Category
                 </label>
                 <select
-                  value={editingTemplate.category}
+                  value={editingTemplate?.category || 'general'}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, category: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-medium"
                 >
@@ -2880,11 +2949,11 @@ export const CommunicationCenterPage = () => {
         >
           <div className="max-h-[640px] overflow-y-auto">
             <StockMateEmailShell
-              subject={interpolateTemplateVariables(previewingTemplate.title, samplePreviewContext)}
-              summary={previewingTemplate.summary}
-              body={interpolateTemplateVariables(previewingTemplate.body, samplePreviewContext)}
-              category={previewingTemplate.category}
-              priority={previewingTemplate.priority}
+              subject={interpolateTemplateVariables(previewingTemplate?.title || '', samplePreviewContext)}
+              summary={previewingTemplate?.summary || ''}
+              body={interpolateTemplateVariables(previewingTemplate?.body || '', samplePreviewContext)}
+              category={previewingTemplate?.category || previewingTemplate?.type || 'general'}
+              priority={previewingTemplate?.priority || 'normal'}
               author="Alexander Vance (Super Admin)"
               authorRole="Platform Governance"
               recipient={{

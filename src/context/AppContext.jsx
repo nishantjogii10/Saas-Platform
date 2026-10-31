@@ -170,7 +170,12 @@ export const AppProvider = ({ children }) => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_${key}`);
       if (!saved) return fallback;
-      const parsed = JSON.parse(saved);
+      let parsed = JSON.parse(saved);
+
+      // Sanitize arrays from localStorage to remove any sparse array holes or null records
+      if (Array.isArray(parsed)) {
+        parsed = parsed.filter((item) => item != null);
+      }
 
       // If both parsed and fallback are arrays, ensure newly added seed items (e.g. Vikram Desai) are merged
       if (Array.isArray(parsed) && Array.isArray(fallback)) {
@@ -341,16 +346,29 @@ export const AppProvider = ({ children }) => {
   const [announcements, setAnnouncements] = useState(() => {
     const loaded = loadStored('announcements', INITIAL_ANNOUNCEMENTS);
     if (Array.isArray(loaded)) {
-      const existingIds = new Set(loaded.map((a) => a.id));
-      const missingInitial = INITIAL_ANNOUNCEMENTS.filter((a) => !existingIds.has(a.id));
+      const clean = loaded.filter((a) => a != null);
+      const existingIds = new Set(clean.map((a) => a?.id).filter(Boolean));
+      const missingInitial = INITIAL_ANNOUNCEMENTS.filter((a) => a && !existingIds.has(a.id));
       if (missingInitial.length > 0) {
-        return [...loaded, ...missingInitial];
+        return [...clean, ...missingInitial];
       }
-      return loaded;
+      return clean;
     }
     return INITIAL_ANNOUNCEMENTS;
   });
-  const [announcementTemplates, setAnnouncementTemplates] = useState(() => loadStored('announcementTemplates', INITIAL_ANNOUNCEMENT_TEMPLATES));
+  const [announcementTemplates, setAnnouncementTemplates] = useState(() => {
+    const loaded = loadStored('announcementTemplates', INITIAL_ANNOUNCEMENT_TEMPLATES);
+    if (Array.isArray(loaded)) {
+      const clean = loaded.filter((t) => t != null);
+      const existingIds = new Set(clean.map((t) => t?.id).filter(Boolean));
+      const missingInitial = INITIAL_ANNOUNCEMENT_TEMPLATES.filter((t) => t && !existingIds.has(t.id));
+      if (missingInitial.length > 0) {
+        return [...clean, ...missingInitial];
+      }
+      return clean;
+    }
+    return INITIAL_ANNOUNCEMENT_TEMPLATES;
+  });
   const [announcementReads, setAnnouncementReads] = useState(() => loadStored('announcementReads', {
     'ann-101_rest-1': { isRead: true, readAt: '2026-10-25T16:00:00.000Z', readBy: 'Priya Sharma' },
     'ann-102_rest-1': { isRead: true, readAt: '2026-10-26T09:00:00.000Z', readBy: 'Priya Sharma' },
@@ -6499,9 +6517,9 @@ export const AppProvider = ({ children }) => {
   };
 
   const getAnnouncementStats = () => {
-    const published = (announcements || []).filter((a) => a.status === 'published');
-    const drafts = (announcements || []).filter((a) => a.status === 'draft');
-    const totalReads = Object.values(announcementReads || {}).filter((v) => v.isRead).length;
+    const published = (announcements || []).filter((a) => a && a.status === 'published');
+    const drafts = (announcements || []).filter((a) => a && a.status === 'draft');
+    const totalReads = Object.values(announcementReads || {}).filter((v) => v && v.isRead).length;
     const totalAcks = (policyAcknowledgments || []).length;
 
     return {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
@@ -35,8 +35,9 @@ import { CustomPlanBuilderModal } from '../components/pricing/CustomPlanBuilderM
 import { InventoryProductHotspots } from '../components/landing/InventoryProductHotspots';
 import { ExpandingFeatureAccordion } from '../components/landing/ExpandingFeatureAccordion';
 import { InteractiveBranchDirectory } from '../components/landing/InteractiveBranchDirectory';
-import { LiquidMetalBlob3D } from '../components/landing/LiquidMetalBlob3D';
+import { KitchenRescueChallengeHero } from '../components/landing/KitchenRescueChallengeHero';
 import { IngredientArcCarousel } from '../components/landing/IngredientArcCarousel';
+import { PricingFlipbook } from '../components/landing/PricingFlipbook';
 
 export const LandingPage = () => {
   const { currentUser, logout, plans: dynamicPlans, customPlanModules, pricingUnitRates } = useApp();
@@ -93,6 +94,20 @@ export const LandingPage = () => {
 
   // Mobile drawer menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Tablet compact navigation 'More' dropdown state
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Hero Showcase Tab ('pantry' | 'fefo' | 'grn' | 'branches')
   const [heroActiveTab, setHeroActiveTab] = useState('pantry');
@@ -437,97 +452,174 @@ export const LandingPage = () => {
       {/* 1. STICKY LIQUID GLASS FLOATING NAVBAR */}
       <div className="sticky top-0 z-50 w-full pt-3 pb-2 px-3 sm:px-6 pointer-events-none transition-all duration-200">
         <header
-          className={`max-w-7xl mx-auto rounded-2xl px-4 sm:px-6 h-18 sm:h-20 flex items-center justify-between pointer-events-auto transition-all duration-200 border ${
+          className={`w-full max-w-[1440px] 2xl:max-w-[1536px] mx-auto rounded-2xl px-4 sm:px-6 h-16 sm:h-[72px] flex items-center justify-between gap-3 sm:gap-4 pointer-events-auto transition-all duration-200 border ${
             isScrolled
               ? 'liquid-glass-nav bg-slate-950/90 backdrop-blur-2xl border-white/20 shadow-2xl shadow-slate-950/70'
               : 'liquid-glass-nav bg-slate-950/75 backdrop-blur-xl border-white/10 shadow-xl'
           }`}
         >
-          {/* Logo & Brand Identity */}
-          <div className="flex items-center gap-7">
+          {/* 1. Left: Brand Section (Controlled width, shrink-0) */}
+          <div className="flex items-center shrink-0">
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 p-0.5 shadow-lg shadow-emerald-500/25 group-hover:scale-105 transition-transform">
-                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 p-0.5 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
+                <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
                   <Boxes className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl font-black tracking-tight text-white group-hover:text-emerald-300 transition-colors">
+                  <span className="text-lg sm:text-xl font-black tracking-tight text-white group-hover:text-emerald-300 transition-colors whitespace-nowrap">
                     StockMate
                   </span>
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap tracking-wider">
                     SaaS Platform
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 block font-medium">
+                <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap hidden 2xl:block leading-tight">
                   Smart Restaurant Inventory &amp; Multi-Branch
                 </span>
               </div>
             </Link>
-
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-6 text-xs font-semibold text-slate-300 tracking-wide">
-              <a href="#hero" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Home
-              </a>
-              <a href="#hotspots" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Hotspots
-              </a>
-              <a href="#recipe-arc" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Recipe Arc
-              </a>
-              <a href="#features" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Features
-              </a>
-              <a href="#how-it-works" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                How It Works
-              </a>
-              <a href="#branches" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Branches
-              </a>
-              <a href="#calculator" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Savings Calculator
-              </a>
-              <a href="#pricing" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                Pricing
-              </a>
-              <a href="#faq" className="hover:text-emerald-400 transition-colors py-1.5 px-2 rounded-lg hover:bg-white/5">
-                FAQ
-              </a>
-            </nav>
           </div>
 
-          {/* Right Action Buttons */}
-          <div className="hidden lg:flex items-center gap-3">
+          {/* 2. Middle: Navigation Links (Flexible width, flex-1, centered) */}
+          <nav className="hidden lg:flex items-center justify-center flex-1 gap-1 xl:gap-1.5 2xl:gap-3 px-1 sm:px-2">
+            <a
+              href="#hero"
+              className="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Home
+            </a>
+            <a
+              href="#hotspots"
+              className="hidden xl:inline-flex whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Hotspots
+            </a>
+            <a
+              href="#recipe-arc"
+              className="hidden xl:inline-flex whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Recipe Arc
+            </a>
+            <a
+              href="#features"
+              className="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Features
+            </a>
+            <a
+              href="#how-it-works"
+              className="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              How It Works
+            </a>
+            <a
+              href="#branches"
+              className="hidden xl:inline-flex whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Branches
+            </a>
+            <a
+              href="#calculator"
+              className="hidden xl:inline-flex whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Savings Calculator
+            </a>
+            <a
+              href="#pricing"
+              className="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              Pricing
+            </a>
+            <a
+              href="#faq"
+              className="whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors"
+            >
+              FAQ
+            </a>
+
+            {/* More Dropdown for Compact / Tablet Navigation (visible at lg: 1024px - 1279px) */}
+            <div className="relative inline-flex xl:hidden" ref={moreMenuRef}>
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  moreMenuOpen
+                    ? 'text-emerald-400 bg-white/10'
+                    : 'text-slate-300 hover:text-emerald-400 hover:bg-white/5'
+                }`}
+                aria-expanded={moreMenuOpen}
+                aria-haspopup="true"
+              >
+                <span>More</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${moreMenuOpen ? 'rotate-180 text-emerald-400' : ''}`} />
+              </button>
+
+              {moreMenuOpen && (
+                <div className="absolute top-full left-0 mt-2 w-48 rounded-xl bg-slate-950/95 border border-white/15 p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-panel-switch">
+                  <a
+                    href="#hotspots"
+                    onClick={() => setMoreMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors whitespace-nowrap"
+                  >
+                    Hotspots
+                  </a>
+                  <a
+                    href="#recipe-arc"
+                    onClick={() => setMoreMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors whitespace-nowrap"
+                  >
+                    Recipe Arc
+                  </a>
+                  <a
+                    href="#branches"
+                    onClick={() => setMoreMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors whitespace-nowrap"
+                  >
+                    Branches
+                  </a>
+                  <a
+                    href="#calculator"
+                    onClick={() => setMoreMenuOpen(false)}
+                    className="block px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-emerald-400 hover:bg-white/5 transition-colors whitespace-nowrap"
+                  >
+                    Savings Calculator
+                  </a>
+                </div>
+              )}
+            </div>
+          </nav>
+
+          {/* 3. Right: Action Buttons (Auto width, shrink-0) */}
+          <div className="hidden lg:flex items-center gap-2 sm:gap-2.5 shrink-0">
             <Link
               to="/supplier-portal"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-emerald-400 border border-emerald-500/25 text-xs font-bold transition-all shadow-xs"
+              className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs"
             >
               <Truck className="w-3.5 h-3.5" />
               <span>Supplier Portal</span>
             </Link>
 
-            {/* Requirement 2: Sign In option directly routing to main login page */}
             <Link
               to="/login"
-              className="px-4 py-2 rounded-xl text-white bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-700 hover:border-emerald-500/50 transition-all flex items-center gap-1.5 shadow-xs"
+              className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl text-slate-200 hover:text-white bg-slate-800/80 hover:bg-slate-700 text-xs font-bold border border-white/10 hover:border-emerald-500/40 transition-all inline-flex items-center justify-center shrink-0 whitespace-nowrap shadow-xs"
             >
               <span>Sign In</span>
             </Link>
 
             {currentUser ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => navigate(getUserDashboardRoute(currentUser.role))}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5"
+                  className="h-9 sm:h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/30 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                 >
                   <span>Go to Dashboard</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={logout}
-                  className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all"
+                  className="h-9 sm:h-10 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all shrink-0 whitespace-nowrap"
                 >
                   Logout
                 </button>
@@ -535,7 +627,7 @@ export const LandingPage = () => {
             ) : (
               <Link
                 to="/signup"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+                className="h-9 sm:h-10 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold shadow-md shadow-emerald-600/25 hover:shadow-emerald-600/35 hover:-translate-y-0.5 active:scale-[0.98] transition-all inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               >
                 <span>Get Started Free</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -543,19 +635,19 @@ export const LandingPage = () => {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button for < lg (Tablets in portrait and mobile) */}
           <div className="flex lg:hidden items-center gap-2">
             {!currentUser && (
               <Link
                 to="/signup"
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white"
+                className="h-9 px-3.5 text-xs font-bold rounded-xl bg-emerald-600 text-white inline-flex items-center justify-center whitespace-nowrap shadow-sm shadow-emerald-600/30"
               >
                 Get Started
               </Link>
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -565,7 +657,7 @@ export const LandingPage = () => {
 
         {/* Mobile dropdown drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden mt-2 max-w-7xl mx-auto liquid-glass-card rounded-2xl px-4 sm:px-6 py-4 space-y-3 backdrop-blur-2xl shadow-2xl pointer-events-auto border border-white/15">
+          <div className="lg:hidden mt-2 max-w-[1440px] 2xl:max-w-[1536px] mx-auto liquid-glass-card rounded-2xl px-4 sm:px-6 py-4 space-y-3 backdrop-blur-2xl shadow-2xl pointer-events-auto border border-white/15">
             <a
               href="#hero"
               onClick={() => setMobileMenuOpen(false)}
@@ -668,38 +760,43 @@ export const LandingPage = () => {
         )}
       </div>
 
-      {/* 2. HERO SECTION — Compelling Value Proposition & Hierarchy */}
-      <section className="relative pt-8 pb-16 sm:pt-12 sm:pb-24 lg:pt-14 lg:pb-28 overflow-hidden">
+      {/* 2. HERO SECTION */}
+      <section className="relative pt-6 pb-12 sm:pt-10 sm:pb-16 lg:pt-12 lg:pb-18 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="text-center max-w-4xl mx-auto">
-            {/* Eyebrow Pill Badge */}
-            <div className="animate-hero-eyebrow inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-6 shadow-inner backdrop-blur-md">
+          {/* Ambient Lighting Accents */}
+          <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute top-1/3 -right-20 w-96 h-96 bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
+
+          {/* HERO VALUE PROPOSITION & CTAS */}
+          <div className="max-w-4xl mx-auto text-center flex flex-col items-center justify-center">
+            {/* Eyebrow Label */}
+            <div className="animate-hero-eyebrow inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-5 shadow-inner backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Smart Restaurant Inventory &amp; Multi-Branch Platform</span>
+              <span>Restaurant Inventory Intelligence</span>
               <span className="w-1 h-1 rounded-full bg-emerald-400" />
               <span className="text-emerald-400 font-bold">Enterprise SaaS</span>
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.12] mb-6">
+            <h1 className="text-4xl sm:text-5xl xl:text-6xl font-black tracking-tight text-white leading-[1.12] mb-5">
               <span className="block animate-hero-title-1">
-                Take Control of Every Ingredient.{' '}
+                Know What’s Fresh.
               </span>
               <span className="block animate-hero-title-2 mt-1 sm:mt-2 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
-                Maximize Every Profit.
+                Know What’s Profitable.
               </span>
             </h1>
 
-            {/* Supporting Text */}
-            <p className="animate-hero-desc text-base sm:text-lg lg:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed mb-8">
-              Manage restaurant inventory, automate supplier workflows, track expiry with FEFO, and control food costs across every branch.
+            {/* Description */}
+            <p className="animate-hero-desc text-base sm:text-lg text-slate-300 leading-relaxed mb-6 sm:mb-8 max-w-2xl mx-auto">
+              Complete kitchen inventory management with real-time walk-in stockroom tracking, automated FEFO expiry rotation, verified supplier dock GRNs, and gram-level food cost control across all restaurant branches.
             </p>
 
             {/* Primary Action Buttons */}
-            <div className="animate-hero-cta flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-10">
+            <div className="animate-hero-cta flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-5 sm:mb-6">
               <Link
                 to="/signup"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold text-sm shadow-xl shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:scale-[0.98] transition-all"
               >
                 <span>Start Free Trial</span>
                 <ArrowRight className="w-4 h-4" />
@@ -707,7 +804,7 @@ export const LandingPage = () => {
 
               <a
                 href="#features"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm border border-slate-700/80 transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-md"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-sm border border-slate-700/80 transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-md"
               >
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <span>Explore Platform</span>
@@ -715,101 +812,123 @@ export const LandingPage = () => {
 
               <Link
                 to="/login"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-800/80 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-800/60 transition-colors"
+                title="Direct Terminal Login for Kitchen Staff"
               >
                 <ChefHat className="w-4 h-4" />
-                <span>Kitchen Terminal Login</span>
+                <span className="hidden sm:inline">Terminal</span>
               </Link>
             </div>
-          </div>
 
-          {/* 🌟 3D LIQUID-METAL ORGANIC BLOB HERO SHOWCASE WITH FLOATING GLASS CARDS 🌟 */}
-          <div className="relative max-w-5xl mx-auto my-8 sm:my-12">
-            {/* Dynamic Ambient Radiant Refraction */}
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-indigo-500/15 rounded-full blur-[110px] pointer-events-none opacity-80" />
-
-            {/* Central Interactive 3D Liquid Metal Blob */}
-            <div className="relative z-10 flex items-center justify-center">
-              <LiquidMetalBlob3D className="mx-auto" />
-            </div>
-
-            {/* Floating Glassmorphism Information Cards */}
-            {/* Card 1: Top-Left — Real-Time Spoilage Rate */}
-            <div className="absolute top-4 -left-2 sm:left-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-                <Activity className="w-5 h-5 animate-pulse" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-live-beacon" />
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">Live Kitchen Metric</span>
-                </div>
-                <div className="text-sm font-black text-white">0.4% Spoilage Rate</div>
-                <div className="text-[11px] text-slate-300 truncate">FEFO automated batch rotation</div>
-              </div>
-            </div>
-
-            {/* Card 2: Top-Right — Receiving Dock GRN */}
-            <div className="absolute top-4 -right-2 sm:right-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
-              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center shrink-0">
-                <PackageCheck className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-400">Dock GRN Verified</span>
-                </div>
-                <div className="text-sm font-black text-white">100% Reconciled</div>
-                <div className="text-[11px] text-slate-300 truncate">Zero invoice variance claims</div>
-              </div>
-            </div>
-
-            {/* Card 3: Bottom-Left — Multi-Branch Network */}
-            <div className="absolute bottom-6 -left-2 sm:left-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-400">Multi-Unit SaaS</span>
-                <div className="text-sm font-black text-white">5 Active Branches</div>
-                <div className="text-[11px] text-slate-300 truncate">HQ commissary dispatch synced</div>
-              </div>
-            </div>
-
-            {/* Card 4: Bottom-Right — Food Cost Margin */}
-            <div className="absolute bottom-6 -right-2 sm:right-4 z-20 hidden md:flex items-center gap-3 p-3.5 rounded-2xl liquid-glass-card border border-white/20 shadow-2xl backdrop-blur-xl animate-fade-in hover:scale-105 transition-transform duration-300 max-w-xs">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">Average Profit Impact</span>
-                <div className="text-sm font-black text-white">+₹48,200 / Month</div>
-                <div className="text-[11px] text-slate-300 truncate">Eliminated walk-in waste</div>
-              </div>
+            {/* Trust Guarantee Line */}
+            <div className="animate-hero-trust flex items-center justify-center gap-2 text-xs text-slate-400 font-medium">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>14-day full platform trial • No credit card required • Instant 3-minute setup</span>
             </div>
           </div>
 
-          {/* Verifiable Trust Indicators */}
-          <div className="animate-hero-trust mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs font-medium text-slate-400">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>14-day free trial</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>No credit card required</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>Quick 3-minute setup</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>Pure SVG QR batch labels</span>
+          {/* 🌟 4 OPERATIONAL METRIC TILES IN A CLEAN ALIGNED ROW BELOW HERO 🌟 */}
+          <div className="mt-10 sm:mt-14 pt-8 border-t border-white/10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Metric 1: Live Kitchen Metric */}
+              <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-slate-900/85 border border-white/10 hover:border-emerald-500/40 shadow-xl backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-950/40 group">
+                <div className="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Activity className="w-5 h-5 animate-pulse" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-live-beacon shrink-0" />
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 truncate">
+                        Live Kitchen Metric
+                      </span>
+                    </div>
+                    <span className="text-[8px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded shrink-0">
+                      Demo Metric
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-white group-hover:text-emerald-300 transition-colors tracking-tight mt-0.5">
+                    0.4% Spoilage Rate
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate leading-tight mt-0.5">
+                    FEFO automated batch rotation
+                  </div>
+                </div>
+              </div>
+
+              {/* Metric 2: Dock GRN Verified */}
+              <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-slate-900/85 border border-white/10 hover:border-teal-500/40 shadow-xl backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-teal-950/40 group">
+                <div className="w-11 h-11 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center shrink-0">
+                  <PackageCheck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-400 truncate">
+                      Dock GRN Verified
+                    </span>
+                    <span className="text-[8px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded shrink-0">
+                      Demo Metric
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-white group-hover:text-teal-300 transition-colors tracking-tight mt-0.5">
+                    100% Reconciled
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate leading-tight mt-0.5">
+                    Zero invoice variance claims
+                  </div>
+                </div>
+              </div>
+
+              {/* Metric 3: Multi-Unit SaaS */}
+              <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-slate-900/85 border border-white/10 hover:border-indigo-500/40 shadow-xl backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-950/40 group">
+                <div className="w-11 h-11 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-400 truncate">
+                      Multi-Unit SaaS
+                    </span>
+                    <span className="text-[8px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded shrink-0">
+                      Demo Metric
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-white group-hover:text-indigo-300 transition-colors tracking-tight mt-0.5">
+                    5 Active Branches
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate leading-tight mt-0.5">
+                    HQ commissary dispatch synced
+                  </div>
+                </div>
+              </div>
+
+              {/* Metric 4: Average Profit Impact */}
+              <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-slate-900/85 border border-white/10 hover:border-amber-500/40 shadow-xl backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-950/40 group">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 truncate">
+                      Average Profit Impact
+                    </span>
+                    <span className="text-[8px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded shrink-0">
+                      Demo Metric
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-white group-hover:text-amber-300 transition-colors tracking-tight mt-0.5">
+                    +₹48,200 / Month
+                  </div>
+                  <div className="text-[11px] text-slate-400 truncate leading-tight mt-0.5">
+                    Eliminated walk-in waste
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* 🌟 GENUINELY INTERACTIVE REALISTIC INVENTORY DASHBOARD WINDOW 🌟 */}
-          <div className="animate-hero-preview mt-12 max-w-5xl mx-auto relative text-left">
+          <div className="animate-hero-preview mt-12 sm:mt-16 max-w-6xl mx-auto relative text-left">
             {/* Outer Radiant Refraction Glow */}
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/25 via-teal-400/20 to-blue-500/20 rounded-3xl blur-xl opacity-70 pointer-events-none" />
 
@@ -1690,379 +1809,44 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      {/* 7. SUBSCRIPTION PRICING */}
-      <section id="pricing" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28">
+      {/* 7. SUBSCRIPTION PRICING FLIPBOOK (3D EDITORIAL MAGAZINE) */}
+      <section id="pricing" className="py-20 lg:py-28 relative scroll-mt-24 sm:scroll-mt-28 bg-[#071510]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="reveal-on-scroll text-center max-w-3xl mx-auto mb-12">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950 border border-emerald-800 px-3 py-1 rounded-full">
-              Transparent Pricing
+          <div className="reveal-on-scroll text-center max-w-3xl mx-auto mb-10">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-950 border border-emerald-800 px-3.5 py-1.5 rounded-full inline-flex items-center gap-1.5 shadow-inner">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Interactive Subscription Portfolio</span>
             </span>
-            <h2 className="text-3xl sm:text-5xl font-black text-white mt-4 tracking-tight">
-              Predictable Plans Engineered for High-Volume Kitchens
+            <h2 className="text-3xl sm:text-5xl font-black text-white mt-4 tracking-tight font-serif-editorial">
+              The Architecture of Profitable Kitchens
             </h2>
-            <p className="text-base text-slate-300 mt-4 leading-relaxed">
-              Transparent tier options with single source-of-truth pricing rules. Every plan includes SVG QR lot tracking, FEFO dispatch, and a 14-day free trial.
+            <p className="text-sm sm:text-base text-slate-300 mt-4 leading-relaxed font-sans">
+              Explore StockMate&apos;s subscription tiers presented in an interactive 3D page-flip brochure. Turn pages, inspect configured rates, and choose the operating scale engineered for your kitchen.
             </p>
-
-            {/* Monthly / Annual Toggle */}
-            <div className="mt-8 inline-flex items-center gap-3 p-1.5 rounded-2xl bg-slate-950 border border-slate-800 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setBillingCycle('monthly')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
-                  billingCycle === 'monthly'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Monthly Billing
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingCycle('annual')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 ${
-                  billingCycle === 'annual'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span>Annual Billing</span>
-                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2 py-0.5 rounded-md shadow-xs">
-                  Save ~20%
-                </span>
-              </button>
-            </div>
           </div>
 
-          {/* 4 Pricing Plans: Starter, Professional, Enterprise, and Custom Plan Builder */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch mb-10 pt-6">
-            {((dynamicPlans && dynamicPlans.length > 0 ? dynamicPlans : Object.values(BASE_PLANS))
-              .filter((p) => p.status !== 'inactive' && p.id !== 'plan-custom'))
-              .map((plan) => {
-                const isPopular = plan.popular || plan.id === 'plan-pro';
-                const annualPrice = plan.annualPrice ?? Math.round(plan.monthlyPrice * 12 * 0.8);
-                const annualSavings = plan.annualSavings ?? Math.max(0, (plan.monthlyPrice * 12) - annualPrice);
-                const savingsPercent = plan.savingsPercent ?? (plan.monthlyPrice > 0 ? Math.round((annualSavings / (plan.monthlyPrice * 12)) * 100) : 0);
-                const effectiveMonthly = plan.effectiveMonthlyAnnual ?? Math.round(annualPrice / 12);
-                const maxIngredients = plan.limits?.maxIngredients ?? plan.maxIngredients ?? 500;
-                const maxStaff = plan.limits?.maxStaff ?? plan.includedStaff ?? 5;
-                const maxBranches = plan.limits?.branches ?? plan.includedOutlets ?? 1;
-
-                return (
-                  <div
-                    key={plan.id}
-                    className={`reveal-on-scroll motion-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative liquid-glass-card hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/30 ${
-                      isPopular
-                        ? 'border-2 border-emerald-500 shadow-2xl ring-2 ring-emerald-500/20'
-                        : 'border border-white/10 hover:border-emerald-500/40'
-                    }`}
-                  >
-                    {isPopular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md whitespace-nowrap z-10">
-                        Most Popular Choice
-                      </div>
-                    )}
-
-                    <div>
-                      {/* Header Badge */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className={`text-xs font-bold uppercase tracking-wider ${
-                            isPopular ? 'text-emerald-400' : 'text-slate-400'
-                          }`}
-                        >
-                          {plan.name} Plan
-                        </span>
-                        <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
-                            isPopular
-                              ? 'text-emerald-300 bg-emerald-900/60 border-emerald-700'
-                              : 'text-slate-400 bg-slate-900 border-slate-800'
-                          }`}
-                        >
-                          {plan.badge || (isPopular ? 'Most Popular' : 'Essential')}
-                        </span>
-                      </div>
-
-                      {/* Price Display */}
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-4xl font-black text-white">
-                          {billingCycle === 'annual'
-                            ? formatINR(effectiveMonthly)
-                            : formatINR(plan.monthlyPrice)}
-                        </span>
-                        <span className="text-xs text-slate-400">/ month</span>
-                      </div>
-
-                      {/* Annual Savings Notice */}
-                      <div className="text-[11px] text-emerald-400 font-medium mb-3">
-                        {billingCycle === 'annual' ? (
-                          <span>
-                            Billed annually at {formatINR(annualPrice)}/yr (Save {formatINR(annualSavings)}/yr &bull; {savingsPercent}% off)
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">Billed monthly, cancel or upgrade anytime</span>
-                        )}
-                      </div>
-
-                      <p className="text-xs text-slate-300 leading-relaxed mb-5 min-h-[34px]">
-                        {plan.description || plan.target}
-                      </p>
-
-                      {/* Resource Limits Pill Box */}
-                      <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-white/10 mb-6 text-xs space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">Tracked Ingredients:</span>
-                          <span className="font-bold text-white">
-                            {maxIngredients > 1000 ? 'Unlimited' : `Up to ${maxIngredients}`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">Staff Accounts:</span>
-                          <span className="font-bold text-white">
-                            {maxStaff > 1000 ? 'Unlimited' : `Up to ${maxStaff} users`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">Outlets / Branches:</span>
-                          <span className="font-bold text-white">
-                            {maxBranches > 50 ? 'Unlimited' : `${maxBranches} location${maxBranches > 1 ? 's' : ''}`}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Included Features List */}
-                      <div className={`space-y-3 text-xs text-slate-300 pt-4 border-t ${
-                        isPopular ? 'border-emerald-900/60' : 'border-slate-800'
-                      }`}>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                          Included Features:
-                        </span>
-                        {plan.features?.map((feature, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <span className="leading-snug">{feature}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <Link
-                      to={`/signup?plan=${plan.id}`}
-                      className={`mt-8 w-full h-11 rounded-xl font-bold text-xs text-center transition-all flex items-center justify-center leading-normal shadow-sm ${
-                        isPopular
-                          ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm shadow-lg shadow-emerald-600/30'
-                          : 'bg-slate-800 hover:bg-slate-700 text-white'
-                      }`}
-                    >
-                      {plan.id === 'plan-enterprise' ? 'Get Started with Enterprise' : 'Start 14-Day Free Trial'}
-                    </Link>
-                  </div>
-                );
-              })}
-
-            {/* Fourth Option: CUSTOM PLAN — Build Your Own */}
-            <div className="reveal-on-scroll motion-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative liquid-glass-card hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/40 border border-emerald-500/40 hover:border-emerald-400/80 bg-gradient-to-b from-emerald-950/30 via-slate-900/70 to-slate-950/95 group">
-              {/* Premium Gradient Top Badge */}
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-300 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap z-20 pointer-events-none">
-                <Sparkles className="w-3 h-3 text-slate-950 shrink-0" />
-                <span>Build Your Own</span>
-              </div>
-
-              <div>
-                {/* Header Badge */}
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                    Custom Plan
-                  </span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border text-emerald-300 bg-emerald-950/80 border-emerald-700/60 flex items-center gap-1">
-                    <Sliders className="w-2.5 h-2.5" />
-                    <span>Interactive</span>
-                  </span>
-                </div>
-
-                {/* Price Display */}
-                {(() => {
-                  const basePosMod = (customPlanModules || []).find((m) => m.id === 'pos_billing');
-                  const baseMonthlyRate = basePosMod?.monthlyPrice || 599;
-                  const baseAnnualRate = basePosMod?.annualPrice || 5748;
-                  const baseEffectiveMonthly = Math.round(baseAnnualRate / 12);
-                  const getModPrice = (id, fallback) => (customPlanModules || []).find((m) => m.id === id)?.monthlyPrice ?? fallback;
-                  const terminalRate = pricingUnitRates?.additionalTerminalMonthly || 250;
-
-                  return (
-                    <>
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-xs text-slate-400 font-bold">Starts at</span>
-                        <span className="text-4xl font-black text-white">
-                          {billingCycle === 'annual' ? formatINR(baseEffectiveMonthly) : formatINR(baseMonthlyRate)}
-                        </span>
-                        <span className="text-xs text-slate-400">/ month</span>
-                      </div>
-
-                      {/* Annual Savings Notice */}
-                      <div className="text-[11px] text-emerald-400 font-medium mb-3">
-                        {billingCycle === 'annual' ? (
-                          <span>Base starts at {formatINR(baseAnnualRate)}/yr (Save ~20% on all modules)</span>
-                        ) : (
-                          <span className="text-slate-400">Select only what you use, cancel anytime</span>
-                        )}
-                      </div>
-
-                      <p className="text-xs text-slate-300 leading-relaxed mb-4 min-h-[34px]">
-                        Choose the features your restaurant needs. Pay only for the capabilities you select.
-                      </p>
-
-                      {/* Interactive Configurable Module Feature Chips */}
-                      <div className="space-y-2 mb-5">
-                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          <span>Configurable Capabilities:</span>
-                          <span className="text-emerald-400 font-bold">Interactive Chips</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/90 border border-emerald-500/40 text-left hover:border-emerald-400 hover:bg-slate-800/80 transition-all group/item shadow-xs"
-                            title="Base POS & Cloud Billing (Included Foundation)"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <Monitor className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Base POS</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">{formatINR(baseMonthlyRate)}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Cloud Register &amp; KOT</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
-                            title="Advanced Inventory & Recipe Costing"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <ChefHat className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Recipe Costing</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('recipe_costing', 600))}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Food Cost BOMs</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
-                            title="Zomato & Swiggy Integration"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <Bike className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Aggregator</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('aggregator_integration', 400))}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Zomato / Swiggy</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
-                            title="Table & Captain Ordering Tablet Terminal"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <Tablet className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Captain Tablet</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('table_captain_ordering', 300))}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Table Ordering</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
-                            title="Multi-Branch Management"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <Store className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Multi-Branch</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(getModPrice('multi_store_mgmt', 800))}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Commissary Transfers</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomBuilderOpen(true)}
-                            className="p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all"
-                            title="Additional POS Terminals"
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <Plus className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-bold text-white text-[11px] truncate">Extra POS</span>
-                              </div>
-                              <span className="text-[9px] text-emerald-400 font-bold shrink-0">+{formatINR(terminalRate)}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate">Per device / month</span>
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-
-                {/* Value Highlights List */}
-                <div className="space-y-2.5 text-xs text-slate-300 pt-3 border-t border-emerald-950/80">
-                  <div className="flex items-start gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-snug">1 Primary POS Station included free</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-snug">Live interactive pricing calculator</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span className="leading-snug">Scale or reduce modules anytime</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Primary Action Button */}
-              <div className="mt-8 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCustomBuilderOpen(true)}
-                  className="w-full h-11 rounded-xl font-black text-xs transition-all shadow-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 flex items-center justify-center gap-2 hover:shadow-emerald-500/30 active:scale-[0.99] leading-normal"
-                >
-                  <Sliders className="w-4 h-4 text-slate-950" />
-                  <span>Customize Your Plan</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsCustomBuilderOpen(true)}
-                  className="w-full text-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors py-1 hover:underline block"
-                >
-                  Calculate Live Monthly &amp; Annual Pricing &rarr;
-                </button>
-              </div>
-            </div>
+          {/* Interactive 3D Subscription Pricing Flipbook */}
+          <div className="mb-14">
+            <PricingFlipbook
+              plans={dynamicPlans}
+              billingCycle={billingCycle}
+              setBillingCycle={setBillingCycle}
+              customPlanModules={customPlanModules}
+              pricingUnitRates={pricingUnitRates}
+              onOpenCustomBuilder={() => setIsCustomBuilderOpen(true)}
+              onToggleDetailedComparison={() => {
+                setShowFeatureComparison((prev) => !prev);
+                setTimeout(() => {
+                  const el = document.getElementById('comprehensive-comparison');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }, 50);
+              }}
+              formatINR={formatINR}
+            />
           </div>
 
           {/* View All Features & Plan Comparison Expandable Section */}
-          <div className="mb-10 rounded-3xl liquid-glass-card border border-white/10 overflow-hidden shadow-xl">
+          <div id="comprehensive-comparison" className="mb-10 rounded-3xl liquid-glass-card border border-white/10 overflow-hidden shadow-xl">
             <button
               type="button"
               onClick={() => setShowFeatureComparison((prev) => !prev)}
