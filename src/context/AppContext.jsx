@@ -259,10 +259,21 @@ export const AppProvider = ({ children }) => {
           sup.id === 'sup-5' ||
           sup.name?.toLowerCase().includes('golden crust') ||
           sup.name?.toLowerCase().includes('amrit dairy');
+        const acceptsReturns = sup.acceptsReturns !== undefined
+          ? sup.acceptsReturns
+          : (sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6');
         return {
           ...sup,
           supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
           registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
+          acceptsReturns,
+          returnPolicy: sup.returnPolicy || (acceptsReturns ? 'accepts_returns' : 'no_returns'),
+          unsoldReturnAllowed: sup.unsoldReturnAllowed !== undefined ? sup.unsoldReturnAllowed : acceptsReturns,
+          returnConditions: sup.returnConditions || {
+            unused: acceptsReturns,
+            damaged: acceptsReturns,
+            spoiled: acceptsReturns,
+          },
         };
       });
     }
@@ -1735,6 +1746,18 @@ export const AppProvider = ({ children }) => {
     const supplierId = existingSupplier ? existingSupplier.id : `sup-${Date.now()}`;
     const userId = `usr-sup-${Date.now()}`;
 
+    const acceptsReturns = formData.acceptsReturns !== false;
+    const returnConditions = formData.returnConditions || {
+      unused: acceptsReturns,
+      damaged: acceptsReturns,
+      spoiled: acceptsReturns,
+    };
+    const returnPolicyNotes = formData.returnPolicyNotes || (
+      acceptsReturns
+        ? 'Accepts returns for unused stock, damaged lots, or spoiled products within the return window.'
+        : 'Strict no-returns policy. All products supplied to restaurants are final sale once accepted at delivery dock.'
+    );
+
     const newSupplier = {
       ...(existingSupplier || {}),
       id: supplierId,
@@ -1767,6 +1790,15 @@ export const AppProvider = ({ children }) => {
       city: formData.city || 'Pune',
       joinedDate: existingSupplier?.joinedDate || new Date().toISOString(),
       restaurantIds: existingSupplier?.restaurantIds || ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+      acceptsReturns,
+      returnPolicy: acceptsReturns ? 'accepts_returns' : 'no_returns',
+      unsoldReturnAllowed: Boolean(acceptsReturns && (returnConditions.unused ?? true)),
+      returnConditions,
+      returnWindowHours: acceptsReturns ? (Number(formData.returnWindowHours) || 36) : 0,
+      returnCutoffTime: formData.returnCutoffTime || '18:00',
+      maxReturnPercent: acceptsReturns ? (Number(formData.maxReturnPercent) || 20) : 0,
+      settlementMode: acceptsReturns ? (formData.settlementMode || 'Credit Note') : 'No Returns (Dock Inspection Only)',
+      returnPolicyNotes,
     };
 
     const newSupplierUser = {
@@ -1786,6 +1818,10 @@ export const AppProvider = ({ children }) => {
       avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80',
       joinedDate: new Date().toISOString().split('T')[0],
       lastActive: 'Just now',
+      acceptsReturns,
+      returnConditions,
+      returnWindowHours: newSupplier.returnWindowHours,
+      settlementMode: newSupplier.settlementMode,
     };
 
     // Update Suppliers state without duplicates
@@ -1805,6 +1841,26 @@ export const AppProvider = ({ children }) => {
       );
       return [newSupplierUser, ...filtered];
     });
+
+    // Register / Update Supplier Return & SLA Agreement
+    const newAgreement = {
+      supplierId: supplierId,
+      supplierName: newSupplier.name,
+      category: normalizedCats[0] || 'Wholesale Products',
+      contactPerson: formData.contactPerson,
+      phone: formData.phone || '+91 98000 00000',
+      email: formData.email,
+      acceptsReturns: Boolean(newSupplier.acceptsReturns),
+      returnConditions: newSupplier.returnConditions,
+      unsoldReturnAllowed: Boolean(newSupplier.unsoldReturnAllowed),
+      returnWindowHours: newSupplier.returnWindowHours,
+      returnCutoffTime: newSupplier.returnCutoffTime,
+      maxReturnPercent: newSupplier.maxReturnPercent,
+      settlementMode: newSupplier.settlementMode,
+      agreementNotes: newSupplier.returnPolicyNotes,
+      active: true,
+    };
+    setSupplierAgreements((prev) => [newAgreement, ...(prev || []).filter((a) => a.supplierId !== supplierId)]);
 
     // Record Plan Subscription Payment Record (Requirement 1: Payment History Tracking)
     const planCost = formData.billingCycle === 'yearly' ? selectedPlan.yearlyPrice : selectedPlan.price;
@@ -1826,12 +1882,22 @@ export const AppProvider = ({ children }) => {
     };
     setSupplierPlanPayments((prev) => [planPayment, ...prev]);
 
+    const returnPolicySummary = newSupplier.acceptsReturns
+      ? `Accepts returns on ${[
+          newSupplier.returnConditions?.unused ? 'unused' : null,
+          newSupplier.returnConditions?.damaged ? 'damaged' : null,
+          newSupplier.returnConditions?.spoiled ? 'spoiled' : null,
+        ]
+          .filter(Boolean)
+          .join(', ')} products (${newSupplier.returnWindowHours}h window, ${newSupplier.settlementMode})`
+      : 'Strict No-Returns Policy (all deliveries final)';
+
     // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
     const adminLog = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SUPPLIER_ONBOARDED',
-      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}.`,
+      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`,
       user: newSupplier.contactPerson,
       role: 'supplier',
     };
@@ -1844,7 +1910,7 @@ export const AppProvider = ({ children }) => {
       type: 'supplier_joined',
       severity: 'high',
       title: `🔔 New Third-Party Supplier Registered: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal offering ${normalizedCats.join(', ')} under ${selectedPlan.name} Plan.`,
+      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal offering ${normalizedCats.join(', ')} under ${selectedPlan.name} Plan. Return Policy: ${returnPolicySummary}.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/suppliers',
@@ -1859,7 +1925,7 @@ export const AppProvider = ({ children }) => {
       id: `notif-${Date.now()}-sup`,
       type: 'supplier_onboarding',
       title: `🎉 New Supplier Partner: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${selectedPlan.name}) has joined as a Third-Party Supplier offering ${normalizedCats.join(', ')}.`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has joined as a Third-Party Supplier offering ${normalizedCats.join(', ')}. Return Policy: ${newSupplier.acceptsReturns ? 'Returns Accepted' : 'Final Sale / No Returns'}.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/suppliers', // Linked to Supplier List for Owner
@@ -1873,7 +1939,7 @@ export const AppProvider = ({ children }) => {
       id: `notif-${Date.now()}-sup-im`,
       type: 'supplier_onboarding',
       title: `🎉 New B2B Wholesale Partner: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${selectedPlan.name}) has registered offering ${normalizedCats.join(', ')}. Wholesale catalog ready for procurement.`,
+      message: `${newSupplier.name} (${selectedPlan.name}) has registered offering ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}. Wholesale catalog ready for procurement.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/marketplace',
@@ -1888,7 +1954,7 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(newSupplierUser);
 
     addToast(
-      `Welcome to StockMate, ${newSupplier.name}! You are registered under the ${selectedPlan.name} tier. Categories: ${normalizedCats.join(', ')}.`,
+      `Welcome to StockMate, ${newSupplier.name}! Registered under ${selectedPlan.name} tier. Return Policy: ${newSupplier.acceptsReturns ? 'Returns Accepted' : 'No Returns'}.`,
       'success'
     );
 
@@ -2577,8 +2643,17 @@ export const AppProvider = ({ children }) => {
     const cost = Number(unitCost) || 0;
     const totalLossAmount = qty * cost;
 
-    // Check supplier agreement for unsold fresh goods
+    // Check supplier agreement for unsold fresh goods and return policy
     const agreement = supplierAgreements.find((a) => a.supplierId === supplierId);
+    if (agreement && agreement.acceptsReturns === false) {
+      if (returnType === 'Unsold Fresh Goods Agreement' || returnType === 'Expired / Quality Failure') {
+        addToast(
+          `Supplier ${supplierName} operates under a strict no-returns policy. Unused, spoiled, or expired product returns cannot be accepted.`,
+          'error'
+        );
+        return false;
+      }
+    }
     if (returnType === 'Unsold Fresh Goods Agreement') {
       if (!agreement || !agreement.unsoldReturnAllowed) {
         addToast(
