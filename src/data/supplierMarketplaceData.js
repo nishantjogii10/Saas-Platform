@@ -86,6 +86,74 @@ export const SUPPLIER_CATEGORIES = [
   'Beverages & Syrups',
 ];
 
+/**
+ * Normalizes supplier registration categories (e.g. handles aliases like "Dairy Farms" -> "Dairy & Cheese")
+ */
+export const normalizeSupplierCategory = (cat) => {
+  if (!cat) return 'Dairy & Cheese';
+  const c = String(cat).toLowerCase().trim();
+  if (c.includes('dairy') || c.includes('milk') || c.includes('cheese') || c.includes('paneer') || c.includes('farm')) {
+    return 'Dairy & Cheese';
+  }
+  if (c.includes('meat') || c.includes('poultry') || c.includes('chicken') || c.includes('egg') || c.includes('mutton') || c.includes('butchery')) {
+    return 'Meat & Poultry';
+  }
+  if (c.includes('veg') || c.includes('green') || c.includes('fruit') || c.includes('produce') || c.includes('farm fresh')) {
+    return 'Fresh Vegetables & Greens';
+  }
+  if (c.includes('fish') || c.includes('sea') || c.includes('crab') || c.includes('prawn')) {
+    return 'Fresh Seafood & Fish';
+  }
+  if (c.includes('spice') || c.includes('oil') || c.includes('condiment') || c.includes('sauce')) {
+    return 'Spices, Oils & Condiments';
+  }
+  if (c.includes('bake') || c.includes('bread') || c.includes('pav') || c.includes('bun') || c.includes('pastry')) {
+    return 'Bakery & Artisan Breads';
+  }
+  if (c.includes('grain') || c.includes('rice') || c.includes('pulse') || c.includes('dal') || c.includes('cereal')) {
+    return 'Rice, Grains & Pulses';
+  }
+  if (c.includes('beverage') || c.includes('syrup') || c.includes('drink') || c.includes('juice')) {
+    return 'Beverages & Syrups';
+  }
+  return cat;
+};
+
+/**
+ * Automatically maps a product to its category based on name and supplier registered domain,
+ * eliminating redundant manual category selection.
+ */
+export const autoDetectProductCategory = (productName = '', preferredCategory = null) => {
+  if (!productName && preferredCategory) return normalizeSupplierCategory(preferredCategory);
+  const name = String(productName).toLowerCase();
+  
+  if (/milk|paneer|cheese|butter|cream|curd|dahi|ghee|yogurt|dairy|whey|mozzarella|cheddar|parmesan/i.test(name)) {
+    return 'Dairy & Cheese';
+  }
+  if (/chicken|mutton|beef|pork|egg|lamb|poultry|meat|fillet|steak|wings|bacon|sausage/i.test(name)) {
+    return 'Meat & Poultry';
+  }
+  if (/tomato|potato|onion|lettuce|spinach|mushroom|vegetable|veg|herb|cucumber|carrot|capsicum|broccoli|chilli|garlic|ginger/i.test(name)) {
+    return 'Fresh Vegetables & Greens';
+  }
+  if (/fish|prawn|shrimp|salmon|crab|lobster|seafood|pomfret|tuna|squid/i.test(name)) {
+    return 'Fresh Seafood & Fish';
+  }
+  if (/spice|pepper|turmeric|oil|olive|sauce|salt|masala|vinegar|mustard|oregano|cumin|coriander/i.test(name)) {
+    return 'Spices, Oils & Condiments';
+  }
+  if (/bread|bun|pav|croissant|baguette|toast|bakery|cake|muffin|pita|dough/i.test(name)) {
+    return 'Bakery & Artisan Breads';
+  }
+  if (/rice|basmati|grain|pulse|dal|wheat|flour|oats|quinoa|lentil|chana|rajma/i.test(name)) {
+    return 'Rice, Grains & Pulses';
+  }
+  if (/syrup|juice|beverage|tea|coffee|soda|puree|squash|water|cordial/i.test(name)) {
+    return 'Beverages & Syrups';
+  }
+  return preferredCategory ? normalizeSupplierCategory(preferredCategory) : 'Dairy & Cheese';
+};
+
 export const INITIAL_SUPPLIER_PRODUCTS = [
   // =========================================================================
   // Metro Food Distributors (sup-1) — Dairy, Poultry, Meat & Frozen Kitchen
@@ -772,13 +840,15 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
   },
 
   // =========================================================================
-  // Golden Crust Artisan Bakery (sup-4) — Daily Fresh Breads & Pav
+  // Golden Crust Artisan Bakery (sup-4) — Daily Fresh Breads & Pav (Tie-up Supplier)
   // =========================================================================
   {
     id: 'sprod-401',
     supplierId: 'sup-4',
     supplierName: 'Golden Crust Artisan Bakery',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.9,
     name: 'Artisan Brioche Burger Buns (Seeded, 4-inch)',
     category: 'Bakery & Artisan Breads',
@@ -799,7 +869,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-402',
     supplierId: 'sup-4',
     supplierName: 'Golden Crust Artisan Bakery',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.9,
     name: 'Sourdough Country Boule (Natural Fermentation)',
     category: 'Bakery & Artisan Breads',
@@ -820,7 +892,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-403',
     supplierId: 'sup-4',
     supplierName: 'Golden Crust Artisan Bakery',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.9,
     name: 'Mumbai Soft Ladi Pav (30 pcs Tray)',
     category: 'Bakery & Artisan Breads',
@@ -841,7 +915,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-404',
     supplierId: 'sup-4',
     supplierName: 'Golden Crust Artisan Bakery',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.9,
     name: 'Whole Wheat Pita Bread (6-inch, 20 pcs)',
     category: 'Bakery & Artisan Breads',
@@ -862,7 +938,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-405',
     supplierId: 'sup-4',
     supplierName: 'Golden Crust Artisan Bakery',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.9,
     name: 'Garlic Herb Focaccia Sheet (Half Pan)',
     category: 'Bakery & Artisan Breads',
@@ -881,13 +959,15 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
   },
 
   // =========================================================================
-  // Amrit Dairy Farms & Products (sup-5) — Direct Farm Ghee & Pure Paneer
+  // Amrit Dairy Farms & Products (sup-5) — Direct Farm Ghee & Pure Paneer (Tie-up Supplier)
   // =========================================================================
   {
     id: 'sprod-501',
     supplierId: 'sup-5',
     supplierName: 'Amrit Dairy Farms & Products',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.8,
     name: 'Fresh Malai Paneer Blocks (Soft & Creamy)',
     category: 'Dairy & Cheese',
@@ -908,7 +988,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-502',
     supplierId: 'sup-5',
     supplierName: 'Amrit Dairy Farms & Products',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.8,
     name: 'Traditional Cultured Cow Ghee (Danedar)',
     category: 'Dairy & Cheese',
@@ -929,7 +1011,9 @@ export const INITIAL_SUPPLIER_PRODUCTS = [
     id: 'sprod-503',
     supplierId: 'sup-5',
     supplierName: 'Amrit Dairy Farms & Products',
-    supplierPlan: 'Pro Vendor',
+    supplierType: 'Tie-up Supplier',
+    registeredVia: 'main_system',
+    supplierPlan: 'Corporate Tie-up Agreement',
     supplierRating: 4.8,
     name: 'Thick Set Cow Milk Dahi / Curd (10kg Bucket)',
     category: 'Dairy & Cheese',

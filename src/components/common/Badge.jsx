@@ -1,50 +1,50 @@
 import React from 'react';
 
 const BADGE_STYLES = {
-  // Stock Statuses (GoFrugal / StockMate System)
-  in_stock: 'bg-green-50 text-[#15803D] border-green-200',
-  low_stock: 'bg-amber-50 text-[#D97706] border-amber-200',
-  out_of_stock: 'bg-red-50 text-[#DC2626] border-red-200',
+  // Stock Statuses
+  in_stock: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  low_stock: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  out_of_stock: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Expiry Statuses
-  safe: 'bg-green-50 text-[#15803D] border-green-200',
-  expiring_soon: 'bg-amber-50 text-[#D97706] border-amber-200',
-  expired: 'bg-red-50 text-[#DC2626] border-red-200',
+  safe: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  expiring_soon: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  expired: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Account / Restaurant Statuses
-  active: 'bg-green-50 text-[#15803D] border-green-200',
-  pending: 'bg-amber-50 text-[#D97706] border-amber-200',
-  suspended: 'bg-red-50 text-[#DC2626] border-red-200',
+  active: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  pending: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
+  suspended: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Purchase Order Statuses
-  accepted: 'bg-blue-50 text-blue-700 border-blue-200/80',
-  dispatched: 'bg-purple-50 text-purple-700 border-purple-200/80',
-  delivered: 'bg-green-50 text-[#15803D] border-green-200',
-  cancelled: 'bg-slate-100 text-slate-600 border-[#DCE5EF]',
-  rejected: 'bg-red-50 text-[#DC2626] border-red-200',
+  accepted: 'bg-blue-50/90 text-blue-800 border-blue-200/90',
+  dispatched: 'bg-purple-50/90 text-purple-800 border-purple-200/90',
+  delivered: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  cancelled: 'bg-slate-100 text-slate-700 border-slate-200',
+  rejected: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Movement Types
-  received: 'bg-green-50 text-[#15803D] border-green-200',
-  consumption: 'bg-blue-50 text-blue-700 border-blue-200/80',
-  wastage: 'bg-red-50 text-[#DC2626] border-red-200',
-  adjustment: 'bg-amber-50 text-[#D97706] border-amber-200',
+  received: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
+  consumption: 'bg-blue-50/90 text-blue-800 border-blue-200/90',
+  wastage: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
+  adjustment: 'bg-amber-50/90 text-amber-800 border-amber-200/90',
 
   // Roles
-  super_admin: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
-  restaurant_owner: 'bg-[#E6F3F0] text-[#075E4B] border-[#C2E5D9]',
-  restaurant_manager: 'bg-blue-50 text-blue-800 border-blue-200/80',
-  inventory_manager: 'bg-[#E6F8FA] text-[#087F8C] border-[#BCECF4]',
-  kitchen_staff: 'bg-amber-50 text-amber-800 border-amber-200/80',
-  supplier: 'bg-sky-50 text-sky-700 border-sky-200/80',
+  super_admin: 'bg-indigo-50/90 text-indigo-800 border-indigo-200/90',
+  restaurant_owner: 'bg-emerald-50/90 text-emerald-900 border-emerald-200/90',
+  restaurant_manager: 'bg-blue-50/90 text-blue-900 border-blue-200/90',
+  inventory_manager: 'bg-teal-50/90 text-teal-900 border-teal-200/90',
+  kitchen_staff: 'bg-amber-50/90 text-amber-900 border-amber-200/90',
+  supplier: 'bg-sky-50/90 text-sky-900 border-sky-200/90',
 
   // Severities
-  critical: 'bg-red-100 text-[#DC2626] border-red-300 font-bold',
-  high: 'bg-amber-100 text-[#D97706] border-amber-300 font-bold',
-  medium: 'bg-blue-100 text-blue-800 border-blue-200',
-  low: 'bg-slate-100 text-slate-700 border-[#DCE5EF]',
+  critical: 'bg-rose-100 text-rose-900 border-rose-300 font-bold',
+  high: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+  medium: 'bg-blue-100 text-blue-900 border-blue-200',
+  low: 'bg-slate-100 text-slate-700 border-slate-200',
 
   // Generic
-  default: 'bg-slate-100 text-slate-700 border-[#DCE5EF]',
+  default: 'bg-slate-100/90 text-slate-700 border-slate-200',
 };
 
 const FORMATTED_LABELS = {
@@ -80,18 +80,17 @@ export const Badge = ({ status, label, size = 'sm', className = '' }) => {
   const displayLabel = label || FORMATTED_LABELS[normalizedKey] || status;
 
   const sizeClass = size === 'xs'
-    ? 'text-[11px] px-2 py-0.5'
+    ? 'text-[10px] px-2 py-0.5'
     : size === 'md'
     ? 'text-xs px-3 py-1'
-    : 'text-xs px-2.5 py-0.5';
+    : 'text-[11px] px-2.5 py-0.5';
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${sizeClass} ${styleClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 font-semibold rounded-full border shadow-2xs ${sizeClass} ${styleClass} ${className}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-      {displayLabel}
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80 shrink-0"></span>
+      <span>{displayLabel}</span>
     </span>
   );
 };
-

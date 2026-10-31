@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { useApp, isHolidayApplicableToStaff } from '../../context/AppContext';
 import {
   Users,
   UserCheck,
@@ -10,7 +10,6 @@ import {
   Search,
   Filter,
   ShieldCheck,
-  ArrowLeftRight,
   Edit2,
   Trash2,
   Star,
@@ -47,10 +46,10 @@ import { FormInput } from '../../components/common/FormInput';
 import { BRANCH_PLANS_CONFIG } from '../../data/branchData';
 import { formatINR } from '../../data/financeData';
 import { ProcessSalaryModal } from '../../components/restaurant/ProcessSalaryModal';
-import { MonthlyPayrollDashboard } from '../../components/restaurant/MonthlyPayrollDashboard';
 import { MonthlyAttendanceCalendar } from '../../components/attendance/MonthlyAttendanceCalendar';
 import { AttendanceCorrectionModal } from '../../components/attendance/AttendanceCorrectionModal';
 import { HolidayManagerModal } from '../../components/attendance/HolidayManagerModal';
+import { HolidayDetailsModal } from '../../components/attendance/HolidayDetailsModal';
 import { LeaveRequestModal } from '../../components/kitchen/LeaveRequestModal';
 import { PunchClockWidget } from '../../components/kitchen/PunchClockWidget';
 import { CalendarDays, Palmtree, Coffee, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -62,6 +61,10 @@ import { Download, UploadCloud } from 'lucide-react';
 export const WorkforcePage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { leaveId: paramLeaveId } = useParams();
+  const initialLeaveId = paramLeaveId || searchParams.get('leaveId') || null;
+  const [reviewingLeaveId, setReviewingLeaveId] = useState(initialLeaveId);
+  const [reviewNotes, setReviewNotes] = useState('');
 
   const {
     branches,
@@ -75,18 +78,29 @@ export const WorkforcePage = () => {
     attendanceRecords,
     leaveRequests,
     reviewLeaveRequest,
+    holidays,
     salaryPayments,
     STAFF_SALARY_PROFILES,
-    staffTransfers,
-    requestStaffTransfer,
-    approveStaffTransfer,
-    rejectStaffTransfer,
     importStaffBulk,
     addToast,
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
+  const ATTENDANCE_PER_PAGE = 8;
+
+  const branchHolidays = useMemo(() => {
+    return (holidays || []).filter((h) => {
+      if (h.status === 'cancelled') return false;
+      if (isManager && h.scope !== 'all' && h.branchId && h.branchId !== assignedBranchId) {
+        return false;
+      }
+      return true;
+    });
+  }, [holidays, isManager, assignedBranchId]);
+  const branchHolidaysCount = branchHolidays.length;
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
+  const [viewingHoliday, setViewingHoliday] = useState(null);
   const [correctingRecord, setCorrectingRecord] = useState(null);
   const [isManagerLeaveModalOpen, setIsManagerLeaveModalOpen] = useState(false);
   const [attendanceSearchTerm, setAttendanceSearchTerm] = useState('');
@@ -94,22 +108,104 @@ export const WorkforcePage = () => {
   const [attendanceDateFilter, setAttendanceDateFilter] = useState('');
   const [attendancePage, setAttendancePage] = useState(1);
   const [isAttendanceExportOpen, setIsAttendanceExportOpen] = useState(false);
-  const ATTENDANCE_PER_PAGE = 8;
-  const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
-  // Active Tab: 'roster' | 'attendance' | 'leave' | 'payroll' | 'transfers'
-  const initialTab = searchParams.get('tab') || 'roster';
+  // Tab Normalizer: supports 'roster', 'attendance'/'timesheet', 'calendar', 'leave', 'payroll'
+  const normalizeTab = (t) => {
+    if (!t) return 'roster';
+    const lower = t.toLowerCase().trim();
+    if (lower === 'timesheet' || lower === 'timesheets' || lower === 'attendance' || lower === 'shifts' || lower === 'punch') {
+      return 'attendance';
+    }
+    if (lower === 'roster' || lower === 'staff' || lower === 'directory' || lower === 'employees') {
+      return 'roster';
+    }
+    if (lower === 'calendar' || lower === 'monthly') {
+      return 'calendar';
+    }
+    if (lower === 'leave' || lower === 'leaves' || lower === 'requisitions') {
+      return 'leave';
+    }
+    if (lower === 'holiday' || lower === 'holidays' || lower === 'branch-holidays' || lower === 'festival') {
+      return 'holidays';
+    }
+    if (lower === 'payroll' || lower === 'salaries' || lower === 'compensation') {
+      return 'payroll';
+    }
+    return lower;
+  };
+
+  // Active Tab initialized from URL parameter and normalized
+  const initialTab = normalizeTab(searchParams.get('tab'));
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sync tab with URL search parameter on direct load, navigation, refresh, back/forward
+  useEffect(() => {
+    const rawTab = searchParams.get('tab');
+    if (rawTab) {
+      const parsed = normalizeTab(rawTab);
+      if (parsed !== activeTab) {
+        setActiveTab(parsed);
+      }
+    }
+  }, [searchParams]);
+
+  // Sync viewing holiday with URL parameters
+  useEffect(() => {
+    const rawHolidayId = searchParams.get('holidayId');
+    if (rawHolidayId) {
+      const matchHol = (holidays || []).find((h) => String(h.id) === String(rawHolidayId));
+      if (matchHol) {
+        setViewingHoliday(matchHol);
+        setActiveTab('holidays');
+      }
+    }
+  }, [searchParams, holidays]);
+
+  // Sync reviewing leave requisition with URL parameters
+  useEffect(() => {
+    const lid = paramLeaveId || searchParams.get('leaveId');
+    if (lid) {
+      setReviewingLeaveId(lid);
+      setActiveTab('leave');
+    }
+  }, [searchParams, paramLeaveId]);
+
+  // Retrieve active selected leave record for review
+  const reviewingLeave = useMemo(() => {
+    if (!reviewingLeaveId) return null;
+    return (leaveRequests || []).find((l) => String(l.id) === String(reviewingLeaveId)) || null;
+  }, [reviewingLeaveId, leaveRequests]);
+
+  const handleCloseReviewModal = () => {
+    setReviewingLeaveId(null);
+    setReviewNotes('');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('leaveId');
+      return next;
+    });
+  };
+
+  const handleApproveLeave = (leaveId) => {
+    reviewLeaveRequest(leaveId, 'approved', reviewNotes || 'Approved by Manager');
+    addToast('Leave request approved successfully.', 'success');
+    handleCloseReviewModal();
+  };
+
+  const handleRejectLeave = (leaveId) => {
+    reviewLeaveRequest(leaveId, 'rejected', reviewNotes || 'Declined due to outlet shift constraints');
+    addToast('Leave request declined.', 'info');
+    handleCloseReviewModal();
+  };
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [leaveStatusFilter, setLeaveStatusFilter] = useState('all');
-  const [transferStatusTab, setTransferStatusTab] = useState('all'); // 'all' | 'Pending' | 'Approved' | 'Rejected'
 
   // Modals for Staff & Manager
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
@@ -122,30 +218,6 @@ export const WorkforcePage = () => {
   const [salaryTargetStaff, setSalaryTargetStaff] = useState(null);
   const [viewingSalarySlip, setViewingSalarySlip] = useState(null);
 
-  // Leave Decision Review Modal
-  const [reviewingLeave, setReviewingLeave] = useState(null); // { leave, action, note }
-
-  // Transfer Modals & State
-  const [isNewTransferOpen, setIsNewTransferOpen] = useState(false);
-  const [selectedTransferForAudit, setSelectedTransferForAudit] = useState(null);
-  const [rejectingTransfer, setRejectingTransfer] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [selectedStaffId, setSelectedStaffId] = useState('');
-  const [toBranchId, setToBranchId] = useState('');
-  const [transferReason, setTransferReason] = useState('');
-
-  // Selected staff object & their current branch for transfers
-  const selectedTransferStaff = branchStaff.find((s) => s.id === selectedStaffId);
-  const currentTransferBranch = branches.find((b) => b.id === selectedTransferStaff?.branchId);
-  const destinationBranch = branches.find((b) => b.id === toBranchId);
-  const destPlanConfig = destinationBranch
-    ? BRANCH_PLANS_CONFIG[destinationBranch.planId] || BRANCH_PLANS_CONFIG['plan-starter']
-    : null;
-  const destCurrentStaffCount = destinationBranch
-    ? branchStaff.filter((s) => s.branchId === destinationBranch.id).length
-    : 0;
-  const isDestFull =
-    destPlanConfig && destPlanConfig.maxStaff !== 999 && destCurrentStaffCount >= destPlanConfig.maxStaff;
 
   // Add Staff Form
   const [addForm, setAddForm] = useState({
@@ -212,14 +284,10 @@ export const WorkforcePage = () => {
   const pendingLeaves = isManager
     ? (leaveRequests || []).filter((l) => (!l.branchId || l.branchId === assignedBranchId) && l.status === 'pending')
     : (leaveRequests || []).filter((l) => l.status === 'pending');
-  const pendingTransfers = isManager
-    ? (staffTransfers || []).filter((t) => (t.fromBranchId === assignedBranchId || t.toBranchId === assignedBranchId) && t.status === 'Pending')
-    : (staffTransfers || []).filter((t) => t.status === 'Pending');
-
   const totalEmployees = scopedStaff.length;
   const totalOnDuty = activeAttendance.length;
   const pendingLeavesCount = pendingLeaves.length;
-  const pendingTransfersCount = pendingTransfers.length;
+
   const totalMonthlyPayrollDisbursed = salaryPayments
     .filter((p) => !isManager || p.branchId === assignedBranchId)
     .reduce((sum, p) => sum + Number(p.amount), 0);
@@ -259,25 +327,16 @@ export const WorkforcePage = () => {
     });
   }, [leaveRequests, leaveStatusFilter, branchFilter, isManager, assignedBranchId]);
 
-  // Filtered transfers
-  const filteredTransfers = useMemo(() => {
-    return staffTransfers.filter((t) => {
-      const matchesSearch =
-        t.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.fromBranchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.toBranchName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.id.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = transferStatusTab === 'all' || t.status === transferStatusTab;
-      const matchesBranch = !isManager || t.fromBranchId === assignedBranchId || t.toBranchId === assignedBranchId;
-      return matchesSearch && matchesStatus && matchesBranch;
-    });
-  }, [staffTransfers, searchTerm, transferStatusTab, isManager, assignedBranchId]);
-
+  
   // Tab change handler
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setSearchParams({ tab });
+    const normalized = normalizeTab(tab);
+    setActiveTab(normalized);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', normalized);
+      return next;
+    });
   };
 
   // Add staff submit
@@ -348,53 +407,13 @@ export const WorkforcePage = () => {
     }
   };
 
-  // Transfer submit
-  const handleNewTransferSubmit = (e) => {
-    e.preventDefault();
-    if (!selectedStaffId || !toBranchId || !transferReason.trim()) {
-      addToast('Please select staff member, destination branch, and enter transfer reason', 'error');
-      return;
-    }
-
-    if (selectedTransferStaff?.branchId === toBranchId) {
-      addToast('Destination branch cannot be the same as current branch', 'error');
-      return;
-    }
-
-    requestStaffTransfer({
-      employeeId: selectedStaffId,
-      fromBranchId: selectedTransferStaff.branchId,
-      toBranchId: toBranchId,
-      reason: transferReason.trim(),
-    });
-
-    setIsNewTransferOpen(false);
-    setSelectedStaffId('');
-    setToBranchId('');
-    setTransferReason('');
-  };
-
-  // Approve transfer
-  const handleApproveTransfer = (transferId) => {
-    approveStaffTransfer(transferId);
-  };
-
-  // Reject transfer
-  const handleRejectTransferConfirm = (e) => {
-    e.preventDefault();
-    if (!rejectingTransfer) return;
-
-    rejectStaffTransfer(rejectingTransfer.id, rejectionReason || 'Operational constraints');
-    setRejectingTransfer(null);
-    setRejectionReason('');
-  };
-
+  
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
         title="People &amp; Workforce"
-        subtitle="Unified team management: staff directory, live station clock-in, leave approvals, payroll disbursements, and branch transfers."
+        subtitle="Unified team management: staff directory, live station clock-in, leave approvals, and payroll disbursements."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -418,14 +437,6 @@ export const WorkforcePage = () => {
             <Button
               variant="outline"
               size="sm"
-              icon={Calendar}
-              onClick={() => setIsHolidayModalOpen(true)}
-            >
-              Manage Holidays
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               icon={IndianRupee}
               onClick={() => {
                 setSalaryTargetStaff(null);
@@ -433,17 +444,6 @@ export const WorkforcePage = () => {
               }}
             >
               Disburse Salary
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => {
-                setSelectedStaffId(branchStaff[0]?.id || '');
-                setIsNewTransferOpen(true);
-              }}
-            >
-              Request Transfer
             </Button>
             {currentUser?.role === 'restaurant_owner' && (
               <Button
@@ -468,7 +468,7 @@ export const WorkforcePage = () => {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Staff Directory"
           value={totalEmployees}
@@ -500,14 +500,6 @@ export const WorkforcePage = () => {
           icon={IndianRupee}
           variant="default"
           onClick={() => handleTabChange('payroll')}
-        />
-        <StatCard
-          title="Transfers"
-          value={pendingTransfersCount}
-          subtitle={pendingTransfersCount > 0 ? 'Pending Authorization' : 'All Processed'}
-          icon={ArrowLeftRight}
-          variant={pendingTransfersCount > 0 ? 'warning' : 'default'}
-          onClick={() => handleTabChange('transfers')}
         />
       </div>
 
@@ -558,6 +550,19 @@ export const WorkforcePage = () => {
             <span>Monthly Attendance Calendar</span>
           </button>
 
+          {/* Tab 2.6: Branch Holidays */}
+          <button
+            onClick={() => handleTabChange('holidays')}
+            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
+              activeTab === 'holidays'
+                ? 'border-emerald-700 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Branch Holidays ({branchHolidaysCount})</span>
+          </button>
+
           {/* Tab 3: Leave & Shifts */}
           <button
             onClick={() => handleTabChange('leave')}
@@ -589,24 +594,7 @@ export const WorkforcePage = () => {
             <span>Payroll</span>
           </button>
 
-          {/* Tab 5: Staff Transfers */}
-          <button
-            onClick={() => handleTabChange('transfers')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'transfers'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-            <span>Staff Transfers</span>
-            {pendingTransfersCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold">
-                {pendingTransfersCount} Action
-              </span>
-            )}
-          </button>
-        </nav>
+                  </nav>
       </div>
 
       {/* TAB 1: STAFF DIRECTORY */}
@@ -788,18 +776,6 @@ export const WorkforcePage = () => {
                                 Pay
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => {
-                                  setSelectedStaffId(staff.id);
-                                  setIsNewTransferOpen(true);
-                                }}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
 
                               <Button
                                 variant="ghost"
@@ -1113,26 +1089,214 @@ export const WorkforcePage = () => {
 
       {/* TAB 2.5: MONTHLY ATTENDANCE CALENDAR */}
       {activeTab === 'calendar' && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-white border border-[#DCE5EF] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-6">
+          <MonthlyAttendanceCalendar />
+        </div>
+      )}
+
+      {/* TAB 2.6: BRANCH HOLIDAYS MANAGEMENT */}
+      {activeTab === 'holidays' && (
+        <div className="space-y-6">
+          {/* Header & Action */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Staff Holiday &amp; Attendance Calendar
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Overview of scheduled festival holidays, weekly offs, employee approved leaves, and live shift duty tallies.
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  Branch Holiday Calendar &amp; Attendance Integration
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                Configure official branch holidays and festival periods for {currentBranch?.name || 'Assigned Branch'}. Covered employees are exempted from absence penalties, while worked shifts receive <strong className="text-indigo-800">Holiday Worked</strong> duty credits.
               </p>
             </div>
+            {currentUser?.role !== 'inventory_manager' && currentUser?.role !== 'kitchen_staff' && (
+              <Button
+                variant="brand"
+                size="sm"
+                icon={Plus}
+                onClick={() => setIsHolidayModalOpen(true)}
+              >
+                Schedule New Holiday
+              </Button>
+            )}
+          </div>
+
+          {/* KPI Stat Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              title="Total Scheduled Holidays"
+              value={branchHolidays.length}
+              subtext="Current calendar year"
+              icon={Calendar}
+              trend="up"
+            />
+            <StatCard
+              title="Upcoming Holidays"
+              value={branchHolidays.filter(h => (h.endDate || h.date) >= new Date().toISOString().split('T')[0]).length}
+              subtext="Scheduled ahead"
+              icon={Clock}
+              trend="neutral"
+            />
+            <StatCard
+              title="Festival Holidays"
+              value={branchHolidays.filter(h => h.type === 'Festival Holiday' || h.type === 'Festival').length}
+              subtext="Cultural celebrations"
+              icon={Sparkles}
+              trend="up"
+            />
+            <StatCard
+              title="Paid Branch Offs"
+              value={branchHolidays.filter(h => h.isPaid !== false).length}
+              subtext="Full wage credited"
+              icon={IndianRupee}
+              trend="up"
+            />
+          </div>
+
+          {/* Quick Trigger to open Manager Modal with Full Filters */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/60 to-indigo-50/60 border border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <CalendarDays className="w-5 h-5 text-emerald-700" />
+              <div>
+                <span className="font-bold text-slate-900">Advanced Holiday Management Console</span>
+                <span className="text-slate-600 block text-[11px]">Filter by month, export staff coverage lists, or schedule multi-day festival periods.</span>
+              </div>
+            </div>
             <Button
+              variant="outline"
               size="sm"
-              variant="primary"
               icon={Calendar}
               onClick={() => setIsHolidayModalOpen(true)}
             >
-              Manage Holidays &amp; Closures
+              Open Full Holiday Manager
             </Button>
           </div>
-          <MonthlyAttendanceCalendar />
+
+          {/* Branch Holidays Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                Active Branch Holidays ({branchHolidays.length})
+              </span>
+              <span className="text-slate-500 font-medium text-[11px]">
+                Showing holidays applicable to {currentBranch?.name || 'Assigned Branch'}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              {branchHolidays.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 text-xs">
+                  <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="font-bold text-slate-700 text-sm">No holidays scheduled for this branch yet.</p>
+                  <p className="text-xs text-slate-500 mt-1">Click "Schedule New Holiday" above to declare your first branch holiday.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Date / Duration</th>
+                      <th className="py-3 px-4">Holiday Name &amp; Description</th>
+                      <th className="py-3 px-4">Classification</th>
+                      <th className="py-3 px-4">Pay Status</th>
+                      <th className="py-3 px-4">Applicable Scope</th>
+                      <th className="py-3 px-4">Scheduled By</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {branchHolidays.map((hol) => {
+                      const sDate = hol.startDate || hol.date;
+                      const eDate = hol.endDate || hol.date || sDate;
+                      const isMulti = sDate !== eDate;
+                      const isUpcoming = eDate >= new Date().toISOString().split('T')[0];
+                      const coveredCount = (branchStaff || []).filter(s => isHolidayApplicableToStaff(hol, s)).length;
+
+                      return (
+                        <tr key={hol.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                            <div>
+                              <span>
+                                {new Date(sDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                              {isMulti && (
+                                <span className="block text-[11px] text-slate-500 font-normal">
+                                  to {new Date(eDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                              )}
+                              {isUpcoming && (
+                                <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                                  Upcoming
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span className="font-bold text-slate-900 block text-xs">{hol.name}</span>
+                            {hol.description && (
+                              <span className="text-[11px] text-slate-500 block truncate max-w-sm mt-0.5">
+                                {hol.description}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">
+                              {hol.type || 'Holiday'}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              hol.isPaid !== false ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {hol.isPaid !== false ? 'Paid Holiday' : 'Unpaid'}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="font-semibold text-slate-700 text-[11px]">
+                              {hol.scope === 'all' ? 'All Restaurant Outlets' : (hol.branchName || 'Assigned Branch')}
+                            </div>
+                            <span className="text-[10px] text-indigo-700 font-semibold block mt-0.5">
+                              {coveredCount} Employees Eligible
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-[11px] text-slate-500 whitespace-nowrap">
+                            {hol.createdBy || 'Management'}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                icon={Eye}
+                                onClick={() => setViewingHoliday(hol)}
+                                title="View Holiday Details"
+                              >
+                                Details
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                icon={Edit2}
+                              onClick={() => setIsHolidayModalOpen(true)}
+                              title="Manage & Edit in Holiday Console">
+                                Manage
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1192,7 +1356,7 @@ export const WorkforcePage = () => {
                     </tr>
                   ) : (
                     filteredLeaves.map((leave) => (
-                      <tr key={leave.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr key={leave.id} className={`hover:bg-slate-50/80 transition-colors ${String(leave.id) === String(reviewingLeaveId) ? 'bg-emerald-50/80 ring-2 ring-emerald-500/50' : ''}`}>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2.5">
                             <img
@@ -1219,27 +1383,6 @@ export const WorkforcePage = () => {
                           <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded">
                             {leave.durationDays} Days
                           </span>
-                          {(() => {
-                            const overlapping = (leaveRequests || []).filter(
-                              (l) =>
-                                l.id !== leave.id &&
-                                (l.status === 'approved' || l.status === 'pending') &&
-                                l.startDate <= leave.endDate &&
-                                l.endDate >= leave.startDate
-                            );
-                            if (overlapping.length > 0) {
-                              return (
-                                <div
-                                  className="mt-1 flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
-                                  title={`Overlapping with: ${overlapping.map((o) => o.staffName).join(', ')}`}
-                                >
-                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                                  <span>Shortage Risk: {overlapping.length} other on leave</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
                         </td>
 
                         <td className="py-3.5 px-4 max-w-xs text-slate-700">
@@ -1282,9 +1425,19 @@ export const WorkforcePage = () => {
                             ) : (
                               <div className="flex items-center justify-end gap-1.5">
                                 <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  icon={Eye}
+                                  onClick={() => setReviewingLeaveId(leave.id)}
+                                  title="Inspect full leave application"
+                                  className="text-slate-600 hover:text-emerald-700 cursor-pointer"
+                                >
+                                  Review
+                                </Button>
+                                <Button
                                   variant="outline"
                                   size="xs"
-                                  onClick={() => setReviewingLeave({ leave, action: 'rejected', note: 'Shift coverage constraints at outlet' })}
+                                  onClick={() => reviewLeaveRequest(leave.id, 'rejected', 'Shift coverage constraints at outlet')}
                                   className="text-rose-600 hover:bg-rose-50 cursor-pointer"
                                 >
                                   Reject
@@ -1292,7 +1445,7 @@ export const WorkforcePage = () => {
                                 <Button
                                   variant="brand"
                                   size="xs"
-                                  onClick={() => setReviewingLeave({ leave, action: 'approved', note: 'Approved by Manager' })}
+                                  onClick={() => reviewLeaveRequest(leave.id, 'approved', 'Approved by Manager')}
                                   className="cursor-pointer"
                                 >
                                   Accept
@@ -1300,9 +1453,21 @@ export const WorkforcePage = () => {
                               </div>
                             )
                           ) : (
-                            <span className="text-[11px] text-slate-400 italic">
-                              Reviewed by {leave.reviewedBy || 'Manager'}
-                            </span>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-[11px] text-slate-400 italic">
+                                Reviewed by {leave.reviewedBy || 'Manager'}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                icon={Eye}
+                                onClick={() => setReviewingLeaveId(leave.id)}
+                                title="Inspect leave requisition details"
+                                className="text-slate-500 hover:text-emerald-700 cursor-pointer"
+                              >
+                                View
+                              </Button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -1317,200 +1482,157 @@ export const WorkforcePage = () => {
 
       {/* TAB 4: PAYROLL */}
       {activeTab === 'payroll' && (
-        <MonthlyPayrollDashboard />
-      )}
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Staff Payroll &amp; Compensation Ledger
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Disburse monthly compensation, log bank transaction references, and dispatch salary credit notifications.
+              </p>
+            </div>
+            <Button
+              variant="brand"
+              size="sm"
+              icon={IndianRupee}
+              onClick={() => {
+                setSalaryTargetStaff(null);
+                setIsSalaryModalOpen(true);
+              }}
+            >
+              Disburse Salary
+            </Button>
+          </div>
 
-      {/* TAB 5: STAFF TRANSFERS */}
-      {activeTab === 'transfers' && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                {[
-                  { id: 'all', label: 'All Transfers', count: staffTransfers.length },
-                  { id: 'Pending', label: 'Pending', count: pendingTransfersCount, highlight: pendingTransfersCount > 0 },
-                  { id: 'Approved', label: 'Approved', count: staffTransfers.filter((t) => t.status === 'Approved').length },
-                  { id: 'Rejected', label: 'Rejected', count: staffTransfers.filter((t) => t.status === 'Rejected').length },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setTransferStatusTab(tab.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                      transferStatusTab === tab.id
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                        transferStatusTab === tab.id
-                          ? 'bg-white/20 text-white'
-                          : tab.highlight
-                          ? 'bg-amber-200 text-amber-900 font-bold'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-sm">Staff Compensation Roster</h4>
+              <span className="text-xs text-slate-400">{branchStaff.length} Employees</span>
+            </div>
 
-              <div className="relative w-full md:w-80">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by staff, branch, or request ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Outlet</th>
+                    <th className="py-3 px-4">Base Wage</th>
+                    <th className="py-3 px-4">Designated Bank Account</th>
+                    <th className="py-3 px-4">Last Disbursed Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {branchStaff.map((staff) => {
+                    const profile = STAFF_SALARY_PROFILES?.[staff.id];
+                    const lastPayment = salaryPayments.find((p) => p.staffId === staff.id);
+
+                    return (
+                      <tr key={staff.id} className="hover:bg-slate-50/70">
+                        <td className="py-3.5 px-4">
+                          <span className="font-bold text-slate-900 block">{staff.name}</span>
+                          <span className="text-[10px] text-slate-500">{staff.roleLabel}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">{staff.branchName || 'Pune Central'}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                          {formatINR(profile?.baseSalary || 35000)}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">
+                          {profile?.bankAccount || 'HDFC Bank •••• 4421'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {lastPayment ? (
+                            <div>
+                              <span className="text-emerald-700 font-semibold">
+                                {formatINR(lastPayment.amount)} for {lastPayment.payPeriod}
+                              </span>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                UTR: {lastPayment.referenceNumber}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Not disbursed this month</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            icon={IndianRupee}
+                            onClick={() => {
+                              setSalaryTargetStaff(staff);
+                              setIsSalaryModalOpen(true);
+                            }}
+                          >
+                            Disburse
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 text-sm">Disbursed Salary History</h4>
+              <span className="text-xs text-slate-400">{salaryPayments.length} Transactions</span>
+            </div>
+
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3.5 px-4">Request ID</th>
-                    <th className="py-3.5 px-4">Staff Member</th>
-                    <th className="py-3.5 px-4">Source &rarr; Destination Branch</th>
-                    <th className="py-3.5 px-4">Reason / Notes</th>
-                    <th className="py-3.5 px-4">Requested By</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4 text-right">Workflow Actions</th>
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Pay Period</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Transaction UTR</th>
+                    <th className="py-3 px-4">Disbursed Date</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Pay Slip</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTransfers.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-10 text-center text-xs text-slate-500">
-                        No staff transfer requests match the selected criteria.
+                  {salaryPayments.map((sal) => (
+                    <tr key={sal.id} className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-slate-900 block">{sal.staffName}</span>
+                        <span className="text-[10px] text-slate-400">{sal.staffRole}</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-800 font-medium">{sal.payPeriod}</td>
+                      <td className="py-3.5 px-4 font-extrabold font-mono text-emerald-800">
+                        {formatINR(sal.amount)}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">
+                        {sal.referenceNumber}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 text-[11px]">
+                        {new Date(sal.processedAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          {sal.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Eye}
+                          onClick={() => setViewingSalarySlip(sal)}
+                        >
+                          Slip
+                        </Button>
                       </td>
                     </tr>
-                  ) : (
-                    filteredTransfers.map((req) => {
-                      const isPending = req.status === 'Pending';
-                      const isApproved = req.status === 'Approved';
-                      const isRejected = req.status === 'Rejected';
-
-                      return (
-                        <tr
-                          key={req.id}
-                          className={`hover:bg-slate-50/80 transition-colors ${
-                            isPending ? 'bg-amber-50/20' : ''
-                          }`}
-                        >
-                          <td className="py-3.5 px-4">
-                            <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                              {req.id}
-                            </span>
-                            <div className="text-[10px] text-slate-400 mt-1">{req.requestDate}</div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-2.5">
-                              <img
-                                src={req.employeeAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'}
-                                alt={req.employeeName}
-                                className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
-                              />
-                              <div>
-                                <div className="font-bold text-slate-900">{req.employeeName}</div>
-                                <div className="text-[10px] text-slate-500">{req.roleLabel}</div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
-                                {req.fromBranchName?.replace('Spice Garden — ', '')}
-                              </span>
-                              <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 text-[11px]">
-                                {req.toBranchName?.replace('Spice Garden — ', '')}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td className="py-3.5 px-4 max-w-xs">
-                            <p className="text-slate-800 line-clamp-2">{req.reason}</p>
-                            {req.comments && (
-                              <span className="text-[10px] text-slate-500 italic block mt-0.5">
-                                Note: {req.comments}
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <div className="text-slate-800 font-medium">{req.requestedBy}</div>
-                            {req.approvedBy && (
-                              <div className="text-[10px] text-emerald-700 mt-0.5 font-medium">
-                                Approved by: {req.approvedBy}
-                              </div>
-                            )}
-                          </td>
-
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                isApproved
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : isPending
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                  : 'bg-rose-100 text-rose-800 border border-rose-200'
-                              }`}
-                            >
-                              {isApproved && <CheckCircle2 className="w-3 h-3" />}
-                              {isPending && <Clock className="w-3 h-3" />}
-                              {isRejected && <XCircle className="w-3 h-3" />}
-                              <span>{req.status}</span>
-                            </span>
-                          </td>
-
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {isPending ? (
-                                <>
-                                  <Button
-                                    variant="primary"
-                                    size="xs"
-                                    onClick={() => handleApproveTransfer(req.id)}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                                  >
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="xs"
-                                    onClick={() => setRejectingTransfer(req)}
-                                    className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs"
-                                  >
-                                    Reject
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  onClick={() => setSelectedTransferForAudit(req)}
-                                  className="text-slate-600 hover:bg-slate-100 text-xs"
-                                >
-                                  <History className="w-3.5 h-3.5 mr-1" />
-                                  Audit Log
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1679,213 +1801,6 @@ export const WorkforcePage = () => {
         </form>
       </Modal>
 
-      {/* New Transfer Modal */}
-      <Modal
-        isOpen={isNewTransferOpen}
-        onClose={() => setIsNewTransferOpen(false)}
-        title="Initiate Staff Branch Transfer"
-        maxWidth="max-w-xl"
-      >
-        <form onSubmit={handleNewTransferSubmit} className="space-y-4">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
-            <span className="font-bold text-slate-800 uppercase tracking-wider block text-[10px]">
-              Transfer Approval Policy
-            </span>
-            <p>
-              Once submitted, this request enters <strong>Pending</strong> state. Upon authorization, the employee is automatically reassigned and outlet quota counts update immediately.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              1. Select Employee to Transfer *
-            </label>
-            <select
-              value={selectedStaffId}
-              onChange={(e) => {
-                setSelectedStaffId(e.target.value);
-                setToBranchId('');
-              }}
-              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              required
-            >
-              <option value="">Choose employee from roster...</option>
-              {scopedStaff.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name} ({staff.roleLabel}) — Currently at {staff.branchName?.replace('Spice Garden — ', '')}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              2. Current Origin Branch (Auto-detected)
-            </label>
-            <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 flex items-center justify-between">
-              <span>{currentTransferBranch?.name || 'Please select an employee above'}</span>
-              <span className="font-mono text-[10px] text-slate-500">{currentTransferBranch?.code}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              3. Target Destination Branch *
-            </label>
-            <select
-              value={toBranchId}
-              onChange={(e) => setToBranchId(e.target.value)}
-              className="w-full text-xs py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              required
-              disabled={!selectedStaffId}
-            >
-              <option value="">Select destination outlet...</option>
-              {branches
-                .filter((b) => b.id !== currentTransferBranch?.id)
-                .map((b) => {
-                  const staffCount = branchStaff.filter((s) => s.branchId === b.id).length;
-                  const planCfg = BRANCH_PLANS_CONFIG[b.planId] || BRANCH_PLANS_CONFIG['plan-starter'];
-                  return (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({staffCount}/{planCfg.maxStaff} staff - {b.planName} Plan)
-                    </option>
-                  );
-                })}
-            </select>
-          </div>
-
-          {destinationBranch && destPlanConfig && (
-            <div
-              className={`p-3 rounded-xl border text-xs space-y-1 ${
-                isDestFull
-                  ? 'bg-rose-50 border-rose-200 text-rose-900'
-                  : 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
-              }`}
-            >
-              <div className="flex items-center justify-between font-bold">
-                <span>Destination Quota Check:</span>
-                <span>
-                  {destCurrentStaffCount} / {destPlanConfig.maxStaff === 999 ? 'Unlimited' : `${destPlanConfig.maxStaff} Max Staff`}
-                </span>
-              </div>
-              <p className="text-[11px]">
-                {isDestFull
-                  ? 'Warning: Destination branch has reached its plan limit. Upgrading its plan will be required to approve.'
-                  : `Plan: ${destinationBranch.planName}. Destination capacity verified.`}
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              4. Reason for Transfer Request *
-            </label>
-            <textarea
-              rows={3}
-              placeholder="e.g. Urgent chef support for peak weekend dinner rush, cross-training, promotion..."
-              value={transferReason}
-              onChange={(e) => setTransferReason(e.target.value)}
-              className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              required
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-            <Button variant="outline" size="sm" onClick={() => setIsNewTransferOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" type="submit">
-              Submit Transfer Request
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Reject Transfer Modal */}
-      {rejectingTransfer && (
-        <Modal
-          isOpen={!!rejectingTransfer}
-          onClose={() => setRejectingTransfer(null)}
-          title={`Reject Transfer Request: ${rejectingTransfer.id}`}
-          maxWidth="max-w-md"
-        >
-          <form onSubmit={handleRejectTransferConfirm} className="space-y-4">
-            <p className="text-xs text-slate-600">
-              Please state why the transfer of <strong>{rejectingTransfer.employeeName}</strong> to{' '}
-              <strong>{rejectingTransfer.toBranchName}</strong> is being rejected.
-            </p>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Rejection Reason
-              </label>
-              <textarea
-                rows={3}
-                placeholder="e.g. Staff quota full at destination, critical weekend coverage needed at origin..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full text-xs p-3 rounded-xl border border-slate-200 bg-white text-slate-800"
-                required
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-              <Button variant="outline" size="sm" onClick={() => setRejectingTransfer(null)}>
-                Cancel
-              </Button>
-              <Button variant="danger" size="sm" type="submit">
-                Confirm Rejection
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Audit Log Modal */}
-      {selectedTransferForAudit && (
-        <Modal
-          isOpen={!!selectedTransferForAudit}
-          onClose={() => setSelectedTransferForAudit(null)}
-          title={`Workflow Audit Log: ${selectedTransferForAudit.id}`}
-          maxWidth="max-w-lg"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-900">{selectedTransferForAudit.employeeName}</span>
-                <Badge status={selectedTransferForAudit.status === 'Approved' ? 'active' : 'inactive'} size="xs" />
-              </div>
-              <div className="text-slate-500">
-                {selectedTransferForAudit.fromBranchName} &rarr; {selectedTransferForAudit.toBranchName}
-              </div>
-              <div className="text-slate-700 pt-1">
-                <strong>Reason:</strong> {selectedTransferForAudit.reason}
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                Chronological Audit History
-              </h5>
-              <div className="relative border-l border-slate-200 ml-3 space-y-4 pl-4 py-1">
-                {selectedTransferForAudit.history?.map((step, idx) => (
-                  <div key={idx} className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-white" />
-                    <p className="font-semibold text-slate-900">{step.action}</p>
-                    <p className="text-[11px] text-slate-500">By: {step.by}</p>
-                    <span className="text-[10px] text-slate-400 font-mono">{step.date}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-slate-200">
-              <Button variant="primary" size="sm" onClick={() => setSelectedTransferForAudit(null)}>
-                Close Audit
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
       {/* Staff Details Modal */}
       {selectedStaffDetails && (
         <Modal
@@ -1976,6 +1891,27 @@ export const WorkforcePage = () => {
         />
       )}
 
+      {/* Holiday Details Modal */}
+      {viewingHoliday && (
+        <HolidayDetailsModal
+          isOpen={!!viewingHoliday}
+          onClose={() => {
+            setViewingHoliday(null);
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('holidayId');
+              return next;
+            });
+          }}
+          holiday={viewingHoliday}
+          canEdit={isManager || currentUser?.role === 'restaurant_owner'}
+          onEdit={() => {
+            setViewingHoliday(null);
+            setIsHolidayModalOpen(true);
+          }}
+        />
+      )}
+
       {/* Holiday Manager Modal */}
       <HolidayManagerModal
         isOpen={isHolidayModalOpen}
@@ -2054,90 +1990,6 @@ export const WorkforcePage = () => {
         }}
       />
 
-      {/* Leave Decision Note Review Modal */}
-      {reviewingLeave && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                {reviewingLeave.action === 'approved' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-600" />
-                )}
-                <span>{reviewingLeave.action === 'approved' ? 'Approve Leave Request' : 'Reject Leave Request'}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setReviewingLeave(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Employee:</span>
-                <span className="font-bold text-slate-800">{reviewingLeave.leave.staffName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Category:</span>
-                <span className="font-semibold text-slate-800">{reviewingLeave.leave.leaveType}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Dates:</span>
-                <span className="font-mono text-slate-800 font-semibold">{reviewingLeave.leave.startDate} ➔ {reviewingLeave.leave.endDate} ({reviewingLeave.leave.durationDays}d)</span>
-              </div>
-              <div className="pt-2 border-t border-slate-200">
-                <span className="text-slate-500 block mb-0.5">Staff Reason:</span>
-                <span className="text-slate-700 italic block">{reviewingLeave.leave.reason}</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Decision Note / Manager Remarks:</label>
-              <textarea
-                rows={3}
-                value={reviewingLeave.note}
-                onChange={(e) => setReviewingLeave((prev) => ({ ...prev, note: e.target.value }))}
-                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Enter remarks for the employee..."
-              />
-              <p className="text-[10px] text-slate-400">
-                This remark will be sent to the employee and attached to their permanent leave audit record.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReviewingLeave(null)}
-                className="cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant={reviewingLeave.action === 'approved' ? 'brand' : 'outline'}
-                size="sm"
-                className={reviewingLeave.action === 'approved' ? 'cursor-pointer' : 'text-rose-600 border-rose-300 hover:bg-rose-50 cursor-pointer'}
-                onClick={() => {
-                  reviewLeaveRequest(
-                    reviewingLeave.leave.id,
-                    reviewingLeave.action,
-                    reviewingLeave.note.trim() || (reviewingLeave.action === 'approved' ? 'Approved by Manager' : 'Declined by Manager')
-                  );
-                  setReviewingLeave(null);
-                }}
-              >
-                Confirm {reviewingLeave.action === 'approved' ? 'Approval' : 'Rejection'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <ExcelImportDialog
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
@@ -2146,6 +1998,162 @@ export const WorkforcePage = () => {
         existingRecords={branchStaff}
         onImportConfirm={importStaffBulk}
       />
+      {/* Leave Request Review Modal */}
+      {reviewingLeave && (
+        <Modal
+          isOpen={!!reviewingLeave}
+          onClose={handleCloseReviewModal}
+          title="Review Leave Requisition"
+          maxWidth="max-w-lg"
+        >
+          <div className="space-y-4 text-xs">
+            {/* Header / Staff profile */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <img
+                  src={
+                    reviewingLeave.staffAvatar ||
+                    'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150'
+                  }
+                  alt={reviewingLeave.staffName}
+                  className="w-12 h-12 rounded-full object-cover border border-slate-300 shrink-0"
+                />
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">{reviewingLeave.staffName}</h4>
+                  <p className="text-slate-500">{reviewingLeave.staffRole || 'Staff Member'}</p>
+                  <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mt-1">
+                    Outlet: {reviewingLeave.branchName || 'Assigned Branch'}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 block mb-1">Status</span>
+                {reviewingLeave.status === 'pending' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    <Clock className="w-3 h-3 text-amber-600" />
+                    Pending Approval
+                  </span>
+                ) : reviewingLeave.status === 'approved' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Approved
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    <XCircle className="w-3 h-3 text-rose-600" />
+                    Rejected
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Leave Details Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-white border border-slate-200">
+                <span className="text-slate-400 block text-[11px] mb-0.5">Leave Category</span>
+                <strong className="text-slate-800 text-xs font-semibold">{reviewingLeave.leaveType}</strong>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-slate-200">
+                <span className="text-slate-400 block text-[11px] mb-0.5">Duration</span>
+                <strong className="text-emerald-700 text-xs font-semibold">
+                  {reviewingLeave.durationDays} Day{reviewingLeave.durationDays > 1 ? 's' : ''}
+                </strong>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-slate-200 col-span-2">
+                <span className="text-slate-400 block text-[11px] mb-0.5">Scheduled Dates</span>
+                <strong className="text-slate-800 text-xs font-semibold flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  {reviewingLeave.startDate} &rarr; {reviewingLeave.endDate}
+                </strong>
+              </div>
+            </div>
+
+            {/* Reason Box */}
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-slate-400 block text-[11px] mb-1 font-medium">Reason for Request</span>
+              <p className="text-slate-700 text-xs leading-relaxed italic">
+                "{reviewingLeave.reason}"
+              </p>
+            </div>
+
+            {/* Application metadata */}
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+              <span>Applied: {new Date(reviewingLeave.appliedDate).toLocaleString()}</span>
+              <span>Requisition ID: #{reviewingLeave.id}</span>
+            </div>
+
+            {/* Already reviewed info if not pending */}
+            {reviewingLeave.status !== 'pending' && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <div className="font-semibold text-slate-800">
+                  Reviewed by {reviewingLeave.reviewedBy || 'Manager'}
+                </div>
+                {reviewingLeave.reviewNotes && (
+                  <p className="text-slate-600 mt-1">Note: "{reviewingLeave.reviewNotes}"</p>
+                )}
+                {reviewingLeave.reviewedAt && (
+                  <span className="text-[10px] text-slate-400 block mt-1">
+                    On {new Date(reviewingLeave.reviewedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Manager review controls if pending */}
+            {reviewingLeave.status === 'pending' && (
+              <div className="space-y-3 pt-2">
+                {isManager && reviewingLeave.staffId === currentUser?.id ? (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Manager Self-Approval Prohibited. Only the Restaurant Owner can approve or reject your leave application.</span>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        Decision Note (Optional)
+                      </label>
+                      <textarea
+                        value={reviewNotes}
+                        onChange={(e) => setReviewNotes(e.target.value)}
+                        placeholder="e.g. Approved. Line coverage confirmed with sous chef..."
+                        rows={2}
+                        className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRejectLeave(reviewingLeave.id)}
+                        className="text-rose-600 hover:bg-rose-50"
+                      >
+                        Decline Application
+                      </Button>
+                      <Button
+                        variant="brand"
+                        size="sm"
+                        onClick={() => handleApproveLeave(reviewingLeave.id)}
+                      >
+                        Approve Leave
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {reviewingLeave.status !== 'pending' && (
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <Button variant="outline" size="sm" onClick={handleCloseReviewModal}>
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

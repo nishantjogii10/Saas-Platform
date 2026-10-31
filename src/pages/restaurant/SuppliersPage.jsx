@@ -14,6 +14,9 @@ import {
   Edit3,
   Trash2,
   ExternalLink,
+  Globe,
+  Handshake,
+  Filter,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
@@ -40,7 +43,10 @@ export const SuppliersPage = () => {
     importSuppliersBulk,
   } = useApp();
 
+  const isOwner = currentUser?.role === 'restaurant_owner';
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'third-party' | 'tie-up'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'grid'
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -53,6 +59,7 @@ export const SuppliersPage = () => {
 
   const [formData, setFormData] = useState({
     name: '',
+    supplierType: 'Tie-up Supplier',
     contactPerson: '',
     email: '',
     phone: '',
@@ -62,17 +69,91 @@ export const SuppliersPage = () => {
     categories: ['Dairy', 'Produce'],
   });
 
+  const getSupplierType = (sup) => {
+    if (sup.supplierType) return sup.supplierType;
+    if (
+      sup.registeredVia === 'main_system' ||
+      sup.id === 'sup-4' ||
+      sup.id === 'sup-5' ||
+      sup.name?.toLowerCase().includes('golden crust') ||
+      sup.name?.toLowerCase().includes('amrit dairy')
+    ) {
+      return 'Tie-up Supplier';
+    }
+    if (
+      sup.registeredVia === 'supplier_portal' ||
+      sup.isFirstTimePortalRegistration ||
+      sup.id === 'sup-1' ||
+      sup.id === 'sup-2' ||
+      sup.id === 'sup-3' ||
+      sup.id === 'sup-6' ||
+      sup.id === 'sup-diksha' ||
+      sup.name?.toLowerCase().includes('metro food') ||
+      sup.name?.toLowerCase().includes('freshfarm') ||
+      sup.name?.toLowerCase().includes('royal spice') ||
+      sup.name?.toLowerCase().includes('ocean crest') ||
+      sup.name?.toLowerCase().includes('diksha')
+    ) {
+      return 'Third-Party Supplier';
+    }
+    return 'Tie-up Supplier';
+  };
+
+  const thirdPartyCount = (restaurantSuppliers || []).filter(
+    (s) => getSupplierType(s) === 'Third-Party Supplier'
+  ).length;
+
+  const tieUpCount = (restaurantSuppliers || []).filter(
+    (s) => getSupplierType(s) === 'Tie-up Supplier'
+  ).length;
+
   const filteredSuppliers = restaurantSuppliers.filter((s) => {
-    return (
+    const matchesSearch =
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+      s.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const actualType = getSupplierType(s);
+    const matchesType =
+      typeFilter === 'all' ||
+      (typeFilter === 'third-party' && actualType === 'Third-Party Supplier') ||
+      (typeFilter === 'tie-up' && actualType === 'Tie-up Supplier');
+
+    return matchesSearch && matchesType;
   });
+
+  const renderSupplierTypeBadge = (sup) => {
+    const isTieUp = getSupplierType(sup) === 'Tie-up Supplier';
+    if (isTieUp) {
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shadow-2xs">
+            <Handshake className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>Tie-up Supplier</span>
+          </span>
+          <span className="text-[10px] text-teal-700/80 dark:text-teal-400/80 font-medium">
+            Added via Main System
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+          <Globe className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          <span>Third-Party Supplier</span>
+        </span>
+        <span className="text-[10px] text-indigo-700/80 dark:text-indigo-400/80 font-medium">
+          Registered via Supplier Portal
+        </span>
+      </div>
+    );
+  };
 
   const handleOpenAdd = () => {
     setFormData({
       name: '',
+      supplierType: 'Tie-up Supplier',
       contactPerson: '',
       email: '',
       phone: '',
@@ -88,6 +169,7 @@ export const SuppliersPage = () => {
     setSelectedSupplier(sup);
     setFormData({
       name: sup.name,
+      supplierType: getSupplierType(sup),
       contactPerson: sup.contactPerson,
       email: sup.email,
       phone: sup.phone,
@@ -101,7 +183,10 @@ export const SuppliersPage = () => {
 
   const handleSaveAdd = (e) => {
     e.preventDefault();
-    addSupplier(formData);
+    addSupplier({
+      ...formData,
+      supplierType: formData.supplierType || 'Tie-up Supplier',
+    });
     setIsAddModalOpen(false);
   };
 
@@ -116,8 +201,12 @@ export const SuppliersPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Vendor & Supplier Catalog"
-        subtitle="Manage food purveyors, lead times, contact channels, and dispatch agreements"
+        title={isOwner ? "Supplier List" : "Vendor & Supplier Catalog"}
+        subtitle={
+          isOwner
+            ? "Directory of verified Third-Party and Tie-up suppliers supplying ingredients"
+            : "Manage food purveyors, lead times, contact channels, and dispatch agreements"
+        }
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Suppliers' },
@@ -162,7 +251,7 @@ export const SuppliersPage = () => {
               Export to Excel
             </Button>
 
-            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && (
+            {currentUser.role !== 'kitchen_staff' && currentUser.role !== 'supplier' && !isOwner && (
               <Button
                 variant="outline"
                 size="sm"
@@ -173,7 +262,7 @@ export const SuppliersPage = () => {
               </Button>
             )}
 
-            {currentUser.role !== 'kitchen_staff' && (
+            {currentUser.role !== 'kitchen_staff' && !isOwner && (
               <Button
                 variant="brand"
                 size="sm"
@@ -187,16 +276,110 @@ export const SuppliersPage = () => {
         }
       />
 
-      {/* Search Bar */}
-      <div className="flex items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search suppliers by company name, contact, or email..."
-          className="w-full sm:w-80"
-        />
+      {/* Quick Supplier Classification Filter Tabs & Explainer Banner */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('all')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                typeFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              <span>All Suppliers</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                typeFilter === 'all' ? 'bg-slate-700 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}>
+                {restaurantSuppliers.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTypeFilter('third-party')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                typeFilter === 'third-party'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200/60 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Third-Party Suppliers</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                typeFilter === 'third-party' ? 'bg-indigo-800 text-white' : 'bg-indigo-200 text-indigo-900'
+              }`}>
+                {thirdPartyCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTypeFilter('tie-up')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                typeFilter === 'tie-up'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'bg-teal-50 text-teal-700 border border-teal-200/60 hover:bg-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800'
+              }`}
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              <span>Tie-up Suppliers</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                typeFilter === 'tie-up' ? 'bg-teal-800 text-white' : 'bg-teal-200 text-teal-900'
+              }`}>
+                {tieUpCount}
+              </span>
+            </button>
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            Showing {filteredSuppliers.length} of {restaurantSuppliers.length} suppliers
+          </span>
+        </div>
+
+        {/* Informative Guidance Banner */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+          <div className="flex items-center gap-2 p-2 rounded-xl bg-indigo-50/60 border border-indigo-100 dark:bg-indigo-950/30 dark:border-indigo-900/40 text-indigo-950 dark:text-indigo-200">
+            <Globe className="w-4 h-4 text-indigo-600 shrink-0" />
+            <div>
+              <strong className="font-bold text-indigo-900 dark:text-indigo-100">Third-Party Suppliers:</strong> Independent vendors who self-register and log in via the external Supplier Portal.
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-xl bg-teal-50/60 border border-teal-100 dark:bg-teal-950/30 dark:border-teal-900/40 text-teal-950 dark:text-teal-200">
+            <Handshake className="w-4 h-4 text-teal-600 shrink-0" />
+            <div>
+              <strong className="font-bold text-teal-900 dark:text-teal-100">Tie-up Suppliers:</strong> Internal partner vendors added through the main system dashboard or accessed via the main system login.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Secondary Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search suppliers by company, contact, email..."
+            className="w-full sm:w-72"
+          />
+          <div className="flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="text-xs font-semibold py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-hidden"
+            >
+              <option value="all">All Supplier Types ({restaurantSuppliers.length})</option>
+              <option value="third-party">Third-Party Suppliers ({thirdPartyCount})</option>
+              <option value="tie-up">Tie-up Suppliers ({tieUpCount})</option>
+            </select>
+          </div>
+        </div>
         <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-          Showing {filteredSuppliers.length} suppliers
+          Filtered count: {filteredSuppliers.length} records
         </span>
       </div>
 
@@ -205,53 +388,41 @@ export const SuppliersPage = () => {
         <DataTable
           columns={[
             {
-              header: 'Company Name',
+              header: 'Supplier / Vendor',
               accessor: 'name',
               sortable: true,
               render: (row) => (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100 dark:border-emerald-800">
-                    <Truck className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-100 dark:border-emerald-800">
+                    <Truck className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-slate-900 dark:text-white text-xs">{row.name}</span>
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-white text-xs">{row.name}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
+                      <span>{row.rating || 4.8}</span>
+                      <span>•</span>
+                      <span>{row.paymentTerms || 'Net 30'}</span>
+                    </div>
+                  </div>
                 </div>
               ),
             },
             {
-              header: 'Rating',
-              accessor: 'rating',
+              header: 'Supplier Type & Registration Source',
+              accessor: 'supplierType',
               sortable: true,
-              render: (row) => (
-                <div className="flex items-center gap-1 text-xs text-amber-700 font-semibold">
-                  <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                  <span>{row.rating || 4.8}</span>
-                </div>
-              ),
-            },
-            {
-              header: 'Payment Terms',
-              accessor: 'paymentTerms',
-              sortable: true,
-              render: (row) => (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  {row.paymentTerms || 'Net 30'}
-                </span>
-              ),
+              render: (row) => renderSupplierTypeBadge(row),
             },
             {
               header: 'Contact Person',
               accessor: 'contactPerson',
               sortable: true,
               render: (row) => (
-                <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{row.contactPerson}</span>
-              ),
-            },
-            {
-              header: 'Contact Phone',
-              accessor: 'phone',
-              sortable: true,
-              render: (row) => (
-                <span className="text-xs text-slate-600 dark:text-slate-400 font-mono">{row.phone}</span>
+                <div className="text-xs">
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">{row.contactPerson}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.phone}</div>
+                </div>
               ),
             },
             {
@@ -259,75 +430,84 @@ export const SuppliersPage = () => {
               accessor: 'email',
               sortable: true,
               render: (row) => (
-                <span className="text-xs text-slate-700 dark:text-slate-300 font-mono">
+                <div className="text-xs text-slate-700 dark:text-slate-300 font-mono">
                   {row.email}
-                </span>
-              ),
-            },
-            {
-              header: 'Categories',
-              accessor: 'categories',
-              render: (row) => (
-                <div className="flex flex-wrap gap-1">
-                  {(Array.isArray(row.categories) ? row.categories : [row.categories]).map((cat, idx) => (
-                    <span key={idx} className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {cat}
-                    </span>
-                  ))}
                 </div>
               ),
             },
+            ...(!isOwner
+              ? [
+                  {
+                    header: 'Supplied Categories',
+                    accessor: 'categories',
+                    render: (row) => (
+                      <div className="flex flex-wrap gap-1">
+                        {(Array.isArray(row.categories) ? row.categories : [row.categories]).map((cat, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
             {
               header: 'Lead Time',
               accessor: 'leadTimeDays',
               sortable: true,
-              className: 'text-center',
-              cellClassName: 'text-center',
               render: (row) => (
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   {row.leadTimeDays || 1} day(s)
                 </span>
               ),
             },
-            {
-              header: 'Actions',
-              accessor: 'id',
-              render: (sup) => (
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    icon={ShoppingBag}
-                    title="Create Purchase Order"
-                    className="text-emerald-700 hover:bg-emerald-50"
-                    onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
-                  >
-                    PO
-                  </Button>
-                  {currentUser.role !== 'kitchen_staff' && (
-                    <>
-                      <button
-                        onClick={() => handleOpenEdit(sup)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                        title="Edit Supplier"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSupplierToDelete(sup);
-                          setDeleteConfirmOpen(true);
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                        title="Delete Supplier"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              ),
-            },
+            ...(!isOwner
+              ? [
+                  {
+                    header: 'Actions',
+                    accessor: 'id',
+                    render: (sup) => (
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          icon={ShoppingBag}
+                          title="Create Purchase Order"
+                          className="text-emerald-700 hover:bg-emerald-50"
+                          onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
+                        >
+                          PO
+                        </Button>
+                        {currentUser.role !== 'kitchen_staff' && (
+                          <>
+                            <button
+                              onClick={() => handleOpenEdit(sup)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                              title="Edit Supplier"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSupplierToDelete(sup);
+                                setDeleteConfirmOpen(true);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete Supplier"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
           ]}
           data={filteredSuppliers}
           keyField="id"
@@ -351,7 +531,10 @@ export const SuppliersPage = () => {
                         <Truck className="w-6 h-6" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900 dark:text-white text-base">{sup.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-900 dark:text-white text-base">{sup.name}</h3>
+                          {renderSupplierTypeBadge(sup)}
+                        </div>
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
                           <span className="font-medium text-slate-700 dark:text-slate-300">{sup.contactPerson}</span>
                           <span>•</span>
@@ -363,7 +546,7 @@ export const SuppliersPage = () => {
                       </div>
                     </div>
 
-                    {currentUser.role !== 'kitchen_staff' && (
+                    {currentUser.role !== 'kitchen_staff' && !isOwner && (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEdit(sup)}
@@ -386,16 +569,18 @@ export const SuppliersPage = () => {
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {sup.categories.map((cat, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                      >
-                        {cat}
-                      </span>
-                    ))}
-                  </div>
+                  {!isOwner && sup.categories && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {sup.categories.map((cat, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50/70 dark:bg-slate-850/60 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
@@ -417,20 +602,22 @@ export const SuppliersPage = () => {
                   </div>
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <span className="text-xs text-slate-500 font-medium">
-                    {activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''} in pipeline
-                  </span>
+                {!isOwner && (
+                  <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-500 font-medium">
+                      {activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''} in pipeline
+                    </span>
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={ShoppingBag}
-                    onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
-                  >
-                    Create PO
-                  </Button>
-                </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ShoppingBag}
+                      onClick={() => navigate(`/purchase-orders?action=create&supplierId=${sup.id}`)}
+                    >
+                      Create PO
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -467,6 +654,23 @@ export const SuppliersPage = () => {
         }
       >
         <form onSubmit={isAddModalOpen ? handleSaveAdd : handleSaveEdit} className="space-y-4">
+          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
+                Supplier Classification
+              </span>
+              <strong className="text-sm font-extrabold text-teal-950">
+                {formData.supplierType || 'Tie-up Supplier'}
+              </strong>
+              <p className="text-[11px] text-teal-800 mt-0.5">
+                Suppliers added via the main system are automatically tagged as <strong>Tie-up Suppliers</strong>. Independent vendors registering through the external portal are tagged as <strong>Third-Party Suppliers</strong>.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-teal-200/60 text-teal-900 border border-teal-300 shrink-0">
+              Main System
+            </span>
+          </div>
+
           <FormInput
             label="Supplier Company Name"
             name="name"

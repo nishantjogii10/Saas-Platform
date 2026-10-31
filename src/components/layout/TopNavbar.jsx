@@ -22,6 +22,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 const formatBranchName = (name) => {
   if (!name) return '';
@@ -80,9 +81,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isKitchenStaff = currentUser?.role === 'kitchen_staff';
-
-  const roleFilteredAlerts = React.useMemo(() => {
+const roleFilteredAlerts = React.useMemo(() => {
     return (restaurantAlerts || []).filter(a => {
       if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
         return false;
@@ -91,79 +90,184 @@ export const TopNavbar = ({ onOpenMobile }) => {
     });
   }, [restaurantAlerts, currentUser]);
 
-  const unreadAlerts = useMemo(() => {
-    return (roleFilteredAlerts || []).filter(a => !a.read);
-  }, [roleFilteredAlerts]);
+  const isKitchenStaff =
+    currentUser?.role === 'kitchen_staff' ||
+    currentUser?.role === 'inventory_manager';
 
-  const relevantNotifs = useMemo(() => {
-    if (isKitchenStaff) {
-      return (staffNotifications || []).filter(n => !n.targetStaffId || n.targetStaffId === currentUser?.id);
-    }
-    return ownerNotifications || [];
-  }, [isKitchenStaff, staffNotifications, ownerNotifications, currentUser]);
-
-  const relevantUnreadNotifs = useMemo(() => {
-    return relevantNotifs.filter(n => !n.read);
-  }, [relevantNotifs]);
-
-  const totalUnreadCount = unreadAlerts.length + relevantUnreadNotifs.length;
-
-  const combinedItems = useMemo(() => {
-    const alertItems = (roleFilteredAlerts || []).map(a => ({
-      ...a,
-      sourceType: 'alert',
+  // Combine alerts and role-specific notifications for the notification popover.
+  const combinedNotifications = useMemo(() => {
+    const alerts = (roleFilteredAlerts || []).map((a) => ({
+      id: a.id,
+      title: a.title,
+      message: a.message,
+      timestamp: a.timestamp,
+      read: Boolean(a.read),
       type: a.type || 'alert',
-    }));
-    const noticeItems = (relevantNotifs || []).map(n => ({
-      ...n,
-      sourceType: 'notification',
-      type: n.type || 'notification',
+      severity: a.severity,
+      actionLink: a.actionLink,
+      sourceType: 'alert',
+      badge: 'Stock Alert',
+      action: () => {
+        markAlertRead(a.id);
+        if (a.actionLink) {
+          const managerRestricted =
+            currentUser?.role === 'restaurant_manager' &&
+            !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
+              a.actionLink.startsWith(path)
+            );
+          const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
+          navigate(managerRestricted ? '/alerts' : resolvedLink);
+        }
+        setShowNotifications(false);
+      },
     }));
 
-    let items = [];
-    if (notifTab === 'alerts') {
-      items = alertItems;
-    } else if (notifTab === 'notifications') {
-      items = noticeItems;
+    // Individually addressed staff notifications targeted at current employee
+    const personalStaffNotifs = (staffNotifications || []).filter(
+      (n) => n.targetStaffId === currentUser?.id
+    );
+
+    let sourceNotifications = [];
+    if (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') {
+      sourceNotifications = ownerNotifications || [];
+    } else if (currentUser?.role === 'restaurant_manager') {
+      const managerBranchNotifs = (ownerNotifications || []).filter(
+        (n) => !n.branchId || n.branchId === (currentUser.branchId || currentBranchId)
+      );
+      sourceNotifications = [...personalStaffNotifs, ...managerBranchNotifs];
     } else {
-      items = [...alertItems, ...noticeItems];
+      sourceNotifications = personalStaffNotifs;
     }
 
-    return items.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
-  }, [roleFilteredAlerts, relevantNotifs, notifTab]);
+    // Smart resolver for notification action links to exact tabs
+    const resolveNotificationActionLink = (item) => {
+      if (!item) return '/workforce';
+      const label = (item.actionLabel || '').toLowerCase();
+      const badge = (item.badge || '').toLowerCase();
+      const type = (item.type || '').toLowerCase();
+
+      if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
+        const holId = item.holidayId || '';
+        if (currentUser?.role === 'kitchen_staff' || currentUser?.role === 'inventory_manager') {
+          return `/my-attendance?tab=holidays${holId ? `&holidayId=${holId}` : ''}`;
+        }
+        return `/workforce?tab=holidays${holId ? `&holidayId=${holId}` : ''}`;
+      }
+
+      if (label.includes('roster') || badge.includes('invite') || type === 'staff_added' || type === 'manager_assigned') {
+        return '/workforce?tab=roster';
+      }
+      if (label.includes('timesheet') || badge.includes('shift end') || type === 'staff_punch_out') {
+        return '/workforce?tab=attendance';
+      }
+      if (label.includes('attendance') || badge.includes('attendance') || type === 'staff_punch_in') {
+        return '/workforce?tab=attendance';
+      }
+      if (label.includes('leave') || type === 'leave_request') {
+        const leaveId = item.leaveId ? `&leaveId=${item.leaveId}` : '';
+        return `/workforce?tab=leave${leaveId}`;
+      }
+      if (item.actionLink) {
+        let link = item.actionLink.replace('/branch-staff', '/workforce');
+        if (link === '/workforce') {
+          if (label.includes('roster')) return '/workforce?tab=roster';
+          if (label.includes('timesheet') || label.includes('attendance')) return '/workforce?tab=attendance';
+        }
+        return link;
+      }
+      return '/workforce';
+    };
+
+    const notices = sourceNotifications.map((n) => ({
+      ...n,
+      id: n.id,
+      title: n.title || 'Notification',
+      message: n.message || '',
+      timestamp: n.timestamp,
+      read: Boolean(n.read),
+      type: n.actionLink === '/inbox' ? 'announcement' : 'notification',
+      severity: n.priority === 'urgent' ? 'critical' : (n.severity || 'normal'),
+      actionLink: n.actionLink,
+      sourceType: 'notification',
+      badge: n.actionLink === '/inbox' ? 'Announcement' : (n.badge || 'Notice'),
+      action: () => {
+        if (n.targetStaffId) {
+          markStaffNotificationRead(n.id);
+        } else {
+          markOwnerNotificationRead(n.id);
+        }
+
+        if (n.announcementId && currentRestaurant) {
+          markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
+        }
+
+        const resolvedLink = resolveNotificationActionLink(n);
+        if (resolvedLink) {
+          navigate(resolvedLink);
+        }
+        setShowNotifications(false);
+      },
+    }));
+
+    return [...alerts, ...notices];
+  }, [
+    roleFilteredAlerts,
+    staffNotifications,
+    ownerNotifications,
+    isKitchenStaff,
+    currentUser,
+    currentRestaurant,
+    markAlertRead,
+    markAnnouncementAsRead,
+    markOwnerNotificationRead,
+    markStaffNotificationRead,
+    navigate,
+  ]);
+
+  const combinedItems = combinedNotifications.filter((item) => {
+    if (notifTab === 'alerts') return item.sourceType === 'alert';
+    if (notifTab === 'notifications') return item.sourceType === 'notification';
+    return true;
+  });
+
+  const unreadAlerts = combinedNotifications.filter(
+    (item) => item.sourceType === 'alert' && !item.read
+  );
+
+  const relevantNotifs = combinedNotifications.filter(
+    (item) => item.sourceType === 'notification'
+  );
+
+  const relevantUnreadNotifs = relevantNotifs.filter((item) => !item.read);
+
+  const totalUnreadCount = combinedNotifications.filter((item) => !item.read).length;
 
   const handleItemClick = (item) => {
+    if (typeof item.action === 'function') {
+      item.action();
+      return;
+    }
+
     if (item.sourceType === 'alert') {
       markAlertRead(item.id);
-      if (item.actionLink) {
-        if (currentUser?.role === 'restaurant_manager' && !['/workforce', '/alerts', '/reports', '/profile'].some(p => item.actionLink.startsWith(p))) {
-          navigate('/alerts');
-        } else {
-          navigate(item.actionLink);
-        }
-      }
-      setShowNotifications(false);
+    } else if (isKitchenStaff) {
+      markStaffNotificationRead(item.id);
     } else {
-      if (item.actionLink === '/inbox' && item.announcementId && currentRestaurant) {
-        markAnnouncementAsRead(item.announcementId, currentRestaurant.id);
-      } else if (isKitchenStaff) {
-        markStaffNotificationRead(item.id);
-      } else {
-        markOwnerNotificationRead(item.id);
-      }
-      if (item.actionLink) {
-        if (isKitchenStaff && !item.actionLink.startsWith('/kitchen')) {
-          navigate('/kitchen');
-        } else {
-          navigate(item.actionLink);
-        }
-      }
-      setShowNotifications(false);
+      markOwnerNotificationRead(item.id);
     }
+
+    if (item.actionLink) {
+      navigate(
+        isKitchenStaff && !item.actionLink.startsWith('/kitchen')
+          ? '/kitchen'
+          : item.actionLink
+      );
+    }
+    setShowNotifications(false);
   };
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-[#DCE5EF] sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 transition-colors duration-200">
+    <header className="h-16 glass-header sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 transition-all duration-200">
       {/* Left: Mobile Menu Toggle & Workspace Info */}
       <div className="flex items-center gap-3">
         <button
@@ -182,7 +286,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 <button
                   type="button"
                   onClick={() => setShowBranchDropdown(!showBranchDropdown)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 bg-slate-50/90 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors shadow-2xs"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/90 bg-white/70 hover:bg-white text-xs font-semibold text-slate-800 transition-all shadow-xs hover:shadow-sm"
                   title="Switch Active Branch"
                 >
                   <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -195,7 +299,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
                 </button>
 
                 {showBranchDropdown && (
-                  <div className="absolute left-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute left-0 mt-2 w-72 sm:w-80 rounded-2xl glass-dropdown z-50 py-2 overflow-hidden animate-scale-in">
                     <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                         Switch Active Outlet
@@ -341,7 +445,9 @@ export const TopNavbar = ({ onOpenMobile }) => {
       </div>
 
       {/* Right: Notifications, Role Badge & User Profile Dropdown */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Global SaaS Theme Switcher */}
+        <ThemeToggle variant="dropdown" />
         {/* Role Badge */}
         <Badge status={currentUser?.role || 'active'} size="md" className="hidden sm:inline-flex" />
 
@@ -363,7 +469,7 @@ export const TopNavbar = ({ onOpenMobile }) => {
 
             {/* Notifications Popover */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl glass-dropdown z-50 overflow-hidden animate-scale-in">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70">
                   <div className="flex items-center gap-2">
 <span className="text-sm font-semibold text-slate-900">Notifications &amp; Alerts</span>
@@ -532,7 +638,7 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
           </button>
 
           {showUserDropdown && (
-            <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xl dark:shadow-2xl z-50 py-2">
+            <div className="absolute right-0 mt-2 w-64 rounded-2xl glass-dropdown z-50 py-2 animate-scale-in">
               <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-xs font-semibold text-slate-900 dark:text-white">{currentUser?.name}</p>
                 <p className="text-[11px] text-slate-500 truncate">{currentUser?.email}</p>
@@ -574,7 +680,7 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                 {currentUser?.role === 'super_admin' && (
                   <button
                     onClick={() => {
-                      navigate('/admin/support');
+                      navigate('/admin/settings');
                       setShowUserDropdown(false);
                     }}
                     className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
@@ -583,6 +689,14 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                     <span>Platform Settings</span>
                   </button>
                 )}
+
+                <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>Appearance Theme</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-500 font-semibold">Active</span>
+                  </div>
+                  <ThemeToggle variant="segmented" className="w-full justify-between" />
+                </div>
 
                 <button
                   onClick={() => {

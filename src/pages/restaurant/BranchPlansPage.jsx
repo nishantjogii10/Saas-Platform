@@ -22,6 +22,7 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
 import { formatINR, BRANCH_PLANS_CONFIG } from '../../data/branchData';
+import { calculatePlanSavings } from '../../services/pricingEngine';
 
 export const BranchPlansPage = () => {
   const navigate = useNavigate();
@@ -104,7 +105,7 @@ export const BranchPlansPage = () => {
             Select Billing Interval
           </h3>
           <p className="text-xs text-slate-500">
-            Annual billing includes 2 months free (~17% discount across all tiers).
+            Annual billing includes up to 20% discount with effective monthly rates across all tiers.
           </p>
         </div>
 
@@ -349,12 +350,6 @@ export const BranchPlansPage = () => {
                 <td className="py-3 px-4 text-center text-emerald-600">✓ Included</td>
                 <td className="py-3 px-4 text-center text-emerald-600">✓ Included</td>
                 <td className="py-3 px-4 text-center text-emerald-600">✓ Included</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 text-slate-700">Staff Transfer Between Branches</td>
-                <td className="py-3 px-4 text-center text-slate-400">Receive Only</td>
-                <td className="py-3 px-4 text-center text-emerald-600">✓ Full Transfer</td>
-                <td className="py-3 px-4 text-center text-emerald-600">✓ Full Transfer</td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-slate-700">Analytics, Wastage &amp; Costing Reports</td>

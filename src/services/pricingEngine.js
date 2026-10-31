@@ -99,7 +99,7 @@ export const BASE_PLANS = {
       'Everything in Professional, plus:',
       'Up to 10 Outlets & 50 Staff Accounts',
       'Up to 5 Dedicated POS Terminals',
-      'Multi-Store Staff Transfers & Central Commissary',
+      'Central Commissary & Multi-Store Stock Management',
       'Swiggy / Zomato Online Aggregator Sync',
       'Predictive Consumption & Wastage BI',
       'Dedicated Account Manager & 24/7 Phone SLA',
@@ -130,6 +130,51 @@ export const BASE_PLANS = {
   },
 };
 
+export const calculatePlanSavings = (monthlyPrice, annualPrice) => {
+  const m = Math.max(0, Number(monthlyPrice) || 0);
+  const a = Math.max(0, Number(annualPrice) || 0);
+  const annualWithoutDiscount = m * 12;
+  const annualSavings = Math.max(0, annualWithoutDiscount - a);
+  const savingsPercent = annualWithoutDiscount > 0 ? Math.round((annualSavings / annualWithoutDiscount) * 100) : 0;
+  const effectiveMonthlyAnnual = a > 0 ? Math.round(a / 12) : 0;
+  return { annualSavings, savingsPercent, effectiveMonthlyAnnual };
+};
+
+export const syncPricingEnginePlans = (plansList) => {
+  if (!plansList) return BASE_PLANS;
+  const list = Array.isArray(plansList) ? plansList : Object.values(plansList);
+  list.forEach((p) => {
+    if (!p || !p.id) return;
+    const targetPlan = BASE_PLANS[p.id];
+    const { annualSavings, savingsPercent, effectiveMonthlyAnnual } = calculatePlanSavings(
+      p.monthlyPrice,
+      p.annualPrice ?? (Number(p.monthlyPrice || 0) * 12 * 0.8)
+    );
+    if (targetPlan) {
+      if (p.name !== undefined) targetPlan.name = p.name;
+      if (p.badge !== undefined) targetPlan.badge = p.badge;
+      if (p.monthlyPrice !== undefined) targetPlan.monthlyPrice = Number(p.monthlyPrice) || 0;
+      if (p.annualPrice !== undefined) targetPlan.annualPrice = Number(p.annualPrice) || 0;
+      targetPlan.annualSavings = annualSavings;
+      targetPlan.savingsPercent = savingsPercent;
+      targetPlan.effectiveMonthlyAnnual = effectiveMonthlyAnnual;
+      if (p.description !== undefined) targetPlan.target = p.description;
+      if (p.target !== undefined) targetPlan.target = p.target;
+      if (p.status !== undefined) targetPlan.status = p.status;
+      if (Array.isArray(p.features) && p.features.length > 0) {
+        targetPlan.features = [...p.features];
+      }
+      if (p.limits) {
+        if (p.limits.maxIngredients !== undefined) targetPlan.maxIngredients = Number(p.limits.maxIngredients) || targetPlan.maxIngredients;
+        if (p.limits.maxStaff !== undefined) targetPlan.includedStaff = Number(p.limits.maxStaff) || targetPlan.includedStaff;
+        if (p.limits.branches !== undefined) targetPlan.includedOutlets = Number(p.limits.branches) || targetPlan.includedOutlets;
+        if (p.limits.support !== undefined) targetPlan.supportLevel = p.limits.support;
+      }
+    }
+  });
+  return BASE_PLANS;
+};
+
 // Configurable Add-On Modules and Unit Rates
 export const MODULE_CATALOG = [
   {
@@ -140,6 +185,7 @@ export const MODULE_CATALOG = [
     annualPrice: 5748, // ₹479/mo (20% discount)
     category: 'Core POS',
     isBaseModule: true,
+    status: 'active',
   },
   {
     id: 'inventory_mgmt',
@@ -149,6 +195,7 @@ export const MODULE_CATALOG = [
     annualPrice: 4788, // ₹399/mo (20% discount)
     category: 'Pantry & Kitchen',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'expiry_fefo',
@@ -158,6 +205,7 @@ export const MODULE_CATALOG = [
     annualPrice: 3828, // ₹319/mo (20% discount)
     category: 'Pantry & Kitchen',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'recipe_costing',
@@ -167,6 +215,7 @@ export const MODULE_CATALOG = [
     annualPrice: 5760, // ₹480/mo (20% discount)
     category: 'Food Cost Optimization',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'supplier_mgmt',
@@ -176,6 +225,7 @@ export const MODULE_CATALOG = [
     annualPrice: 4788,
     category: 'Procurement & Supply Chain',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'po_goods_receiving',
@@ -185,6 +235,7 @@ export const MODULE_CATALOG = [
     annualPrice: 4788,
     category: 'Procurement & Supply Chain',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'qr_batch_matrix',
@@ -194,6 +245,7 @@ export const MODULE_CATALOG = [
     annualPrice: 4788,
     category: 'Pantry & Kitchen',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'table_captain_ordering',
@@ -203,6 +255,7 @@ export const MODULE_CATALOG = [
     annualPrice: 2880, // ₹240/mo (20% discount)
     category: 'Front of House',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'multi_store_mgmt',
@@ -212,6 +265,7 @@ export const MODULE_CATALOG = [
     annualPrice: 7680, // ₹640/mo (20% discount)
     category: 'Multi-Unit Governance',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'aggregator_integration',
@@ -221,6 +275,7 @@ export const MODULE_CATALOG = [
     annualPrice: 3840, // ₹320/mo (20% discount)
     category: 'Online Delivery Channels',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'advanced_reports',
@@ -230,6 +285,7 @@ export const MODULE_CATALOG = [
     annualPrice: 6708,
     category: 'Business Intelligence',
     isBaseModule: false,
+    status: 'active',
   },
   {
     id: 'custom_erp_connector',
@@ -239,6 +295,7 @@ export const MODULE_CATALOG = [
     annualPrice: 34990,
     category: 'Custom Engineering (Path C)',
     requiresCustomDev: true,
+    status: 'active',
   },
   {
     id: 'on_premise_sla',
@@ -248,6 +305,7 @@ export const MODULE_CATALOG = [
     annualPrice: 59990,
     category: 'Custom Infrastructure (Path C)',
     requiresCustomDev: true,
+    status: 'active',
   },
 ];
 
@@ -272,8 +330,66 @@ export const PRICING_UNIT_RATES = {
   additionalStaffMonthly: 99,         // per staff member per month
   additionalStaffAnnual: 948,         // ~20% discount
   gstRate: 0.18,                      // 18% statutory GST
+  annualDiscountPercent: 20,          // 20% annual discount
   minimumPriceMarginFloorRatio: 0.70, // Margin guardrail
+  minTerminals: 1,
+  maxTerminals: 25,
+  minOutlets: 1,
+  maxOutlets: 50,
+  minStaff: 1,
+  maxStaff: 200,
 };
+
+/**
+ * Synchronize custom module pricing & statuses with persistent store
+ */
+export const syncPricingEngineModules = (modulesList) => {
+  if (!modulesList || !Array.isArray(modulesList)) return MODULE_CATALOG;
+  modulesList.forEach((m) => {
+    if (!m || !m.id) return;
+    const existing = MODULE_CATALOG.find((mod) => mod.id === m.id);
+    if (existing) {
+      if (m.name !== undefined) existing.name = m.name;
+      if (m.description !== undefined) existing.description = m.description;
+      if (m.monthlyPrice !== undefined) existing.monthlyPrice = Math.max(0, Number(m.monthlyPrice) || 0);
+      if (m.annualPrice !== undefined) {
+        existing.annualPrice = Math.max(0, Number(m.annualPrice) || 0);
+      } else if (m.monthlyPrice !== undefined) {
+        existing.annualPrice = Math.round(Number(m.monthlyPrice) * 12 * 0.8);
+      }
+      if (m.status !== undefined) existing.status = m.status;
+      if (m.category !== undefined) existing.category = m.category;
+      if (m.isBaseModule !== undefined) existing.isBaseModule = m.isBaseModule;
+      if (m.isRequired !== undefined) existing.isRequired = m.isRequired;
+    } else {
+      MODULE_CATALOG.push({
+        ...m,
+        status: m.status || 'active',
+        monthlyPrice: Math.max(0, Number(m.monthlyPrice) || 0),
+        annualPrice: m.annualPrice !== undefined && Number(m.annualPrice) > 0
+          ? Number(m.annualPrice)
+          : Math.round(Number(m.monthlyPrice || 0) * 12 * 0.8),
+      });
+    }
+  });
+  return MODULE_CATALOG;
+};
+
+/**
+ * Synchronize unit scaling rates with persistent store
+ */
+export const syncPricingEngineUnitRates = (rates) => {
+  if (!rates || typeof rates !== 'object') return PRICING_UNIT_RATES;
+  Object.keys(rates).forEach((key) => {
+    if (rates[key] !== undefined) {
+      PRICING_UNIT_RATES[key] = typeof rates[key] === 'number' ? rates[key] : (Number(rates[key]) || rates[key]);
+    }
+  });
+  return PRICING_UNIT_RATES;
+};
+
+export const getModuleCatalog = () => MODULE_CATALOG;
+export const getPricingUnitRates = () => PRICING_UNIT_RATES;
 
 // Threshold Limits for Automated Rules
 export const AUTOMATION_LIMITS = {

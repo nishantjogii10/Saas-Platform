@@ -23,7 +23,7 @@ export const FormInput = ({
   return (
     <div className={`w-full ${className}`}>
       {label && (
-        <label htmlFor={name} className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+        <label htmlFor={name} className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           {label} {required && <span className="text-rose-500">*</span>}
         </label>
       )}
@@ -43,9 +43,9 @@ export const FormInput = ({
             onChange={onChange}
             disabled={disabled}
             required={required}
-            className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-colors duration-150 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
+            className={`w-full rounded-xl border bg-white/80 hover:bg-white focus:bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 transition-all duration-150 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
               Icon ? 'pl-10' : ''
-            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300 focus:border-emerald-600'}`}
+            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300/90 focus:border-emerald-600'}`}
             {...props}
           >
             {options.map((opt, idx) => (
@@ -64,9 +64,9 @@ export const FormInput = ({
             disabled={disabled}
             required={required}
             placeholder={placeholder}
-            className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-colors duration-150 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
+            className={`w-full rounded-xl border bg-white/80 hover:bg-white focus:bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-all duration-150 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
               Icon ? 'pl-10' : ''
-            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300 focus:border-emerald-600'}`}
+            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300/90 focus:border-emerald-600'}`}
             {...props}
           />
         ) : (
@@ -79,20 +79,16 @@ export const FormInput = ({
             disabled={disabled}
             required={required}
             placeholder={placeholder}
-            className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-colors duration-150 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
+            className={`w-full rounded-xl border bg-white/80 hover:bg-white focus:bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-all duration-150 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 disabled:text-slate-400 ${
               Icon ? 'pl-10' : ''
-            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300 focus:border-emerald-600'}`}
+            } ${error ? 'border-rose-300 focus:border-rose-500' : 'border-slate-300/90 focus:border-emerald-600'}`}
             {...props}
           />
         )}
       </div>
 
-      {error ? (
-        <p className="mt-1 text-xs text-rose-500">{error}</p>
-      ) : helperText ? (
-        <p className="mt-1 text-xs text-slate-400">{helperText}</p>
-      ) : null}
+      {error && <p className="mt-1.5 text-xs font-semibold text-rose-600 flex items-center gap-1">{error}</p>}
+      {helperText && !error && <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>}
     </div>
   );
 };
-

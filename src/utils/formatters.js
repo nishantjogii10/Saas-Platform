@@ -1,58 +1,85 @@
 /**
  * StockMate SaaS — Business Formatting Utilities
- * Standardized date, currency (INR ₹), quantity, and percentage formatting
+ * Standardized date, currency, quantity, and percentage formatting with locale & timezone support
  */
 
 /**
- * Formats a numeric value or string into Indian Rupee (INR ₹) currency representation.
- * Example: 12500 -> "₹12,500.00" or "₹12,500" if rounded
+ * Formats a numeric value or string into configured currency representation (defaults to INR ₹).
+ * Example: 12500 -> "₹12,500.00"
  */
-export const formatCurrency = (val, { showDecimals = true, fallback = '₹0' } = {}) => {
+export const formatCurrency = (
+  val,
+  { currency = 'INR', locale = 'en-IN', showDecimals = true, fallback = '₹0' } = {}
+) => {
   if (val === null || val === undefined || isNaN(Number(val))) {
     return fallback;
   }
   const num = Number(val);
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: showDecimals ? 2 : 0,
-    maximumFractionDigits: showDecimals ? 2 : 0,
-  }).format(num);
+  try {
+    return new Intl.NumberFormat(locale || 'en-IN', {
+      style: 'currency',
+      currency: currency || 'INR',
+      minimumFractionDigits: showDecimals ? 2 : 0,
+      maximumFractionDigits: showDecimals ? 2 : 0,
+    }).format(num);
+  } catch (err) {
+    return `₹${num.toLocaleString('en-IN', {
+      minimumFractionDigits: showDecimals ? 2 : 0,
+      maximumFractionDigits: showDecimals ? 2 : 0,
+    })}`;
+  }
 };
 
 /**
- * Formats ISO date or date string into readable business format: e.g. "27 Oct 2026"
+ * Formats ISO date or date string into configured date format & time zone
  */
-export const formatDate = (dateInput, { fallback = '—' } = {}) => {
+export const formatDate = (
+  dateInput,
+  { format = 'DD/MM/YYYY', timeZone = 'Asia/Kolkata', fallback = '—' } = {}
+) => {
   if (!dateInput) return fallback;
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return String(dateInput);
-    return new Intl.DateTimeFormat('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(d);
+
+    const tzOption = timeZone ? { timeZone } : {};
+
+    if (format === 'YYYY-MM-DD') {
+      return new Intl.DateTimeFormat('en-CA', { ...tzOption, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    }
+    if (format === 'MM/DD/YYYY') {
+      return new Intl.DateTimeFormat('en-US', { ...tzOption, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    }
+    if (format === 'DD MMM YYYY') {
+      return new Intl.DateTimeFormat('en-GB', { ...tzOption, year: 'numeric', month: 'short', day: '2-digit' }).format(d);
+    }
+    // Default 'DD/MM/YYYY'
+    return new Intl.DateTimeFormat('en-GB', { ...tzOption, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   } catch {
     return String(dateInput);
   }
 };
 
 /**
- * Formats ISO date or timestamp into readable date & time: e.g. "27 Oct 2026, 02:30 PM"
+ * Formats ISO date or timestamp into readable date & time with time zone
  */
-export const formatDateTime = (dateInput, { fallback = '—' } = {}) => {
+export const formatDateTime = (
+  dateInput,
+  { timeZone = 'Asia/Kolkata', hour12 = true, fallback = '—' } = {}
+) => {
   if (!dateInput) return fallback;
   try {
     const d = new Date(dateInput);
     if (isNaN(d.getTime())) return String(dateInput);
+    const tzOption = timeZone ? { timeZone } : {};
     return new Intl.DateTimeFormat('en-IN', {
+      ...tzOption,
       day: '2-digit',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: hour12,
     }).format(d);
   } catch {
     return String(dateInput);
@@ -85,4 +112,3 @@ export const formatPhone = (phone) => {
   if (!phone) return '—';
   return String(phone).trim();
 };
-

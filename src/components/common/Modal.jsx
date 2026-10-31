@@ -28,28 +28,28 @@ export const Modal = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
+      {/* Backdrop with Liquid Glass Blur */}
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-fade-in"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity animate-fade-in"
         onClick={onClose}
       />
 
       {/* Dialog container */}
       <div className="flex min-h-full items-center justify-center p-4 sm:p-6 text-center">
         <div
-          className={`relative w-full ${maxWidth} transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-slate-200/80`}
+          className={`relative w-full ${maxWidth} transform overflow-hidden rounded-3xl bg-white/95 backdrop-blur-xl text-left align-middle shadow-2xl transition-all border border-white/80 animate-scale-in`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex items-start justify-between border-b border-slate-100/90 px-6 py-4.5 bg-slate-50/60 backdrop-blur-xs">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-              {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">{title}</h3>
+              {subtitle && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{subtitle}</p>}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -62,7 +62,7 @@ export const Modal = ({
 
           {/* Optional Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-3.5">
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100/90 bg-slate-50/80 backdrop-blur-xs px-6 py-4">
               {footer}
             </div>
           )}
@@ -71,4 +71,3 @@ export const Modal = ({
     </div>
   );
 };
-

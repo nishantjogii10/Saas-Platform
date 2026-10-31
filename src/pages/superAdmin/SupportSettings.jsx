@@ -1,16 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
-  LifeBuoy,
   Settings,
   Bell,
   CheckCircle2,
   Clock,
-  Shield,
   Save,
-  MessageSquare,
   Building2,
-  AlertCircle,
+  Sliders,
+  ArrowRight,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/common/Card';
@@ -19,15 +18,24 @@ import { Badge } from '../../components/common/Badge';
 import { FormInput } from '../../components/common/FormInput';
 
 export const SupportSettings = () => {
-  const { supportTickets, updateTicketStatus, addToast } = useApp();
+  const { supportTickets, updateTicketStatus, addToast, platformSettings, updatePlatformSettings } = useApp();
+  const navigate = useNavigate();
 
   const [platformConfig, setPlatformConfig] = useState({
-    platformName: 'StockMate Multi-Tenant SaaS',
-    supportEmail: 'support@stockmate.io',
-    billingCurrency: 'INR (₹)',
-    maintenanceMode: false,
-    requireApprovalForNewTenants: true,
+    platformName: platformSettings?.general?.platformName || 'StockMate',
+    supportEmail: platformSettings?.general?.supportEmail || 'support@stockmate.io',
+    requireApprovalForNewTenants: Boolean(platformSettings?.general?.requireApprovalForNewTenants),
   });
+
+  useEffect(() => {
+    if (platformSettings?.general) {
+      setPlatformConfig({
+        platformName: platformSettings.general.platformName,
+        supportEmail: platformSettings.general.supportEmail,
+        requireApprovalForNewTenants: Boolean(platformSettings.general.requireApprovalForNewTenants),
+      });
+    }
+  }, [platformSettings?.general]);
 
   const [notifications, setNotifications] = useState({
     emailOnNewRegistration: true,
@@ -38,7 +46,18 @@ export const SupportSettings = () => {
 
   const handleSavePlatformSettings = (e) => {
     e.preventDefault();
-    addToast('Platform configuration saved successfully.', 'success');
+    updatePlatformSettings(
+      {
+        general: {
+          ...platformSettings.general,
+          platformName: platformConfig.platformName,
+          supportEmail: platformConfig.supportEmail,
+          requireApprovalForNewTenants: platformConfig.requireApprovalForNewTenants,
+        },
+      },
+      'Support & Platform Sync',
+      'Platform Variables Updated via Support Desk'
+    );
   };
 
   const handleSaveNotifications = (e) => {
@@ -49,13 +68,47 @@ export const SupportSettings = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Support Queue & Platform Settings"
-        subtitle="Manage client assistance inquiries, global SaaS variables, and alert dispatches"
+        title="Support Helpdesk & Inquiries"
+        subtitle="Manage client assistance inquiries, merchant support tickets, and alert dispatch preferences"
         breadcrumbs={[
           { label: 'Admin', href: '#/admin/dashboard' },
-          { label: 'Support & Settings' },
+          { label: 'Support Inquiries' },
         ]}
+        action={
+          <Button
+            variant="brand"
+            size="sm"
+            onClick={() => navigate('/admin/settings')}
+            icon={Sliders}
+            iconRight={ArrowRight}
+          >
+            Open Unified Platform Settings
+          </Button>
+        }
       />
+
+      {/* Cross-Link Banner to Platform Settings */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 to-slate-900 border border-emerald-800/60 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+            <Sliders className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-white">Looking for Platform Settings?</h4>
+            <p className="text-xs text-slate-300 mt-0.5">
+              General Branding, Billing Currency &amp; Locale, 2FA Security, and Demo Storage are in the unified Platform Settings module.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="primary"
+          size="xs"
+          onClick={() => navigate('/admin/settings')}
+          className="shrink-0 bg-emerald-700 hover:bg-emerald-600"
+        >
+          Manage Platform Settings →
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Support Tickets Queue */}
@@ -138,8 +191,8 @@ export const SupportSettings = () => {
           {/* Global Platform Variables */}
           <Card>
             <CardHeader
-              title="Platform Configuration"
-              subtitle="Global SaaS defaults"
+              title="Quick Platform Defaults"
+              subtitle="Synced with authoritative Platform Settings"
               icon={Settings}
             />
             <form onSubmit={handleSavePlatformSettings} className="space-y-4">
@@ -172,7 +225,7 @@ export const SupportSettings = () => {
               </div>
 
               <Button type="submit" variant="brand" size="sm" className="w-full" icon={Save}>
-                Save Platform Settings
+                Save Quick Settings
               </Button>
             </form>
           </Card>
@@ -225,4 +278,3 @@ export const SupportSettings = () => {
     </div>
   );
 };
-

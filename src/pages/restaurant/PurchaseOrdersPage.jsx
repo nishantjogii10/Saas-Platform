@@ -19,6 +19,8 @@ import {
   Calendar,
   IndianRupee,
   UserCheck,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -178,76 +180,75 @@ export const PurchaseOrdersPage = () => {
 
   const columns = [
     {
-      header: 'PO Number',
+      header: 'PO Number & Date',
       accessor: 'poNumber',
       sortable: true,
       render: (row) => (
-        <span className="font-bold text-slate-900 dark:text-white font-mono text-xs">
-          {row.poNumber}
-        </span>
+        <div>
+          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+            <span>{row.poNumber}</span>
+          </div>
+          <div className="text-xs text-slate-400">
+            {new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+          </div>
+        </div>
       ),
     },
     {
-      header: 'Order Date',
-      accessor: 'createdAt',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs text-slate-700 dark:text-slate-300">
-          {row.createdAt ? new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-        </span>
-      ),
-    },
-    {
-      header: 'Supplier Name',
+      header: 'Assigned Supplier',
       accessor: 'supplierName',
       sortable: true,
-      render: (row) => (
-        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-          {row.supplierName}
-        </span>
-      ),
+      render: (row) => {
+        const sup = (restaurantSuppliers || []).find((s) => s.id === row.supplierId || s.name === row.supplierName);
+        const isTieUp =
+          sup?.supplierType === 'Tie-up Supplier' ||
+          row.supplierType === 'Tie-up Supplier' ||
+          sup?.registeredVia === 'main_system' ||
+          sup?.id === 'sup-4' ||
+          sup?.id === 'sup-5' ||
+          row.supplierName?.toLowerCase().includes('golden crust') ||
+          row.supplierName?.toLowerCase().includes('amrit dairy');
+        const sType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+        const isThirdParty = !isTieUp;
+        return (
+          <div className="text-xs">
+            <div className="font-semibold text-slate-800">{row.supplierName}</div>
+            <div className="text-slate-400 truncate max-w-[160px]">{row.supplierContact}</div>
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5 ${
+                isThirdParty
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  : 'bg-teal-50 text-teal-700 border border-teal-200'
+              }`}
+            >
+              {isThirdParty ? <Globe className="w-2.5 h-2.5" /> : <Handshake className="w-2.5 h-2.5" />}
+              <span>{sType}</span>
+            </span>
+          </div>
+        );
+      },
     },
     {
-      header: 'Supplier Contact',
-      accessor: 'supplierContact',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[150px] block" title={row.supplierContact}>
-          {row.supplierContact || '—'}
-        </span>
-      ),
-    },
-    {
-      header: 'Items Count',
+      header: 'Items Ordered',
       accessor: 'items',
-      className: 'text-center',
-      cellClassName: 'text-center',
       render: (row) => (
-        <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md">
-          {row.items?.length || 0} items
-        </span>
-      ),
-    },
-    {
-      header: 'Expected Delivery',
-      accessor: 'expectedDelivery',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs text-slate-600 dark:text-slate-400">
-          {row.expectedDelivery || '—'}
-        </span>
+        <div className="text-xs">
+          <span className="font-bold text-slate-800">{row.items.length} item(s)</span>
+          <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
+            {row.items.map(it => `${it.quantity} ${it.unit} ${it.name}`).join(', ')}
+          </div>
+        </div>
       ),
     },
     {
       header: 'Total Value',
       accessor: 'totalAmount',
       sortable: true,
-      className: 'text-right',
-      cellClassName: 'text-right',
       render: (row) => (
-        <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">
-          {formatINR(row.totalAmount)}
-        </span>
+        <div className="text-xs">
+          <div className="font-extrabold text-slate-900">{formatINR(row.totalAmount)}</div>
+          <div className="text-[10px] text-slate-400">Incl. tax & delivery</div>
+        </div>
       ),
     },
     {
@@ -273,7 +274,7 @@ export const PurchaseOrdersPage = () => {
             Details
           </Button>
 
-          {/* Owner / Admin Direct Requisition Fallback */}
+          {/* Owner / Admin Direct Requisition Fallback (if any legacy PO pending approval) */}
           {row.status === 'pending_approval' &&
             (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
               <Button
@@ -430,7 +431,14 @@ export const PurchaseOrdersPage = () => {
               type="select"
               value={poForm.supplierId}
               onChange={(e) => setPoForm({ ...poForm, supplierId: e.target.value })}
-              options={restaurantSuppliers.map(s => ({ label: `${s.name} (${s.paymentTerms})`, value: s.id }))}
+              options={restaurantSuppliers.map(s => {
+                const isTieUp = s.supplierType === 'Tie-up Supplier' || s.registeredVia === 'main_system' || s.id === 'sup-4' || s.id === 'sup-5' || s.name?.toLowerCase().includes('golden crust') || s.name?.toLowerCase().includes('amrit dairy');
+                const sType = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+                return {
+                  label: `${s.name} [${sType}] (${s.paymentTerms})`,
+                  value: s.id,
+                };
+              })}
               required
             />
 

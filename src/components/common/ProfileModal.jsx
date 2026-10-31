@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { FormInput } from './FormInput';
 import { Badge } from './Badge';
+import { ThemeToggle } from './ThemeToggle';
 import {
   User,
   Mail,
@@ -541,6 +542,17 @@ export const ProfileModal = () => {
               </div>
             </label>
           </div>
+        </div>
+
+        {/* 6. APPEARANCE & THEME PREFERENCE */}
+        <div className="pt-3 border-t border-slate-100 dark:border-white/10">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Appearance &amp; Theme Mode
+            </h4>
+            <span className="text-[10px] text-slate-400">Stored for your account</span>
+          </div>
+          <ThemeToggle variant="segmented" />
         </div>
 
         {/* Modal Action Buttons */}

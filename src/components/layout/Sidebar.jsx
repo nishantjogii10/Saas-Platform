@@ -32,7 +32,6 @@ import {
   CalendarCheck,
   Receipt,
   TrendingUp,
-  ArrowLeftRight,
   GitBranch,
   Layers,
   Sparkles,
@@ -58,6 +57,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
     customPlanRequests,
     announcements,
     announcementReads,
+    platformSettings,
   } = useApp();
 
   const getHomeRoute = () => {
@@ -102,7 +102,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/admin/plans', label: 'Subscription Plans', icon: CreditCard },
               { to: '/admin/analytics', label: 'Platform Analytics', icon: BarChart3 },
               { to: '/admin/logs', label: 'Activity Logs', icon: FileText },
-              { to: '/admin/support', label: 'Support & Settings', icon: LifeBuoy },
+              { to: '/admin/settings', label: 'Platform Settings', icon: Sliders },
+              { to: '/admin/support', label: 'Support Inquiries', icon: LifeBuoy },
             ],
           },
           {
@@ -135,9 +136,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/goods-receiving', label: 'Receiving Dock (GRN)', icon: PackageCheck },
               { to: '/batch-tracking', label: 'QR & Batch Matrix', icon: QrCode },
               { to: '/supplier-returns', label: 'Damaged & Returns', icon: RotateCcw },
-              { to: '/suppliers', label: 'Suppliers Catalog', icon: Truck },
-              { to: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
-              { to: '/marketplace', label: 'B2B Marketplace', icon: Store, badge: 'Wholesale' },
+              { to: '/suppliers', label: 'Supplier List', icon: Truck },
               { to: '/stock-movements', label: 'Stock Movements', icon: History },
               {
                 to: '/alerts',
@@ -212,7 +211,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Staff Management',
             items: [
               { to: '/workforce', label: 'People & Workforce', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
                 to: '/alerts',
@@ -291,18 +289,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   const isRouteActive = (itemTo, currentPath, currentSearch = '') => {
     if (!currentPath || !itemTo) return false;
 
-    // Handle tab-specific active states for workforce vs transfers
-    if (itemTo === '/staff-transfers') {
-      return (
-        currentPath === '/staff-transfers' ||
-        (currentPath === '/workforce' && currentSearch.includes('tab=transfers'))
-      );
-    }
     if (itemTo === '/workforce') {
-      return (
-        (currentPath === '/workforce' && !currentSearch.includes('tab=transfers')) ||
-        currentPath === '/branch-staff'
-      );
+      return currentPath === '/workforce' || currentPath === '/branch-staff';
     }
     if (!currentPath || !itemTo) return false;
 
@@ -363,21 +351,21 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
   // Role-specific active link styling
   const getActiveNavClass = (isActive) => {
-    if (!isActive) return 'text-slate-300 hover:bg-slate-800/70 hover:text-white';
+    if (!isActive) return 'text-slate-300 hover:bg-slate-800/60 hover:text-white transition-all duration-150';
     switch (currentUser?.role) {
       case 'super_admin':
-        return 'bg-indigo-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm shadow-indigo-950/40 font-semibold border-l-2 border-indigo-400';
       case 'supplier':
-        return 'bg-sky-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-sm shadow-sky-950/40 font-semibold border-l-2 border-sky-400';
       case 'kitchen_staff':
-        return 'bg-amber-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-sm shadow-amber-950/40 font-semibold border-l-2 border-amber-400';
       case 'inventory_manager':
-        return 'bg-[#087F8C] text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-teal-700 to-teal-800 text-white shadow-sm shadow-teal-950/40 font-semibold border-l-2 border-teal-400';
       case 'restaurant_manager':
-        return 'bg-blue-600 text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-sm shadow-blue-950/40 font-semibold border-l-2 border-blue-400';
       case 'restaurant_owner':
       default:
-        return 'bg-[#075E4B] text-white shadow-xs font-semibold';
+        return 'bg-gradient-to-r from-emerald-700 to-teal-800 text-white shadow-sm shadow-emerald-950/40 font-semibold border-l-2 border-emerald-400';
     }
   };
 
@@ -393,7 +381,7 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
 
       {/* Dynamic Role Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-950/95 backdrop-blur-xl border-r border-slate-800/80 flex flex-col h-full transition-transform duration-200 ease-in-out lg:static lg:h-full lg:translate-x-0 shrink-0 shadow-2xl lg:shadow-none ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -404,15 +392,15 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             title="StockMate Workspace"
             className="h-16 flex items-center px-5 border-b border-slate-800 gap-3 hover:bg-slate-800/50 transition-colors group"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#075E4B] to-[#087F8C] flex items-center justify-center text-white shadow-md shadow-[#075E4B]/40 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-900/40 group-hover:scale-105 transition-transform">
               <Boxes className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-base tracking-tight text-white group-hover:text-emerald-300 transition-colors">
-                  StockMate
+                  {platformSettings?.general?.platformName || 'StockMate'}
                 </span>
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-[#075E4B]/40 text-emerald-300 border border-[#075E4B]/60">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800/60">
                   SaaS
                 </span>
               </div>

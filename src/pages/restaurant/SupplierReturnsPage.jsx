@@ -23,6 +23,11 @@ import {
   CreditCard,
   Eye,
   Info,
+  Truck,
+  Check,
+  Receipt,
+  Globe,
+  Handshake,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -42,6 +47,8 @@ export const SupplierReturnsPage = () => {
     suppliers,
     purchaseOrders,
     createSupplierReturn,
+    updateReturnTrackingStatus,
+    processReturnPaymentRefund,
     addToast,
     currentUser,
   } = useApp();
@@ -53,6 +60,133 @@ export const SupplierReturnsPage = () => {
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedReturnDetails, setSelectedReturnDetails] = useState(null);
+
+  // Return Tracking & Payment Management Modals
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [actionTargetReturn, setActionTargetReturn] = useState(null);
+
+  const [trackingForm, setTrackingForm] = useState({
+    trackingStatus: 'Pickup Scheduled / In Transit',
+    carrierName: 'FastTrack Agri-Logistics',
+    trackingNumber: '',
+    note: 'Carrier pickup dispatched from receiving dock.',
+  });
+
+  const [paymentForm, setPaymentForm] = useState({
+    paymentType: 'Direct Bank Refund',
+    amount: '',
+    paymentMethod: 'Direct Bank Transfer (NEFT/IMPS)',
+    referenceNumber: '',
+    notes: 'Refund settled against damaged lot.',
+  });
+
+  const handleOpenTrackingModal = (ret) => {
+    setActionTargetReturn(ret);
+    setTrackingForm({
+      trackingStatus: ret.trackingStatus || 'Pickup Scheduled / In Transit',
+      carrierName: ret.carrierName || 'FastTrack Agri-Logistics',
+      trackingNumber: ret.trackingNumber || `TRK-${Math.floor(100000 + Math.random() * 900000)}`,
+      note: '',
+    });
+    setIsTrackingModalOpen(true);
+  };
+
+  const handleSaveTracking = (e) => {
+    e.preventDefault();
+    if (!actionTargetReturn) return;
+    updateReturnTrackingStatus(actionTargetReturn.id, trackingForm);
+    setIsTrackingModalOpen(false);
+    if (selectedReturnDetails && selectedReturnDetails.id === actionTargetReturn.id) {
+      setSelectedReturnDetails((prev) => ({
+        ...prev,
+        trackingStatus: trackingForm.trackingStatus,
+        carrierName: trackingForm.carrierName,
+        trackingNumber: trackingForm.trackingNumber,
+      }));
+    }
+  };
+
+  const handleOpenPaymentModal = (ret) => {
+    setActionTargetReturn(ret);
+    setPaymentForm({
+      paymentType: ret.settlementType || 'Direct Bank Refund',
+      amount: (ret.totalLossAmount || 0).toString(),
+      paymentMethod: 'Direct Bank Transfer (NEFT/IMPS)',
+      referenceNumber: `UTR-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      notes: `Reimbursement processed for ${ret.returnNumber}`,
+    });
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSavePayment = (e) => {
+    e.preventDefault();
+    if (!actionTargetReturn) return;
+    processReturnPaymentRefund({
+      returnId: actionTargetReturn.id,
+      paymentType: paymentForm.paymentType,
+      amount: Number(paymentForm.amount),
+      paymentMethod: paymentForm.paymentMethod,
+      referenceNumber: paymentForm.referenceNumber,
+      notes: paymentForm.notes,
+    });
+    setIsPaymentModalOpen(false);
+    if (selectedReturnDetails && selectedReturnDetails.id === actionTargetReturn.id) {
+      setSelectedReturnDetails((prev) => ({
+        ...prev,
+        status: 'Completed',
+        trackingStatus: 'Refund Processed & Settled',
+        refundStatus: 'Processed',
+        refundAmount: Number(paymentForm.amount),
+        refundMethod: paymentForm.paymentMethod,
+        refundTransactionId: paymentForm.referenceNumber,
+      }));
+    }
+  };
+
+  const getTrackingBadge = (trackingStatus, status) => {
+    const s =
+      trackingStatus ||
+      (status === 'Completed'
+        ? 'Refund Processed & Settled'
+        : status === 'Approved'
+        ? 'Return Approved'
+        : 'Return Requested');
+
+    if (s.includes('Settled') || s.includes('Processed') || status === 'Completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Refund Processed
+        </span>
+      );
+    }
+    if (s.includes('Transit') || s.includes('Pickup')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+          <Truck className="w-3 h-3 text-sky-600" /> In Transit
+        </span>
+      );
+    }
+    if (s.includes('Inspected') || s.includes('Received')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+          <Building2 className="w-3 h-3 text-indigo-600" /> Inspected
+        </span>
+      );
+    }
+    if (s.includes('Approved')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+          <Check className="w-3 h-3 text-teal-600" /> Approved
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+        <Clock className="w-3 h-3 text-amber-600" /> {s}
+      </span>
+    );
+  };
 
   // Form state for creating a return request
   const [returnType, setReturnType] = useState('Damaged on Delivery'); // Damaged on Delivery | Unsold Fresh Goods Agreement | Expired / Quality Failure
@@ -517,25 +651,21 @@ export const SupplierReturnsPage = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-4">Return ID</th>
-                <th className="py-3 px-4">Request Date</th>
-                <th className="py-3 px-4">PO Reference</th>
-                <th className="py-3 px-4">Product Name</th>
-                <th className="py-3 px-4">Batch ID</th>
+                <th className="py-3 px-4">Return ID & Date</th>
+                <th className="py-3 px-4">Product & Batch Ref</th>
                 <th className="py-3 px-4">Supplier Partner</th>
                 <th className="py-3 px-4">Return Category</th>
                 <th className="py-3 px-4 text-right">Return Qty</th>
-                <th className="py-3 px-4 text-right">Unit Rate</th>
                 <th className="py-3 px-4 text-right">Loss Claimed</th>
-                <th className="py-3 px-4">Settlement Mode</th>
-                <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4">Tracking & Logistics</th>
+                <th className="py-3 px-4">Settlement & Status</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredReturns.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     <PackageX className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700 text-sm">No return records found</p>
                     <p className="text-xs text-slate-400 mt-0.5">Try adjusting search filters or log a new damage claim.</p>
@@ -544,47 +674,52 @@ export const SupplierReturnsPage = () => {
               ) : (
                 filteredReturns.map((ret) => (
                   <tr key={ret.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900 font-mono">
-                      {ret.returnNumber}
-                    </td>
-
-                    <td className="py-3 px-4 text-slate-600">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{ret.requestDate}</span>
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-slate-900">{ret.returnNumber}</div>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3" /> {ret.requestDate}
                       </div>
+                      <div className="text-[11px] font-mono text-emerald-800">{ret.poNumber}</div>
                     </td>
 
-                    <td className="py-3 px-4 font-mono text-emerald-800 font-medium">
-                      {ret.poNumber || '—'}
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-slate-800">{ret.productName}</div>
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        Batch: {ret.batchId}
+                      </div>
+                      <div className="text-[11px] text-slate-400">GRN: {ret.grnNumber}</div>
                     </td>
 
-                    <td className="py-3 px-4 font-bold text-slate-800">
-                      {ret.productName}
-                    </td>
-
-                    <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
-                      {ret.batchId || '—'}
-                    </td>
-
-                    <td className="py-3 px-4 font-semibold text-slate-800">
-                      {ret.supplierName}
-                      <div className="text-[10px] text-slate-400 font-normal">By: {ret.requestedBy}</div>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-slate-800">{ret.supplierName}</div>
+                      {(() => {
+                        const sup = (suppliers || []).find((s) => s.id === ret.supplierId || s.name === ret.supplierName);
+                        const isTieUp = (sup?.supplierType === 'Tie-up Supplier') || ret.supplierType === 'Tie-up Supplier' || sup?.registeredVia === 'main_system' || sup?.id === 'sup-4' || sup?.id === 'sup-5' || ret.supplierName?.toLowerCase().includes('golden crust') || ret.supplierName?.toLowerCase().includes('amrit dairy');
+                        const isThirdParty = !isTieUp;
+                        return (
+                          <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                            isThirdParty ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-teal-50 text-teal-700 border border-teal-200'
+                          }`}>
+                            {isThirdParty ? <Globe className="w-2.5 h-2.5" /> : <Handshake className="w-2.5 h-2.5" />}
+                            <span>{isThirdParty ? 'Third-Party Supplier' : 'Tie-up Supplier'}</span>
+                          </span>
+                        );
+                      })()}
+                      <div className="text-[11px] text-slate-500 mt-0.5">By: {ret.requestedBy}</div>
                     </td>
 
                     <td className="py-3 px-4">
                       {getTypeBadge(ret.returnType)}
-                      <div className="text-[10px] text-slate-500 mt-0.5 max-w-[140px] truncate" title={ret.reason}>
+                      <div className="text-[11px] text-slate-500 mt-1 max-w-[180px] truncate" title={ret.reason}>
                         {ret.reason}
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">
-                      {ret.returnQty} {ret.unit}
-                    </td>
-
-                    <td className="py-3 px-4 text-right text-slate-600 font-mono">
-                      {formatINR(ret.unitCost)}
+                    <td className="py-3 px-4 text-right">
+                      <span className="font-bold text-slate-900">
+                        {ret.returnQty} {ret.unit}
+                      </span>
+                      <div className="text-[11px] text-slate-400">@{formatINR(ret.unitCost)}</div>
                     </td>
 
                     <td className="py-3 px-4 text-right">
@@ -592,34 +727,74 @@ export const SupplierReturnsPage = () => {
                         {formatINR(ret.totalLossAmount)}
                       </div>
                       {ret.creditNoteAmount && (
-                        <div className="text-[10px] text-emerald-600 font-medium">
+                        <div className="text-[11px] text-emerald-600 font-medium">
                           Credit: {formatINR(ret.creditNoteAmount)}
                         </div>
                       )}
                     </td>
 
                     <td className="py-3 px-4">
-                      <span className="font-semibold text-slate-700">{ret.settlementType}</span>
-                      {ret.creditNoteId && (
-                        <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block mt-0.5">
-                          {ret.creditNoteId}
+                      <div className="mb-1">{getTrackingBadge(ret.trackingStatus, ret.status)}</div>
+                      <div className="text-[10px] text-slate-500 font-medium">
+                        {ret.carrierName || 'Fleet Logistics'}
+                      </div>
+                      {ret.trackingNumber && (
+                        <div className="text-[10px] font-mono text-slate-400">
+                          #{ret.trackingNumber}
                         </div>
                       )}
                     </td>
 
-                    <td className="py-3 px-4 text-center">
-                      {getStatusBadge(ret.status)}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {getStatusBadge(ret.status)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span>Mode:</span>
+                        <span className="font-semibold text-slate-700">{ret.settlementType}</span>
+                      </div>
+                      {ret.refundStatus === 'Processed' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded mt-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" /> Refund Settled
+                        </span>
+                      ) : ret.creditNoteId ? (
+                        <div className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                          {ret.creditNoteId}
+                        </div>
+                      ) : null}
                     </td>
 
                     <td className="py-3 px-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        icon={Eye}
-                        onClick={() => setSelectedReturnDetails(ret)}
-                      >
-                        Details
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          icon={Eye}
+                          onClick={() => setSelectedReturnDetails(ret)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          icon={Truck}
+                          title="Update Tracking Status"
+                          onClick={() => handleOpenTrackingModal(ret)}
+                        >
+                          Track
+                        </Button>
+                        {ret.refundStatus !== 'Processed' && ret.status !== 'Completed' && (
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            icon={CreditCard}
+                            title="Process Refund & Payment Settlement"
+                            onClick={() => handleOpenPaymentModal(ret)}
+                          >
+                            Refund
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -971,6 +1146,98 @@ export const SupplierReturnsPage = () => {
               </div>
             </div>
 
+            {/* Visual Tracking Lifecycle Stepper */}
+            <div className="p-4 bg-slate-900 rounded-2xl text-white">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Live Return Tracking & Refund Lifecycle
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400">Carrier:</span>
+                  <span className="text-xs font-bold text-emerald-300">
+                    {selectedReturnDetails.carrierName || 'FastTrack Agri-Logistics'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 5-Step Stepper Bar */}
+              {(() => {
+                const s = (selectedReturnDetails.trackingStatus || selectedReturnDetails.status || '').toLowerCase();
+                const isStep5 =
+                  selectedReturnDetails.refundStatus === 'Processed' ||
+                  selectedReturnDetails.status === 'Completed' ||
+                  s.includes('settled') ||
+                  s.includes('refund');
+                const isStep4 = isStep5 || selectedReturnDetails.status === 'Approved' || s.includes('approved');
+                const isStep3 = isStep4 || s.includes('inspected') || s.includes('warehouse') || s.includes('received');
+                const isStep2 = isStep3 || s.includes('transit') || s.includes('pickup') || s.includes('dispatched');
+                const isStep1 = true;
+
+                const steps = [
+                  { num: 1, title: 'Claim Logged', desc: 'Dock rejected / filed', done: isStep1 },
+                  { num: 2, title: 'In Transit', desc: 'Carrier pickup en route', done: isStep2 },
+                  { num: 3, title: 'Inspected', desc: 'Warehouse condition verified', done: isStep3 },
+                  { num: 4, title: 'Approved', desc: 'Supplier claim approved', done: isStep4 },
+                  { num: 5, title: 'Refund Settled', desc: 'Payment / Credit credited', done: isStep5 },
+                ];
+
+                return (
+                  <div className="grid grid-cols-5 gap-2 relative">
+                    {steps.map((st) => (
+                      <div key={st.num} className="flex flex-col items-center text-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
+                            st.done
+                              ? 'bg-emerald-500 text-white ring-4 ring-emerald-500/20'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
+                          }`}
+                        >
+                          {st.done ? <Check className="w-3.5 h-3.5" /> : st.num}
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-100 mt-1.5">{st.title}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight hidden sm:block mt-0.5">{st.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-xs text-slate-300 flex items-center gap-2">
+                  <span className="font-mono text-[11px] bg-slate-800 px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
+                    Waybill #{selectedReturnDetails.trackingNumber || 'TRK-984210'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Current: <strong>{selectedReturnDetails.trackingStatus || 'Pickup Scheduled / In Transit'}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                    icon={Truck}
+                    onClick={() => handleOpenTrackingModal(selectedReturnDetails)}
+                  >
+                    Update Tracking
+                  </Button>
+                  {selectedReturnDetails.refundStatus !== 'Processed' && selectedReturnDetails.status !== 'Completed' && (
+                    <Button
+                      size="xs"
+                      variant="brand"
+                      icon={CreditCard}
+                      onClick={() => handleOpenPaymentModal(selectedReturnDetails)}
+                    >
+                      Process Refund
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Product & Financial Overview */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white border border-slate-200 rounded-xl text-xs">
               <div>
@@ -992,6 +1259,52 @@ export const SupplierReturnsPage = () => {
                 <span className="font-bold text-rose-600 text-sm">
                   {formatINR(selectedReturnDetails.totalLossAmount)}
                 </span>
+              </div>
+            </div>
+
+            {/* Payment & Refund Settlement Section */}
+            <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                  <Receipt className="w-4 h-4 text-emerald-700" />
+                  <span>Payment Settlement & Refund Management</span>
+                </div>
+                {selectedReturnDetails.refundStatus === 'Processed' || selectedReturnDetails.status === 'Completed' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Refund Disbursed & Settled
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <Clock className="w-3 h-3 text-amber-600" /> Awaiting Payment Processing
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-emerald-200/60 text-[11px]">
+                <div>
+                  <span className="text-emerald-800/70 block">Refund Amount:</span>
+                  <span className="font-bold text-emerald-900 text-sm">
+                    {formatINR(selectedReturnDetails.refundAmount || selectedReturnDetails.totalLossAmount)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-800/70 block">Settlement Channel:</span>
+                  <span className="font-semibold text-emerald-950">
+                    {selectedReturnDetails.refundMethod || selectedReturnDetails.settlementType || 'Direct Bank Refund'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-800/70 block">Transaction / UTR:</span>
+                  <span className="font-mono font-bold text-emerald-800">
+                    {selectedReturnDetails.refundTransactionId || selectedReturnDetails.creditNoteId || 'Pending'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-800/70 block">Disbursal Date:</span>
+                  <span className="font-semibold text-emerald-950">
+                    {selectedReturnDetails.refundDate || (selectedReturnDetails.refundStatus === 'Processed' ? 'Settled' : 'Pending')}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1056,6 +1369,232 @@ export const SupplierReturnsPage = () => {
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Modal: Update Return Tracking Status */}
+      {isTrackingModalOpen && actionTargetReturn && (
+        <Modal
+          isOpen={isTrackingModalOpen}
+          onClose={() => setIsTrackingModalOpen(false)}
+          title={`Update Return Tracking — ${actionTargetReturn.returnNumber}`}
+          subtitle={`Logistics carrier, dock dispatch, and receiving warehouse milestones for ${actionTargetReturn.supplierName}`}
+          size="md"
+        >
+          <form onSubmit={handleSaveTracking} className="space-y-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Product:</span>
+                <span className="font-bold text-slate-800">{actionTargetReturn.productName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Return Qty:</span>
+                <span className="font-bold text-slate-900">{actionTargetReturn.returnQty} {actionTargetReturn.unit}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Vendor:</span>
+                <span className="font-semibold text-slate-800">{actionTargetReturn.supplierName}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tracking Lifecycle Stage *
+              </label>
+              <select
+                value={trackingForm.trackingStatus}
+                onChange={(e) => setTrackingForm({ ...trackingForm, trackingStatus: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+              >
+                <option value="Claim Logged / Pending Pickup">1. Claim Logged / Pending Pickup</option>
+                <option value="Pickup Scheduled / In Transit">2. Pickup Scheduled / In Transit</option>
+                <option value="Received & Warehouse Inspected">3. Received & Warehouse Inspected</option>
+                <option value="Return Approved">4. Return Approved by Supplier</option>
+                <option value="Refund Processed & Settled">5. Refund Processed & Settled</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Assigned Logistics Carrier *
+                </label>
+                <input
+                  type="text"
+                  value={trackingForm.carrierName}
+                  onChange={(e) => setTrackingForm({ ...trackingForm, carrierName: e.target.value })}
+                  placeholder="e.g. FastTrack Agri-Logistics"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Waybill / Tracking Number *
+                </label>
+                <input
+                  type="text"
+                  value={trackingForm.trackingNumber}
+                  onChange={(e) => setTrackingForm({ ...trackingForm, trackingNumber: e.target.value })}
+                  placeholder="e.g. TRK-842910"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Dispatch / Inspection Milestone Notes
+              </label>
+              <textarea
+                rows={2}
+                value={trackingForm.note}
+                onChange={(e) => setTrackingForm({ ...trackingForm, note: e.target.value })}
+                placeholder="Dispatched from cold dock, seals verified..."
+                className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTrackingModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="brand"
+                size="sm"
+                icon={Truck}
+              >
+                Save Tracking Milestone
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal: Process Return Payment & Refund */}
+      {isPaymentModalOpen && actionTargetReturn && (
+        <Modal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          title={`Process Return Refund & Payment — ${actionTargetReturn.returnNumber}`}
+          subtitle={`Disburse payment refund or formal credit note for ${actionTargetReturn.supplierName}`}
+          size="md"
+        >
+          <form onSubmit={handleSavePayment} className="space-y-4 text-xs">
+            <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200 text-emerald-950 space-y-1">
+              <div className="flex justify-between">
+                <span>Product Claim:</span>
+                <span className="font-bold">{actionTargetReturn.productName} ({actionTargetReturn.returnQty} {actionTargetReturn.unit})</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Original Claim Loss:</span>
+                <span className="font-bold text-rose-700">{formatINR(actionTargetReturn.totalLossAmount)}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-emerald-200">
+                <span>Refund Recipient:</span>
+                <span className="font-semibold">{actionTargetReturn.requestedBy || 'Spice Garden Central Inventory'}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Settlement Mode *
+                </label>
+                <select
+                  value={paymentForm.paymentType}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, paymentType: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                >
+                  <option value="Direct Bank Refund">Direct Bank Refund</option>
+                  <option value="Credit Note">Credit Note / Ledger Credit</option>
+                  <option value="UPI Instant Settlement">UPI Instant Settlement</option>
+                  <option value="Invoice Adjustment">Invoice Adjustment</option>
+                </select>
+              </div>
+
+              <div>
+                <FormInput
+                  label="Refund Amount (INR ₹) *"
+                  type="number"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Disbursal Method *
+                </label>
+                <select
+                  value={paymentForm.paymentMethod}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                >
+                  <option value="Direct Bank Transfer (NEFT/IMPS)">Direct Bank Transfer (NEFT/IMPS)</option>
+                  <option value="UPI / Instant Bank Pay">UPI / Instant Bank Pay</option>
+                  <option value="Credit Note Issued">Credit Note Offset</option>
+                  <option value="Corporate Cheque">Corporate Cheque</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  UTR / Reference ID *
+                </label>
+                <input
+                  type="text"
+                  value={paymentForm.referenceNumber}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })}
+                  placeholder="e.g. UTR-98214758"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Settlement Confirmation Notes
+              </label>
+              <textarea
+                rows={2}
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
+              />
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="brand"
+                size="sm"
+                icon={Receipt}
+              >
+                Confirm & Disburse Refund
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

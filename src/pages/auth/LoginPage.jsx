@@ -15,9 +15,12 @@ import {
   EyeOff,
   AlertCircle,
   ShieldAlert,
+  ShieldCheck,
   Loader2,
   CheckCircle2,
   ChefHat,
+  Handshake,
+  Globe,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 
@@ -110,6 +113,9 @@ export const LoginPage = () => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [authError, setAuthError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [twoFactorPending, setTwoFactorPending] = useState(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState(null);
 
   // Active role metadata
   const currentRoleObj = ROLE_OPTIONS.find((r) => r.id === selectedRole) || ROLE_OPTIONS[1];
@@ -206,11 +212,15 @@ export const LoginPage = () => {
 
     setTimeout(() => {
       // Pass selectedRole to login engine for strict RBAC verification
-      const result = login(email, password, selectedRole);
+      const result = login(email, password, selectedRole, null, 'main_system');
       setIsLoading(false);
 
       if (!result.success) {
-        setAuthError(result);
+        if (result.require2FA) {
+          setTwoFactorPending(result.tempUser);
+        } else {
+          setAuthError(result);
+        }
       } else {
         if (result.user?.mustChangePassword) {
           navigate('/set-new-password');
@@ -222,6 +232,31 @@ export const LoginPage = () => {
   };
 
   // Quick switch role when role mismatch occurs
+  const handleTwoFactorSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError('Please enter your 6-digit verification code.');
+      return;
+    }
+    setIsLoading(true);
+    setTwoFactorError(null);
+
+    setTimeout(() => {
+      const result = login(email, password, selectedRole, twoFactorCode, 'main_system');
+      setIsLoading(false);
+
+      if (!result.success) {
+        setTwoFactorError(result.error || 'Invalid authentication code. Please check and try again.');
+      } else {
+        if (result.user?.mustChangePassword) {
+          navigate('/set-new-password');
+        } else {
+          routeToUserDashboard(result.user.role);
+        }
+      }
+    }, 300);
+  };
+
   const handleQuickSwitchRole = (actualRole) => {
     if (actualRole) {
       setSelectedRole(actualRole);
@@ -263,6 +298,78 @@ export const LoginPage = () => {
 
         {/* Main Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8">
+          {twoFactorPending ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-indigo-950/70 border border-indigo-700/60 text-indigo-200 text-xs">
+                <div className="flex items-center gap-2 mb-1.5 font-bold text-white text-sm">
+                  <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                  <span>Two-Factor Authentication Enforced</span>
+                </div>
+                <p className="text-slate-300">
+                  Account: <strong className="text-white">{twoFactorPending.name}</strong> ({twoFactorPending.email})
+                </p>
+                <p className="text-slate-400 mt-1">
+                  Enter the 6-digit verification code from your authenticator app (e.g. Google Authenticator) or an emergency backup code.
+                </p>
+              </div>
+
+              {twoFactorError && (
+                <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-200 text-xs flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{twoFactorError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  6-Digit Authenticator Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={14}
+                  value={twoFactorCode}
+                  onChange={(e) => {
+                    setTwoFactorCode(e.target.value);
+                    if (twoFactorError) setTwoFactorError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleTwoFactorSubmit(e);
+                  }}
+                  placeholder="e.g. 123456 or SM-XXXX-XXXX"
+                  className="w-full text-center font-mono tracking-widest text-lg font-bold px-3 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  autoFocus
+                />
+                <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                  Demo hint: enter <span className="font-mono text-emerald-400 font-semibold">123456</span> or any 6-digit TOTP
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  variant="brand"
+                  size="md"
+                  className="w-full justify-center"
+                  loading={isLoading}
+                  onClick={handleTwoFactorSubmit}
+                >
+                  Verify &amp; Access Dashboard
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-center text-slate-400 hover:text-white"
+                  onClick={() => {
+                    setTwoFactorPending(null);
+                    setTwoFactorCode('');
+                    setTwoFactorError(null);
+                  }}
+                >
+                  Cancel &amp; Return to Sign In
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* 1. Compact Role Selection Section ("Sign in as") */}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
@@ -306,6 +413,42 @@ export const LoginPage = () => {
               })}
             </div>
           </div>
+
+          {/* Requirement 2: Tie-up Supplier Helper Banner */}
+          {selectedRole === 'supplier' && (
+            <div className="mb-4 p-3 rounded-xl bg-teal-950/60 border border-teal-800/80 text-xs text-teal-200 flex flex-col gap-1.5 shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-1.5 font-bold text-teal-300">
+                <Handshake className="w-3.5 h-3.5 text-teal-400" />
+                <span>Tie-up Supplier Login (Main System Role)</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Logging in here assigns you the <strong>Tie-up Supplier</strong> type with direct restaurant procurement terms.
+              </p>
+              <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-slate-400 font-medium">Demo Accounts:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('karan@goldencrustbakery.com');
+                    setPassword('password123');
+                  }}
+                  className="px-2 py-0.5 rounded bg-teal-900/80 hover:bg-teal-800 text-teal-200 text-[10px] font-bold border border-teal-700/60 transition-colors"
+                >
+                  Karan (Golden Crust Bakery)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('sunil@amritdairy.com');
+                    setPassword('password123');
+                  }}
+                  className="px-2 py-0.5 rounded bg-teal-900/80 hover:bg-teal-800 text-teal-200 text-[10px] font-bold border border-teal-700/60 transition-colors"
+                >
+                  Sunil (Amrit Dairy)
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Authentication Error Banner */}
           {authError && (
@@ -432,6 +575,8 @@ export const LoginPage = () => {
               )}
             </Button>
           </form>
+          </>
+          )}
 
           {/* Registration CTA (Strictly for Restaurant Owners) */}
           <div className="mt-6 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400 space-y-2">

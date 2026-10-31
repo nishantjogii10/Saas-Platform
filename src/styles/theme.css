@@ -1,0 +1,309 @@
+/* ==========================================================================
+   STOCKMATE SAAS THEME SYSTEM — LIGHT, DARK & SYSTEM MODES
+   Centralized token architecture with smooth 200-300ms transitions
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Theme Tokens Definition
+   -------------------------------------------------------------------------- */
+
+/* Light Mode (Default) */
+:root,
+:root[data-theme="light"] {
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FFFFFF;
+  --bg-card-solid: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.92);
+  --bg-dropdown: #FFFFFF;
+  --bg-nav: rgba(255, 255, 255, 0.94);
+  --bg-sidebar: #06130E;
+  --bg-input: #FFFFFF;
+  --bg-input-focus: #FFFFFF;
+
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-dim: #94A3B8;
+
+  --accent-primary: #059669;
+  --accent-secondary: #10B981;
+  --accent-hover: #047857;
+  --accent-active: #065F46;
+  --accent-glow: rgba(5, 150, 105, 0.22);
+
+  --border-color: #E2E8F0;
+  --border-subtle: #F1F5F9;
+  --border-highlight: #CBD5E1;
+
+  --shadow-color: rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.05), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
+  --shadow-hover: 0 12px 30px -4px rgba(15, 23, 42, 0.09), inset 0 1px 1px 0 rgba(255, 255, 255, 1);
+
+  --button-primary-bg: linear-gradient(135deg, #059669 0%, #047857 100%);
+  --button-primary-text: #FFFFFF;
+  --button-primary-border: #059669;
+  --button-primary-glow: 0 4px 16px -2px rgba(5, 150, 105, 0.35);
+
+  --badge-emerald-bg: rgba(5, 150, 105, 0.1);
+  --badge-emerald-text: #047857;
+  --badge-emerald-border: rgba(5, 150, 105, 0.25);
+}
+
+/* Dark Mode (Deep Forest-Green & Charcoal with Emerald Accents) */
+:root[data-theme="dark"] {
+  --bg-primary: #071510;
+  --bg-secondary: #0B1F18;
+  --bg-card: #10271E;
+  --bg-card-hover: #153428;
+  --bg-card-solid: #0F251C;
+  --bg-glass: rgba(16, 39, 30, 0.88);
+  --bg-dropdown: #0E241B;
+  --bg-nav: rgba(7, 21, 16, 0.94);
+  --bg-sidebar: #06130E;
+  --bg-input: #0B1F18;
+  --bg-input-focus: #0F271F;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #D1E0D7;
+  --text-muted: #A7B8AE;
+  --text-dim: #789082;
+
+  --accent-primary: #10B981;
+  --accent-secondary: #14B8A6;
+  --accent-hover: #059669;
+  --accent-active: #047857;
+  --accent-glow: rgba(16, 185, 129, 0.35);
+
+  --border-color: #244337;
+  --border-subtle: #19352A;
+  --border-highlight: #10B981;
+
+  --shadow-color: rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-hover: 0 16px 40px -6px rgba(0, 0, 0, 0.7), 0 0 20px -3px rgba(16, 185, 129, 0.22);
+
+  --button-primary-bg: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  --button-primary-text: #FFFFFF;
+  --button-primary-border: #10B981;
+  --button-primary-glow: 0 4px 18px -2px rgba(16, 185, 129, 0.45);
+
+  --badge-emerald-bg: rgba(16, 185, 129, 0.16);
+  --badge-emerald-text: #34D399;
+  --badge-emerald-border: rgba(16, 185, 129, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   2. Seamless Transitions (200-300ms)
+   -------------------------------------------------------------------------- */
+html,
+body,
+.bg-ambient-canvas,
+.glass-panel,
+.glass-header,
+.glass-table,
+.glass-dropdown,
+aside,
+input,
+select,
+textarea {
+  transition: background-color 250ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 250ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 250ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html, body, .bg-ambient-canvas, .glass-panel, .glass-header, .glass-table, .glass-dropdown, aside, input, select, textarea {
+    transition: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. Dark Mode Dashboard Surfaces & Component Overrides
+   -------------------------------------------------------------------------- */
+html[data-theme="dark"] body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .bg-ambient-canvas {
+  background-color: #071510;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.09) 0px, transparent 55%),
+    radial-gradient(at 50% 100%, rgba(11, 31, 24, 0.9) 0px, transparent 65%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .glass-panel {
+  background: var(--bg-glass) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+html[data-theme="dark"] .glass-panel-hover:hover {
+  background: var(--bg-card-hover) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: var(--shadow-hover) !important;
+}
+
+html[data-theme="dark"] .glass-table {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+html[data-theme="dark"] .glass-header {
+  background: var(--bg-nav) !important;
+  border-bottom-color: var(--border-color) !important;
+  box-shadow: 0 2px 14px -2px rgba(0, 0, 0, 0.45) !important;
+}
+
+html[data-theme="dark"] .glass-dropdown {
+  background: var(--bg-dropdown) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.65), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] aside {
+  background-color: var(--bg-sidebar) !important;
+  border-right-color: var(--border-color) !important;
+}
+
+/* Typography & Headings in Dark Mode */
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800 {
+  color: var(--text-primary);
+}
+
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] .text-slate-600 {
+  color: var(--text-secondary);
+}
+
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400 {
+  color: var(--text-muted);
+}
+
+/* Surface backgrounds in Dark Mode */
+html[data-theme="dark"] .bg-white {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color);
+}
+
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--bg-secondary) !important;
+}
+
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300 {
+  border-color: var(--border-color) !important;
+}
+
+/* Form controls in Dark Mode */
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--text-dim) !important;
+}
+
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 2px var(--accent-glow) !important;
+}
+
+/* Table headers & rows in Dark Mode */
+html[data-theme="dark"] table thead tr {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-muted) !important;
+}
+
+html[data-theme="dark"] table tbody tr {
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+html[data-theme="dark"] table tbody tr:hover {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+/* Primary buttons in Dark Mode */
+html[data-theme="dark"] .bg-emerald-800,
+html[data-theme="dark"] .bg-emerald-700 {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 18px -2px rgba(16, 185, 129, 0.45) !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. Recharts & Charts Dark Mode Integration
+   -------------------------------------------------------------------------- */
+html[data-theme="dark"] .recharts-cartesian-grid line {
+  stroke: rgba(36, 67, 55, 0.7) !important;
+}
+html[data-theme="dark"] .recharts-text {
+  fill: #A7B8AE !important;
+}
+html[data-theme="dark"] .recharts-default-tooltip {
+  background-color: #0E241B !important;
+  border-color: #244337 !important;
+  color: #F8FAFC !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. Modals & Dialogs Dark Mode Adaptation
+   -------------------------------------------------------------------------- */
+html[data-theme="dark"] .fixed.inset-0 .rounded-3xl.bg-white\/95,
+html[data-theme="dark"] .modal-content-panel,
+html[data-theme="dark"] [role="dialog"] .rounded-3xl {
+  background-color: #0E241B !important;
+  border-color: #244337 !important;
+  color: #F8FAFC !important;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 30px -5px rgba(16, 185, 129, 0.15) !important;
+}
+
+/* --------------------------------------------------------------------------
+   6. Landing Page Independence
+   Ensures public landing page maintains its original rich dark aesthetic
+   regardless of what mode is selected inside the dashboard
+   -------------------------------------------------------------------------- */
+#hero {
+  background-color: #020617 !important;
+  color: #F8FAFC !important;
+}
+
+#hero .liquid-glass-nav {
+  background: rgba(2, 6, 23, 0.82) !important;
+}
+
+#hero .text-white {
+  color: #FFFFFF !important;
+}
+
+#hero .text-slate-300 {
+  color: #CBD5E1 !important;
+}
+
+#hero .text-slate-400 {
+  color: #94A3B8 !important;
+}

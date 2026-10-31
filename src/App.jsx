@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { AccessDenied } from './components/layout/AccessDenied';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -24,6 +25,7 @@ import { SubscriptionPlans } from './pages/superAdmin/SubscriptionPlans';
 import { PlatformAnalytics } from './pages/superAdmin/PlatformAnalytics';
 import { ActivityLogs } from './pages/superAdmin/ActivityLogs';
 import { SupportSettings } from './pages/superAdmin/SupportSettings';
+import { PlatformSettingsPage } from './pages/superAdmin/PlatformSettingsPage';
 import { RoleMatrixPage } from './pages/superAdmin/RoleMatrixPage';
 import { PaymentsDashboard } from './pages/superAdmin/PaymentsDashboard';
 import { SubscriptionsPage } from './pages/superAdmin/SubscriptionsPage';
@@ -51,7 +53,7 @@ import { BatchTrackingPage } from './pages/restaurant/BatchTrackingPage';
 import { SupplierReturnsPage } from './pages/restaurant/SupplierReturnsPage';
 import { SupplierBillingPage } from './pages/restaurant/SupplierBillingPage';
 
-// Multi-Branch Management, Branch Subscriptions, Staff Transfers & Notifications
+// Multi-Branch Management, Branch Subscriptions & Notifications
 import { CombinedBranchesPage } from './pages/restaurant/CombinedBranchesPage';
 import { PlansAndBillingPage } from './pages/restaurant/PlansAndBillingPage';
 import { BranchSubscriptionsPage } from './pages/restaurant/BranchSubscriptionsPage';
@@ -148,6 +150,12 @@ const DashboardDispatcher = () => {
   }
 };
 
+// Preserves search parameters when legacy staff routes are accessed
+const BranchStaffRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/workforce${location.search}`} replace />;
+};
+
 // Notifications Route Dispatcher: Dispatches each role to their proper notifications experience
 const NotificationsDispatcher = () => {
   const { currentUser } = useApp();
@@ -172,6 +180,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
+        <ThemeProvider>
         <Router>
           <Routes>
           {/* Public Auth Routes */}
@@ -268,6 +277,20 @@ function App() {
                 </RoleGuard>
               </AppLayout>
             }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['super_admin']}>
+                  <PlatformSettingsPage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
+            path="/admin/platform-settings"
+            element={<Navigate to="/admin/settings" replace />}
           />
           <Route
             path="/admin/support"
@@ -406,35 +429,41 @@ function App() {
               <AppLayout>
                 <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager']}>
                   <ExpiryTrackingPage />
-                </RoleGuard>   
+                </RoleGuard>
               </AppLayout>
             }
           />
           <Route
             path="/suppliers"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SuppliersPage />
-                </RoleGuard>
-              </AppLayout>
-            }
+           element={
+  <AppLayout>
+    <RoleGuard
+      allowedRoles={[
+        'restaurant_owner',
+        'inventory_manager',
+        'super_admin',
+      ]}
+    >
+      <SuppliersPage />
+    </RoleGuard>
+  </AppLayout>
+}
           />
           <Route
             path="/purchase-orders"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <PurchaseOrdersPage />
-                </RoleGuard>
-              </AppLayout>
+  <RoleGuard allowedRoles={['inventory_manager', 'super_admin']}>
+    <PurchaseOrdersPage />
+  </RoleGuard>
+</AppLayout>
             }
           />
           <Route
             path="/marketplace"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin', 'supplier']}>
+                <RoleGuard allowedRoles={['inventory_manager', 'super_admin', 'supplier']}>
                   <B2BMarketplacePage />
                 </RoleGuard>
               </AppLayout>
@@ -473,22 +502,29 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SupplierReturnsPage />
-                </RoleGuard>
-              </AppLayout>
+  <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
+    <SupplierReturnsPage />
+  </RoleGuard>
+</AppLayout>
             }
           />
           <Route
             path="/supplier-billing"
-            element={
-              <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
-                  <SupplierBillingPage />
-                </RoleGuard>
-              </AppLayout>
-            }
-          />
+           element={
+  <AppLayout>
+    <RoleGuard
+      allowedRoles={[
+        'restaurant_owner',
+        'inventory_manager',
+        'super_admin',
+      ]}
+    >
+      <SupplierBillingPage />
+    </RoleGuard>
+  </AppLayout>
+}
+/>
+
           <Route
             path="/stock-movements"
             element={
@@ -610,16 +646,30 @@ function App() {
             }
           />
           <Route
+            path="/workforce/leave/:leaveId"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
+                  <WorkforcePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
             path="/branch-staff"
-            element={<Navigate to="/workforce" replace />}
+            element={<BranchStaffRedirect />}
           />
           <Route
             path="/staff-transfers"
-            element={<Navigate to="/workforce?tab=transfers" replace />}
+            element={<Navigate to="/workforce" replace />}
           />
           <Route
-            path="/transfers"
-            element={<Navigate to="/workforce?tab=transfers" replace />}
+            path="/branches/transfers"
+            element={<Navigate to="/workforce" replace />}
+          />
+          <Route
+            path="/leave-requests"
+            element={<Navigate to="/workforce?tab=leave" replace />}
           />
           <Route
             path="/notifications"
@@ -786,13 +836,15 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/home" element={<LandingPage />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/pricing" element={<LandingPage />} />
           <Route path="/app" element={<RootRedirect />} />
 
           {/* Default Fallback Route */}
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </Router>
-    </AppProvider>
+        </ThemeProvider>
+      </AppProvider>
   </ErrorBoundary>
   );
 }
