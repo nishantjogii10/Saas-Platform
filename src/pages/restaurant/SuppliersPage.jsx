@@ -17,6 +17,10 @@ import {
   Globe,
   Handshake,
   Filter,
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  Check,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SearchBar } from '../../components/common/SearchBar';
@@ -35,6 +39,7 @@ export const SuppliersPage = () => {
   const {
     restaurantSuppliers,
     restaurantOrders,
+    supplierAgreements,
     addSupplier,
     updateSupplier,
     deleteSupplier,
@@ -67,6 +72,16 @@ export const SuppliersPage = () => {
     leadTimeDays: 1,
     paymentTerms: 'Net 30',
     categories: ['Dairy', 'Produce'],
+    acceptsReturns: true,
+    returnConditions: {
+      unused: true,
+      damaged: true,
+      spoiled: true,
+    },
+    returnWindowHours: 36,
+    maxReturnPercent: 20,
+    settlementMode: 'Credit Note',
+    returnPolicyNotes: 'Accepts returns for unused stock, damaged lots, or spoiled goods within 36 hours.',
   });
 
   const getSupplierType = (sup) => {
@@ -150,6 +165,54 @@ export const SuppliersPage = () => {
     );
   };
 
+  const renderReturnPolicyBadge = (sup) => {
+    const agreement = (supplierAgreements || []).find((a) => a.supplierId === sup.id);
+    const accepts =
+      sup.acceptsReturns !== undefined
+        ? sup.acceptsReturns
+        : agreement
+        ? Boolean(agreement.acceptsReturns ?? agreement.unsoldReturnAllowed)
+        : sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6';
+
+    const unused = sup.returnConditions?.unused ?? agreement?.coversUnused ?? agreement?.unsoldReturnAllowed ?? true;
+    const damaged = sup.returnConditions?.damaged ?? agreement?.coversDamaged ?? true;
+    const spoiled = sup.returnConditions?.spoiled ?? agreement?.coversSpoiled ?? true;
+    const conditions = [unused && 'Unused', damaged && 'Damaged', spoiled && 'Spoiled'].filter(Boolean).join(', ');
+    const windowHours = sup.returnWindowHours || agreement?.returnWindowHours || 36;
+
+    if (accepts) {
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs"
+            title={`Returns accepted for: ${conditions || 'Unused, damaged, or spoiled products'} within ${windowHours}h`}
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>Returns Accepted</span>
+          </span>
+          <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium">
+            {conditions ? `Covers: ${conditions} (${windowHours}h)` : `SLA Window: ${windowHours}h`}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 shadow-2xs"
+          title="Strict No-Returns Policy - All sales final upon dock inspection"
+        >
+          <XCircle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+          <span>No Returns</span>
+        </span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+          Final Sale Only
+        </span>
+      </div>
+    );
+  };
+
   const handleOpenAdd = () => {
     setFormData({
       name: '',
@@ -161,12 +224,29 @@ export const SuppliersPage = () => {
       leadTimeDays: 1,
       paymentTerms: 'Net 30',
       categories: ['Produce'],
+      acceptsReturns: true,
+      returnConditions: {
+        unused: true,
+        damaged: true,
+        spoiled: true,
+      },
+      returnWindowHours: 36,
+      maxReturnPercent: 20,
+      settlementMode: 'Credit Note',
+      returnPolicyNotes: 'Accepts returns for unused stock, damaged lots, or spoiled goods within 36 hours.',
     });
     setIsAddModalOpen(true);
   };
 
   const handleOpenEdit = (sup) => {
     setSelectedSupplier(sup);
+    const agr = (supplierAgreements || []).find((a) => a.supplierId === sup.id);
+    const accepts = sup.acceptsReturns !== undefined
+      ? sup.acceptsReturns
+      : agr
+      ? Boolean(agr.acceptsReturns ?? agr.unsoldReturnAllowed)
+      : true;
+
     setFormData({
       name: sup.name,
       supplierType: getSupplierType(sup),
@@ -177,6 +257,16 @@ export const SuppliersPage = () => {
       leadTimeDays: sup.leadTimeDays,
       paymentTerms: sup.paymentTerms,
       categories: sup.categories,
+      acceptsReturns: accepts,
+      returnConditions: sup.returnConditions || agr?.returnConditions || {
+        unused: agr?.coversUnused ?? agr?.unsoldReturnAllowed ?? true,
+        damaged: agr?.coversDamaged ?? true,
+        spoiled: agr?.coversSpoiled ?? true,
+      },
+      returnWindowHours: sup.returnWindowHours || agr?.returnWindowHours || 36,
+      maxReturnPercent: sup.maxReturnPercent || agr?.maxReturnPercent || 20,
+      settlementMode: sup.settlementMode || agr?.settlementMode || 'Credit Note',
+      returnPolicyNotes: sup.returnPolicyNotes || agr?.agreementNotes || 'Accepts returns for unused stock, damaged lots, or spoiled goods within 36 hours.',
     });
     setIsEditModalOpen(true);
   };
@@ -415,6 +505,12 @@ export const SuppliersPage = () => {
               render: (row) => renderSupplierTypeBadge(row),
             },
             {
+              header: 'Return Policy',
+              accessor: 'acceptsReturns',
+              sortable: true,
+              render: (row) => renderReturnPolicyBadge(row),
+            },
+            {
               header: 'Contact Person',
               accessor: 'contactPerson',
               sortable: true,
@@ -583,6 +679,10 @@ export const SuppliersPage = () => {
                   )}
 
                   <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50/70 dark:bg-slate-850/60 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                      <span className="text-[11px] font-semibold text-slate-500">Return Policy SLA:</span>
+                      {renderReturnPolicyBadge(sup)}
+                    </div>
                     <div className="flex items-center gap-2">
                       <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="font-medium text-slate-800 dark:text-slate-200">{sup.email}</span>
@@ -739,6 +839,125 @@ export const SuppliersPage = () => {
             onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
             options={['Due on Receipt', 'Net 15', 'Net 30', 'Net 60']}
           />
+
+          {/* Return Policy Option */}
+          <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-emerald-600" /> Return Policy Agreement
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Allow returns if products remain unused, arrive damaged, or spoil
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, acceptsReturns: !formData.acceptsReturns })}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  formData.acceptsReturns
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {formData.acceptsReturns ? '✓ Returns Accepted' : 'No Returns'}
+              </button>
+            </div>
+
+            {formData.acceptsReturns && (
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                  Eligible Scenarios:
+                </span>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.returnConditions?.unused ?? true}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          returnConditions: {
+                            ...formData.returnConditions,
+                            unused: e.target.checked,
+                          },
+                        })
+                      }
+                      className="rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>Unused Stock</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.returnConditions?.damaged ?? true}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          returnConditions: {
+                            ...formData.returnConditions,
+                            damaged: e.target.checked,
+                          },
+                        })
+                      }
+                      className="rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>Damaged Products</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.returnConditions?.spoiled ?? true}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          returnConditions: {
+                            ...formData.returnConditions,
+                            spoiled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>Spoiled Goods</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      Return Window
+                    </label>
+                    <select
+                      value={formData.returnWindowHours || 36}
+                      onChange={(e) => setFormData({ ...formData, returnWindowHours: Number(e.target.value) })}
+                      className="w-full text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
+                    >
+                      <option value="12">12 Hours</option>
+                      <option value="24">24 Hours</option>
+                      <option value="36">36 Hours</option>
+                      <option value="48">48 Hours</option>
+                      <option value="72">72 Hours</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      Settlement Mode
+                    </label>
+                    <select
+                      value={formData.settlementMode || 'Credit Note'}
+                      onChange={(e) => setFormData({ ...formData, settlementMode: e.target.value })}
+                      className="w-full text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
+                    >
+                      <option value="Credit Note">Credit Note</option>
+                      <option value="Replacement Delivery">Replacement Delivery</option>
+                      <option value="Direct Refund / Credit Note">Direct Refund / Credit Note</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </form>
       </Modal>
 

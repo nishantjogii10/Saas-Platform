@@ -18,6 +18,10 @@ import {
   Eye,
   Globe,
   Handshake,
+  RotateCcw,
+  Check,
+  XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardHeader } from '../../components/common/Card';
@@ -28,7 +32,16 @@ import { formatINR } from '../../data/inventoryBillingData';
 import { SUPPLIER_SUBSCRIPTION_PLANS } from '../../data/supplierMarketplaceData';
 
 export const SupplierProfilePage = () => {
-  const { suppliers, currentUser, restaurants, supplierPlanPayments, addToast } = useApp();
+  const {
+    suppliers,
+    currentUser,
+    restaurants,
+    supplierPlanPayments,
+    supplierAgreements,
+    updateSupplier,
+    updateSupplierAgreement,
+    addToast,
+  } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState(null);
 
   const currentSup =
@@ -54,6 +67,8 @@ export const SupplierProfilePage = () => {
       : 'Third-Party Supplier');
   const isTieUp = actualSupplierType === 'Tie-up Supplier';
 
+  const existingAgreement = (supplierAgreements || []).find((a) => a.supplierId === currentSup?.id);
+
   const [formData, setFormData] = useState({
     name: currentSup?.name || '',
     contactPerson: currentSup?.contactPerson || currentUser.name,
@@ -64,9 +79,66 @@ export const SupplierProfilePage = () => {
     paymentTerms: currentSup?.paymentTerms || 'Net 30',
   });
 
+  const [returnPolicyData, setReturnPolicyData] = useState({
+    acceptsReturns: currentSup?.acceptsReturns !== undefined
+      ? currentSup.acceptsReturns
+      : (existingAgreement ? Boolean(existingAgreement.acceptsReturns ?? existingAgreement.unsoldReturnAllowed) : true),
+    returnConditions: currentSup?.returnConditions || existingAgreement?.returnConditions || {
+      unused: existingAgreement?.coversUnused ?? existingAgreement?.unsoldReturnAllowed ?? true,
+      damaged: existingAgreement?.coversDamaged ?? true,
+      spoiled: existingAgreement?.coversSpoiled ?? true,
+    },
+    returnWindowHours: currentSup?.returnWindowHours || existingAgreement?.returnWindowHours || 36,
+    maxReturnPercent: currentSup?.maxReturnPercent || existingAgreement?.maxReturnPercent || 20,
+    settlementMode: currentSup?.settlementMode || existingAgreement?.settlementMode || 'Credit Note',
+    returnPolicyNotes: currentSup?.returnPolicyNotes || existingAgreement?.agreementNotes || 'Accepts returns for unused overstock, damaged shipments, or spoiled goods within 36 hours.',
+  });
+
   const handleSave = (e) => {
     e.preventDefault();
-    addToast('Supplier vendor profile updated successfully.', 'success');
+    if (updateSupplier && currentSup?.id) {
+      updateSupplier(currentSup.id, {
+        name: formData.name,
+        contactPerson: formData.contactPerson,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        leadTimeDays: Number(formData.leadTimeDays) || 1,
+        paymentTerms: formData.paymentTerms,
+      });
+    } else {
+      addToast('Supplier vendor profile updated successfully.', 'success');
+    }
+  };
+
+  const handleSaveReturnPolicy = (e) => {
+    e.preventDefault();
+    if (currentSup?.id) {
+      if (updateSupplier) {
+        updateSupplier(currentSup.id, {
+          acceptsReturns: returnPolicyData.acceptsReturns,
+          returnPolicy: returnPolicyData.acceptsReturns ? 'accepts_returns' : 'no_returns',
+          unsoldReturnAllowed: Boolean(returnPolicyData.acceptsReturns && (returnPolicyData.returnConditions?.unused ?? true)),
+          returnConditions: returnPolicyData.returnConditions,
+          returnWindowHours: returnPolicyData.acceptsReturns ? Number(returnPolicyData.returnWindowHours) : 0,
+          maxReturnPercent: returnPolicyData.acceptsReturns ? Number(returnPolicyData.maxReturnPercent) : 0,
+          settlementMode: returnPolicyData.acceptsReturns ? returnPolicyData.settlementMode : 'No Returns (Dock Inspection Only)',
+          returnPolicyNotes: returnPolicyData.returnPolicyNotes,
+        });
+      }
+      if (updateSupplierAgreement) {
+        updateSupplierAgreement(currentSup.id, {
+          acceptsReturns: returnPolicyData.acceptsReturns,
+          unsoldReturnAllowed: Boolean(returnPolicyData.acceptsReturns && (returnPolicyData.returnConditions?.unused ?? true)),
+          returnConditions: returnPolicyData.returnConditions,
+          returnWindowHours: returnPolicyData.acceptsReturns ? Number(returnPolicyData.returnWindowHours) : 0,
+          maxReturnPercent: returnPolicyData.acceptsReturns ? Number(returnPolicyData.maxReturnPercent) : 0,
+          settlementMode: returnPolicyData.acceptsReturns ? returnPolicyData.settlementMode : 'No Returns (Dock Inspection Only)',
+          agreementNotes: returnPolicyData.returnPolicyNotes,
+        });
+      }
+      addToast('Return policy and SLA terms updated for all client restaurants.', 'success');
+    }
   };
 
   return (
@@ -164,6 +236,299 @@ export const SupplierProfilePage = () => {
 
               <Button type="submit" variant="brand" size="sm" icon={Save}>
                 Save Profile Changes
+              </Button>
+            </form>
+          </Card>
+
+          {/* Return & Goods Policy SLA Card */}
+          <Card className="mt-6">
+            <CardHeader
+              title="Return Policy & Guarantee Agreement"
+              subtitle="Configure your return acceptance policy for unused, damaged, or spoiled items across all client restaurants"
+              icon={RotateCcw}
+            />
+
+            <form onSubmit={handleSaveReturnPolicy} className="space-y-4">
+              {/* Selectable Policy Toggle Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReturnPolicyData((prev) => ({
+                      ...prev,
+                      acceptsReturns: true,
+                      returnPolicyNotes: prev.returnPolicyNotes.includes('Strict no-returns')
+                        ? 'Accepts returns for unused stock, damaged lots, or spoiled goods within 36 hours.'
+                        : prev.returnPolicyNotes,
+                    }))
+                  }
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    returnPolicyData.acceptsReturns
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          returnPolicyData.acceptsReturns
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-slate-400 bg-transparent'
+                        }`}
+                      >
+                        {returnPolicyData.acceptsReturns && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        Accepts Returns
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                      Returns OK
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Client restaurants are permitted to file return claims for unused surplus, damaged shipments, or spoiled goods.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReturnPolicyData((prev) => ({
+                      ...prev,
+                      acceptsReturns: false,
+                      returnPolicyNotes: 'Strict no-returns policy. All products supplied to restaurants are final sale once accepted at delivery dock.',
+                    }))
+                  }
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                    !returnPolicyData.acceptsReturns
+                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/20'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          !returnPolicyData.acceptsReturns
+                            ? 'border-rose-600 bg-rose-600 text-white'
+                            : 'border-slate-400 bg-transparent'
+                        }`}
+                      >
+                        {!returnPolicyData.acceptsReturns && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-bold text-rose-800 dark:text-rose-300">
+                        Do Not Accept Returns
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
+                      Final Sale
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Strict no-returns policy. All deliveries are final upon dock acceptance; unused, damaged, or spoiled products cannot be returned.
+                  </p>
+                </button>
+              </div>
+
+              {/* Conditions and Settings */}
+              {returnPolicyData.acceptsReturns ? (
+                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Covered Product Return Scenarios (Multi-Restaurant SLA):
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReturnPolicyData((prev) => ({
+                            ...prev,
+                            returnConditions: {
+                              ...prev.returnConditions,
+                              unused: !prev.returnConditions.unused,
+                            },
+                          }))
+                        }
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2 ${
+                          returnPolicyData.returnConditions.unused
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                            returnPolicyData.returnConditions.unused
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
+                              : 'border-slate-300 bg-white dark:bg-slate-800'
+                          }`}
+                        >
+                          {returnPolicyData.returnConditions.unused && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold block">Unused Products</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Surplus / unopened stock
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReturnPolicyData((prev) => ({
+                            ...prev,
+                            returnConditions: {
+                              ...prev.returnConditions,
+                              damaged: !prev.returnConditions.damaged,
+                            },
+                          }))
+                        }
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2 ${
+                          returnPolicyData.returnConditions.damaged
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                            returnPolicyData.returnConditions.damaged
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
+                              : 'border-slate-300 bg-white dark:bg-slate-800'
+                          }`}
+                        >
+                          {returnPolicyData.returnConditions.damaged && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold block">Damaged Products</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Transit / package damage
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReturnPolicyData((prev) => ({
+                            ...prev,
+                            returnConditions: {
+                              ...prev.returnConditions,
+                              spoiled: !prev.returnConditions.spoiled,
+                            },
+                          }))
+                        }
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2 ${
+                          returnPolicyData.returnConditions.spoiled
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                            returnPolicyData.returnConditions.spoiled
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
+                              : 'border-slate-300 bg-white dark:bg-slate-800'
+                          }`}
+                        >
+                          {returnPolicyData.returnConditions.spoiled && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold block">Spoiled Products</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Perishability / spoilage
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Return Window
+                      </label>
+                      <select
+                        value={returnPolicyData.returnWindowHours}
+                        onChange={(e) =>
+                          setReturnPolicyData((prev) => ({ ...prev, returnWindowHours: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white"
+                      >
+                        <option value="12">12 Hours (Express)</option>
+                        <option value="24">24 Hours (Next Day)</option>
+                        <option value="36">36 Hours (Standard)</option>
+                        <option value="48">48 Hours (2 Days)</option>
+                        <option value="72">72 Hours (3 Days)</option>
+                        <option value="168">7 Days (Weekly)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Max Return Volume Cap
+                      </label>
+                      <select
+                        value={returnPolicyData.maxReturnPercent}
+                        onChange={(e) =>
+                          setReturnPolicyData((prev) => ({ ...prev, maxReturnPercent: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white"
+                      >
+                        <option value="10">Up to 10% of Order</option>
+                        <option value="15">Up to 15% of Order</option>
+                        <option value="20">Up to 20% of Order</option>
+                        <option value="30">Up to 30% of Order</option>
+                        <option value="50">Up to 50% of Order</option>
+                        <option value="100">100% (No Volume Cap)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Settlement Mode
+                      </label>
+                      <select
+                        value={returnPolicyData.settlementMode}
+                        onChange={(e) =>
+                          setReturnPolicyData((prev) => ({ ...prev, settlementMode: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white"
+                      >
+                        <option value="Credit Note">Credit Note</option>
+                        <option value="Replacement Delivery">Replacement Delivery</option>
+                        <option value="Direct Refund / Credit Note">Direct Refund / Credit Note</option>
+                        <option value="Invoice Adjustment">Invoice Adjustment</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Policy Terms & Notes for Restaurants
+                    </label>
+                    <input
+                      type="text"
+                      value={returnPolicyData.returnPolicyNotes}
+                      onChange={(e) =>
+                        setReturnPolicyData((prev) => ({ ...prev, returnPolicyNotes: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    With a no-returns policy, restaurant clients cannot request returns or credit notes for unused, damaged, or spoiled products after initial delivery dock receipt.
+                  </p>
+                </div>
+              )}
+
+              <Button type="submit" variant="brand" size="sm" icon={Save}>
+                Save Return Policy Terms
               </Button>
             </form>
           </Card>
