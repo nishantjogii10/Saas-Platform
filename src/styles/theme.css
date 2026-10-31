@@ -120,6 +120,18 @@ textarea {
   }
 }
 
+/* Form controls base/light typography */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  color: var(--text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+}
+
 /* --------------------------------------------------------------------------
    3. Dark Mode Dashboard Surfaces & Component Overrides
    -------------------------------------------------------------------------- */

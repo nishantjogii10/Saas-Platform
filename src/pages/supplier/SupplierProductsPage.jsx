@@ -327,7 +327,7 @@ export const SupplierProductsPage = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by ingredient, SKU, category..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
           </div>
 
@@ -770,7 +770,7 @@ export const SupplierProductsPage = () => {
                 value={formData.name}
                 onChange={(e) => handleProductNameChange(e.target.value)}
                 placeholder="e.g. Fresh Malai Paneer, Grade-A Eggs, Button Mushrooms"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
                 Category automatically maps as you type
@@ -813,7 +813,7 @@ export const SupplierProductsPage = () => {
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                 placeholder="e.g. kg, box, tray, liter"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
             <div>
@@ -824,7 +824,7 @@ export const SupplierProductsPage = () => {
                 min="1"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
             <div>
@@ -835,7 +835,7 @@ export const SupplierProductsPage = () => {
                 min="1"
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
           </div>
@@ -848,7 +848,7 @@ export const SupplierProductsPage = () => {
                 min="1"
                 value={formData.minOrderQty}
                 onChange={(e) => setFormData({ ...formData, minOrderQty: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
             <div>
@@ -858,7 +858,7 @@ export const SupplierProductsPage = () => {
                 min="0"
                 value={formData.leadTimeDays}
                 onChange={(e) => setFormData({ ...formData, leadTimeDays: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
             <div>
@@ -868,7 +868,7 @@ export const SupplierProductsPage = () => {
                 min="1"
                 value={formData.shelfLifeDays}
                 onChange={(e) => setFormData({ ...formData, shelfLifeDays: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
               />
             </div>
           </div>
@@ -879,7 +879,7 @@ export const SupplierProductsPage = () => {
               type="url"
               value={formData.image}
               onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
             />
           </div>
 
@@ -890,7 +890,7 @@ export const SupplierProductsPage = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Freshness standards, packaging details, storage instructions..."
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-500"
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
             />
           </div>
 
