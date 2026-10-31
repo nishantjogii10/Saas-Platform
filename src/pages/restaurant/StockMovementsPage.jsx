@@ -59,31 +59,42 @@ export const StockMovementsPage = () => {
 
   const columns = [
     {
-      header: 'Date & Time',
+      header: 'Date',
       accessor: 'timestamp',
       sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">
-            {new Date(row.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-          <div className="text-slate-400">
-            {new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </div>
-        </div>
+        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+          {new Date(row.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
       ),
     },
     {
-      header: 'Ingredient & Batch',
+      header: 'Time',
+      accessor: 'time',
+      render: (row) => (
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+          {new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      ),
+    },
+    {
+      header: 'Ingredient Name',
       accessor: 'ingredientName',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.ingredientName}</div>
-          <div className="text-[11px] font-mono text-emerald-800 font-semibold mt-0.5">
-            {row.batchNumber || 'Batch N/A'}
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 dark:text-white text-xs">
+          {row.ingredientName}
+        </span>
+      ),
+    },
+    {
+      header: 'Batch Number',
+      accessor: 'batchNumber',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs font-mono text-emerald-800 dark:text-emerald-400 font-semibold">
+          {row.batchNumber || 'Batch N/A'}
+        </span>
       ),
     },
     {
@@ -93,44 +104,65 @@ export const StockMovementsPage = () => {
       render: (row) => <Badge status={row.type} />,
     },
     {
-      header: 'Delta Quantity',
+      header: 'Quantity Changed',
       accessor: 'quantity',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="font-bold text-sm">
+        <div className="font-bold text-xs inline-block">
           {row.quantity > 0 ? (
-            <span className="text-emerald-700 flex items-center gap-0.5">
-              <ArrowUpRight className="w-4 h-4 inline" /> +{row.quantity} {row.unit}
+            <span className="text-emerald-700 dark:text-emerald-400 flex items-center justify-end gap-0.5">
+              <ArrowUpRight className="w-3.5 h-3.5 inline" /> +{row.quantity} {row.unit}
             </span>
           ) : (
-            <span className="text-rose-600 flex items-center gap-0.5">
-              <ArrowDownRight className="w-4 h-4 inline" /> {row.quantity} {row.unit}
+            <span className="text-rose-600 dark:text-rose-400 flex items-center justify-end gap-0.5">
+              <ArrowDownRight className="w-3.5 h-3.5 inline" /> {row.quantity} {row.unit}
             </span>
           )}
         </div>
       ),
     },
     {
-      header: 'Stock Before -> After',
-      accessor: 'qtyAfter',
+      header: 'Stock Before',
+      accessor: 'qtyBefore',
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="text-xs text-slate-600">
-          <span>{row.qtyBefore} {row.unit}</span>
-          <span className="mx-1 text-slate-400">→</span>
-          <span className="font-bold text-slate-900">{row.qtyAfter} {row.unit}</span>
+        <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+          {row.qtyBefore} {row.unit}
+        </span>
+      ),
+    },
+    {
+      header: 'Stock After',
+      accessor: 'qtyAfter',
+      className: 'text-right',
+      cellClassName: 'text-right',
+      render: (row) => (
+        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+          {row.qtyAfter} {row.unit}
+        </span>
+      ),
+    },
+    {
+      header: 'Performed By',
+      accessor: 'performedBy',
+      sortable: true,
+      render: (row) => (
+        <div className="text-xs">
+          <span className="font-semibold text-slate-800 dark:text-slate-200">{row.performedBy}</span>
+          <span className="text-[10px] text-slate-400 block font-normal capitalize">{row.role?.replace('_', ' ')}</span>
         </div>
       ),
     },
     {
-      header: 'Staff & Reason',
-      accessor: 'performedBy',
+      header: 'Reason / Purpose',
+      accessor: 'reason',
       render: (row) => (
-        <div className="text-xs max-w-xs">
-          <div className="font-semibold text-slate-800">
-            {row.performedBy} <span className="text-[10px] text-slate-400 font-normal">({row.role})</span>
-          </div>
-          <div className="text-slate-500 truncate mt-0.5">{row.reason}</div>
-        </div>
+        <span className="text-xs text-slate-600 dark:text-slate-400 max-w-xs truncate block" title={row.reason}>
+          {row.reason}
+        </span>
       ),
     },
   ];

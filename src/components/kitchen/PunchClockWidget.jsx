@@ -261,7 +261,7 @@ export const PunchClockWidget = () => {
             <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
               <span className="font-semibold text-slate-700">{currentUser?.roleLabel || 'Staff Member'}</span>
               <span>•</span>
-              <span className="text-emerald-800 font-medium">{currentBranch?.name || 'Spice Garden — Pune Central'}</span>
+              <span className="text-emerald-800 font-medium">{currentUser?.name || 'Authorized User'}</span>
             </p>
           </div>
         </div>

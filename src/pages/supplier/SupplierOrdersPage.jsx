@@ -102,63 +102,74 @@ export const SupplierOrdersPage = () => {
 
   const columns = [
     {
-      header: 'PO Number & Date',
+      header: 'PO Number',
       accessor: 'poNumber',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.poNumber}</div>
-          <div className="text-xs text-slate-400">
-            {new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 font-mono text-xs">{row.poNumber}</span>
       ),
     },
     {
-      header: 'Ordering Restaurant',
+      header: 'Order Date',
+      accessor: 'createdAt',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-mono">
+          {new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
+      ),
+    },
+    {
+      header: 'Restaurant Name',
       accessor: 'restaurantName',
       sortable: true,
+      render: (row) => (
+        <span className="font-bold text-slate-800 text-xs">{row.restaurantName}</span>
+      ),
+    },
+    {
+      header: 'Delivery Address',
+      accessor: 'restaurantId',
       render: (row) => {
         const rest = restaurants.find(r => r.id === row.restaurantId);
         return (
-          <div className="text-xs">
-            <div className="font-bold text-slate-800">{row.restaurantName}</div>
-            <div className="text-slate-500 truncate max-w-[170px]">{rest?.address || 'Restaurant Dock'}</div>
-          </div>
+          <span className="text-xs text-slate-500 truncate max-w-[180px] block" title={rest?.address}>
+            {rest?.address || 'Restaurant Dock'}
+          </span>
         );
       },
     },
     {
-      header: 'Items Manifest',
+      header: 'Items Count',
       accessor: 'items',
+      className: 'text-center',
+      cellClassName: 'text-center',
       render: (row) => (
-        <div className="text-xs">
-          <span className="font-bold text-slate-800">{row.items.length} items</span>
-          <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
-            {row.items.map(it => `${it.quantity} ${it.unit} ${it.name}`).join(', ')}
-          </div>
-        </div>
+        <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 rounded-md text-slate-700">
+          {row.items?.length || 0} items
+        </span>
       ),
     },
     {
       header: 'Order Value',
       accessor: 'totalAmount',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-extrabold text-slate-900">{formatINR(row.totalAmount)}</div>
-          <div className="text-[10px] text-slate-400">Net 30</div>
-        </div>
+        <span className="text-xs font-extrabold text-slate-900">
+          {formatINR(row.totalAmount)}
+        </span>
       ),
     },
     {
-      header: 'Fulfilment Status',
+      header: 'Status',
       accessor: 'status',
       sortable: true,
       render: (row) => <Badge status={row.status} />,
     },
     {
-      header: 'Supplier Actions (Workflow C)',
+      header: 'Actions',
       accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-1.5">

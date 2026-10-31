@@ -54,7 +54,7 @@ import { BatchTrackingPage } from './pages/restaurant/BatchTrackingPage';
 import { SupplierReturnsPage } from './pages/restaurant/SupplierReturnsPage';
 import { SupplierBillingPage } from './pages/restaurant/SupplierBillingPage';
 
-// Multi-Branch Management, Branch Subscriptions, Staff Transfers & Notifications
+// Multi-Branch Management, Branch Subscriptions & Notifications
 import { CombinedBranchesPage } from './pages/restaurant/CombinedBranchesPage';
 import { PlansAndBillingPage } from './pages/restaurant/PlansAndBillingPage';
 import { BranchSubscriptionsPage } from './pages/restaurant/BranchSubscriptionsPage';
@@ -150,6 +150,12 @@ const DashboardDispatcher = () => {
     default:
       return <RestaurantDashboard />;
   }
+};
+
+// Preserves search parameters when legacy staff routes are accessed
+const BranchStaffRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/workforce${location.search}`} replace />;
 };
 
 // Notifications Route Dispatcher: Dispatches each role to their proper notifications experience
@@ -435,13 +441,7 @@ function App() {
             path="/suppliers"
             element={
               <AppLayout>
-                <RoleGuard
-                  allowedRoles={[
-                    'restaurant_owner',
-                    'inventory_manager',
-                    'super_admin',
-                  ]}
-                >
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SuppliersPage />
                 </RoleGuard>
               </AppLayout>
@@ -451,13 +451,7 @@ function App() {
             path="/purchase-orders"
             element={
               <AppLayout>
-                <RoleGuard
-                  allowedRoles={[
-                    'restaurant_owner',
-                    'inventory_manager',
-                    'super_admin',
-                  ]}
-                >
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <PurchaseOrdersPage />
                 </RoleGuard>
               </AppLayout>
@@ -506,13 +500,7 @@ function App() {
             path="/supplier-returns"
             element={
               <AppLayout>
-                <RoleGuard
-                  allowedRoles={[
-                    'restaurant_owner',
-                    'inventory_manager',
-                    'super_admin',
-                  ]}
-                >
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierReturnsPage />
                 </RoleGuard>
               </AppLayout>
@@ -522,18 +510,13 @@ function App() {
             path="/supplier-billing"
             element={
               <AppLayout>
-                <RoleGuard
-                  allowedRoles={[
-                    'restaurant_owner',
-                    'inventory_manager',
-                    'super_admin',
-                  ]}
-                >
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'super_admin']}>
                   <SupplierBillingPage />
                 </RoleGuard>
               </AppLayout>
             }
           />
+
           <Route
             path="/stock-movements"
             element={
@@ -655,16 +638,30 @@ function App() {
             }
           />
           <Route
+            path="/workforce/leave/:leaveId"
+            element={
+              <AppLayout>
+                <RoleGuard allowedRoles={['restaurant_owner', 'restaurant_manager']}>
+                  <WorkforcePage />
+                </RoleGuard>
+              </AppLayout>
+            }
+          />
+          <Route
             path="/branch-staff"
-            element={<Navigate to="/workforce" replace />}
+            element={<BranchStaffRedirect />}
           />
           <Route
             path="/staff-transfers"
-            element={<Navigate to="/workforce?tab=transfers" replace />}
+            element={<Navigate to="/workforce" replace />}
           />
           <Route
-            path="/transfers"
-            element={<Navigate to="/workforce?tab=transfers" replace />}
+            path="/branches/transfers"
+            element={<Navigate to="/workforce" replace />}
+          />
+          <Route
+            path="/leave-requests"
+            element={<Navigate to="/workforce?tab=leave" replace />}
           />
           <Route
             path="/notifications"

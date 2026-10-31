@@ -14,7 +14,6 @@ import {
   Boxes,
   ArrowRight,
   ShieldCheck,
-  ArrowLeftRight,
   Sparkles,
   CreditCard,
   CheckCircle2,
@@ -35,7 +34,6 @@ export const BranchOverviewPage = () => {
     currentBranchId,
     switchBranch,
     branchStaff,
-    staffTransfers,
     ownerNotifications,
     addToast,
   } = useApp();
@@ -47,7 +45,6 @@ export const BranchOverviewPage = () => {
   const activeBranches = branches.filter((b) => b.status === 'active').length;
   const totalStaff = branchStaff.length;
   const totalManagers = branchStaff.filter((s) => s.isManager).length;
-  const pendingTransfers = staffTransfers.filter((t) => t.status === 'Pending').length;
 
   // Monthly subscription run rate
   const monthlyRunRate = branches.reduce((acc, b) => {
@@ -72,14 +69,6 @@ export const BranchOverviewPage = () => {
         subtitle="Manage all 5 Spice Garden outlets, operational records, manager assignments, and branch subscription plans."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -163,13 +152,6 @@ export const BranchOverviewPage = () => {
           subtitle="Normalized Subscription Cost"
           icon={TrendingUp}
           variant="success"
-        />
-        <StatCard
-          title="Pending Transfers"
-          value={pendingTransfers}
-          subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
-          icon={ArrowLeftRight}
-          variant={pendingTransfers > 0 ? "warning" : "default"}
         />
         <StatCard
           title="Plan Tiers"
@@ -369,21 +351,6 @@ export const BranchOverviewPage = () => {
           </p>
         </div>
 
-        <div
-          onClick={() => navigate('/staff-transfers')}
-          className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-5 h-5" />
-            </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-          </div>
-          <h4 className="text-sm font-bold text-slate-900 mt-3">Staff Transfers</h4>
-          <p className="text-xs text-slate-500 mt-1">
-            Transfer cooks, chefs, and managers between Pune and Mumbai outlets with quota verification.
-          </p>
-        </div>
 
         <div
           onClick={() => navigate('/billing')}

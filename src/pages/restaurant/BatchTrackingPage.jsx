@@ -432,13 +432,16 @@ export const BatchTrackingPage = () => {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4">Batch ID &amp; QR</th>
+                  <th className="py-3 px-4">Batch ID</th>
+                  <th className="py-3 px-4 text-center">QR Tag</th>
                   <th className="py-3 px-4">Product Name</th>
+                  <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4">Supplier</th>
-                  <th className="py-3 px-4">Remaining Stock</th>
+                  <th className="py-3 px-4 text-right">Remaining Stock</th>
+                  <th className="py-3 px-4 text-right">Accepted Qty</th>
                   <th className="py-3 px-4">Expiry Date (FEFO)</th>
                   <th className="py-3 px-4">Storage Location</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-4 text-right">Inspect</th>
                 </tr>
               </thead>
@@ -454,36 +457,45 @@ export const BatchTrackingPage = () => {
                       }`}
                       onClick={() => setSelectedBatch(b)}
                     >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
-                            <QrCode className="w-4 h-4" />
-                          </div>
-                          <span className="font-mono font-bold text-slate-900">{b.batchId}</span>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        {b.batchId}
+                      </td>
+
+                      <td className="py-3 px-4 text-center">
+                        <div className="w-7 h-7 mx-auto rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
+                          <QrCode className="w-4 h-4" />
                         </div>
                       </td>
 
                       <td className="py-3 px-4 font-semibold text-slate-900">
                         {b.productName}
-                        <div className="text-[10px] text-slate-400 font-normal">{b.category}</div>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span className="text-[11px] font-medium text-slate-600 px-2 py-0.5 bg-slate-100 rounded-md">
+                          {b.category}
+                        </span>
                       </td>
 
                       <td className="py-3 px-4 text-slate-700">{b.supplierName}</td>
 
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 text-right">
                         <span className="font-bold text-emerald-800">{b.remainingQty} {b.unit}</span>
-                        <div className="text-[10px] text-slate-400">Accepted: {b.acceptedQty}</div>
+                      </td>
+
+                      <td className="py-3 px-4 text-right text-slate-500 font-medium">
+                        {b.acceptedQty} {b.unit}
                       </td>
 
                       <td className="py-3 px-4">
                         <div className={b.isPerishable ? 'font-bold text-amber-800' : 'text-slate-600'}>
-                          {b.expiryDate || 'N/A (Spices)'}
+                          {b.expiryDate || 'N/A (Non-perishable)'}
                         </div>
                       </td>
 
                       <td className="py-3 px-4 text-slate-600">{b.storageLocation}</td>
 
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 text-center">
                         <Badge status={b.batchStatus === 'Active' ? 'active' : 'warning'} size="sm" />
                       </td>
 

@@ -10,7 +10,6 @@ import {
   Search,
   Filter,
   ShieldCheck,
-  ArrowLeftRight,
   Edit2,
   Trash2,
   Star,
@@ -320,7 +319,7 @@ export const BranchStaffPage = () => {
       isManager: addForm.role === 'restaurant_manager' || addForm.role === 'inventory_manager',
       assignedModules:
         addForm.role === 'restaurant_manager'
-          ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Staff Reports', 'Alerts']
+          ? ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Reports', 'Alerts']
           : addForm.role === 'inventory_manager'
           ? ['Inventory', 'Suppliers', 'Purchase Orders', 'Receiving Dock', 'Reports']
           : ['Kitchen Terminal', 'Prep Usage', 'Wastage'],
@@ -396,14 +395,6 @@ export const BranchStaffPage = () => {
               }}
             >
               Disburse Salary
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff
             </Button>
             <Button
               variant="outline"
@@ -764,15 +755,6 @@ export const BranchStaffPage = () => {
                                 Pay
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => navigate('/staff-transfers')}
-                                title="Request Branch Transfer"
-                                className="text-slate-600 hover:bg-slate-100"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" />
-                              </Button>
 
                               <Button
                                 variant="ghost"
