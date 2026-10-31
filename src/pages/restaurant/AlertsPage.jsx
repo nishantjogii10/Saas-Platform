@@ -5,7 +5,6 @@ import {
   Bell,
   Calendar,
   Clock,
-  ArrowLeftRight,
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
@@ -15,6 +14,7 @@ import {
   Check,
   X,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -33,7 +33,7 @@ export const AlertsPage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
-  const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry | leaves | transfers
+  const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry | leaves | shifts
 
   const roleFilteredAlerts = (restaurantAlerts || []).filter((a) => {
     if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
@@ -44,9 +44,12 @@ export const AlertsPage = () => {
 
   const filteredAlerts = roleFilteredAlerts.filter((a) => {
     if (filterMode === 'unread') return !a.read;
+    if (filterMode === 'holidays') {
+      return a.badge === 'Holiday' || a.type?.includes('holiday') || (a.actionLabel || '').toLowerCase().includes('holiday');
+    }
     if (isManager) {
       if (filterMode === 'leaves') return a.type === 'leave_request';
-      if (filterMode === 'transfers') return a.type === 'transfer_request' || a.type === 'attendance_notice';
+      if (filterMode === 'shifts') return a.type === 'attendance_notice';
       return true;
     }
     if (filterMode === 'critical') return a.severity === 'critical' || a.severity === 'high';
@@ -56,11 +59,43 @@ export const AlertsPage = () => {
 
   const unreadCount = roleFilteredAlerts.filter(a => !a.read).length;
 
+  // Resolves and normalizes action links with exact requisition IDs and tabs
+  const getAlertActionLink = (alert) => {
+    if (!alert.actionLink && !alert.actionLabel) return null;
+    const label = (alert.actionLabel || '').toLowerCase();
+    const type = (alert.type || '').toLowerCase();
+    const badge = (alert.badge || '').toLowerCase();
+
+    if (label.includes('roster') || badge.includes('invite') || type === 'staff_added') {
+      return '/workforce?tab=roster';
+    }
+    if (label.includes('timesheet') || badge.includes('shift end') || type === 'staff_punch_out') {
+      return '/workforce?tab=attendance';
+    }
+    if (label.includes('attendance') || badge.includes('attendance') || type === 'staff_punch_in' || type === 'attendance_notice') {
+      return '/workforce?tab=attendance';
+    }
+    if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
+      const holidayId = alert.holidayId || '';
+      return holidayId ? `/workforce?tab=holidays&holidayId=${holidayId}` : '/workforce?tab=holidays';
+    }
+    if (type === 'leave_request' || label.includes('leave')) {
+      const leaveId = alert.leaveId || (alert.id?.startsWith('alert-leave-') ? alert.id.replace('alert-leave-', '') : '');
+      if (leaveId) {
+        return `/workforce?tab=leave&leaveId=${leaveId}`;
+      }
+      return '/workforce?tab=leave';
+    }
+    let link = alert.actionLink || '';
+    return link.replace('/branch-staff', '/workforce');
+  };
+
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={isManager ? "Staff & Operations Notices" : "Kitchen & Stock Notifications"}
-        subtitle={isManager ? "Real-time employee leave requests, transfer approvals, and station attendance alerts" : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates"}
+        subtitle={isManager ? "Real-time employee leave requests and station attendance alerts" : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates"}
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Alerts' },
@@ -86,12 +121,14 @@ export const AlertsPage = () => {
             ? [
                 { id: 'all', label: 'All Staff Notices', count: roleFilteredAlerts.length },
                 { id: 'unread', label: 'Unread Only', count: unreadCount },
+                { id: 'holidays', label: 'Holiday Notices' },
                 { id: 'leaves', label: 'Leave Requests' },
-                { id: 'transfers', label: 'Transfers & Shifts' },
+                { id: 'shifts', label: 'Shift Attendance' },
               ]
             : [
                 { id: 'all', label: 'All Alerts', count: roleFilteredAlerts.length },
                 { id: 'unread', label: 'Unread Only', count: unreadCount },
+                { id: 'holidays', label: 'Holiday Notices' },
                 { id: 'critical', label: 'Critical & High' },
                 { id: 'expiry', label: 'Expiry Warnings' },
               ]
@@ -125,7 +162,7 @@ export const AlertsPage = () => {
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
             <h3 className="text-base font-bold text-slate-800">{isManager ? "No active staff notices" : "No active alerts"}</h3>
             <p className="text-xs text-slate-500 mt-1">
-              {isManager ? "All staff leave requests, transfer applications, and shift rosters are in good standing." : "Your kitchen stock thresholds and batch expiry dates are in good standing."}
+              {isManager ? "All staff leave requests and shift rosters are in good standing." : "Your kitchen stock thresholds and batch expiry dates are in good standing."}
             </p>
           </div>
         ) : (
@@ -144,13 +181,13 @@ export const AlertsPage = () => {
             >
               <div className="flex items-start gap-3.5 flex-1">
                 <div className="mt-0.5 shrink-0">
-                  {alt.type === 'leave_request' ? (
+                  {alt.badge === 'Holiday' || alt.type?.includes('holiday') ? (
+                    <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                  ) : alt.type === 'leave_request' ? (
                     <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
                       <Calendar className="w-5 h-5" />
-                    </div>
-                  ) : alt.type === 'transfer_request' ? (
-                    <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
-                      <ArrowLeftRight className="w-5 h-5" />
                     </div>
                   ) : alt.type === 'attendance_notice' ? (
                     <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
@@ -205,7 +242,10 @@ export const AlertsPage = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       markAlertRead(alt.id);
-                      navigate(alt.actionLink);
+                      const targetLink = getAlertActionLink(alt);
+                      if (targetLink) {
+                        navigate(targetLink);
+                      }
                     }}
                   >
                     {alt.actionLabel || 'Take Action'}

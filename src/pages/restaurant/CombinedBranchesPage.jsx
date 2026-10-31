@@ -14,7 +14,6 @@ import {
   Boxes,
   ArrowRight,
   ShieldCheck,
-  ArrowLeftRight,
   Sparkles,
   CreditCard,
   CheckCircle2,
@@ -47,7 +46,6 @@ export const CombinedBranchesPage = () => {
     updateBranch,
     toggleBranchStatus,
     branchStaff,
-    staffTransfers,
     addToast,
   } = useApp();
 
@@ -90,7 +88,6 @@ export const CombinedBranchesPage = () => {
   const inactiveBranches = totalBranches - activeBranches;
   const totalStaff = branchStaff.length;
   const totalManagers = branchStaff.filter((s) => s.isManager).length;
-  const pendingTransfers = staffTransfers.filter((t) => t.status === 'Pending').length;
   const totalSeating = branchList.reduce((acc, b) => acc + (Number(b.seatingCapacity) || 0), 0);
 
   // Monthly subscription run rate
@@ -212,14 +209,6 @@ export const CombinedBranchesPage = () => {
             <Button
               variant="outline"
               size="sm"
-              icon={ArrowLeftRight}
-              onClick={() => navigate('/staff-transfers')}
-            >
-              Transfer Staff {pendingTransfers > 0 && `(${pendingTransfers})`}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               icon={CalendarCheck}
               onClick={() => navigate('/branch-subscriptions')}
             >
@@ -281,7 +270,7 @@ export const CombinedBranchesPage = () => {
       )}
 
       {/* KPI Cards: High-Level Overview Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Total Branches"
           value={totalBranches}
@@ -309,13 +298,6 @@ export const CombinedBranchesPage = () => {
           subtitle="Dine-in Capacity"
           icon={Building2}
           variant="default"
-        />
-        <StatCard
-          title="Staff Transfers"
-          value={pendingTransfers}
-          subtitle={pendingTransfers > 0 ? "Action Required" : "All Processed"}
-          icon={ArrowLeftRight}
-          variant={pendingTransfers > 0 ? "warning" : "default"}
         />
       </div>
 
@@ -704,21 +686,6 @@ export const CombinedBranchesPage = () => {
           </p>
         </div>
 
-        <div
-          onClick={() => navigate('/staff-transfers')}
-          className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <ArrowLeftRight className="w-5 h-5" />
-            </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-          </div>
-          <h4 className="text-sm font-bold text-slate-900 mt-3">Staff Transfers</h4>
-          <p className="text-xs text-slate-500 mt-1">
-            Transfer cooks, chefs, and managers between outlets with automated quota checks.
-          </p>
-        </div>
 
         <div
           onClick={() => navigate('/billing')}

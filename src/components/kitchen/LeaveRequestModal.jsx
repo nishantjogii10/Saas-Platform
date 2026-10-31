@@ -24,6 +24,8 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
     submitLeaveRequest,
     getStaffLeaveBalance,
     LEAVE_TYPES,
+    holidays,
+    calculateDeductibleLeaveDays,
     addToast,
   } = useApp();
 
@@ -39,7 +41,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
   const staffBalances = getStaffLeaveBalance ? getStaffLeaveBalance(currentUser?.id) : {};
   const currentCategoryBal = staffBalances[form.leaveType] || { total: 0, used: 0, remaining: 0 };
 
-  // Calculate duration in days
+  // Calculate duration in days and deductible days excluding holidays
   const startD = new Date(form.startDate);
   const endD = new Date(form.endDate);
   const diffDays =
@@ -47,10 +49,14 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
       ? Math.ceil(Math.abs(endD - startD) / (1000 * 60 * 60 * 24)) + 1
       : 0;
 
+  const deductibleInfo = calculateDeductibleLeaveDays
+    ? calculateDeductibleLeaveDays(form.startDate, form.endDate, currentBranch?.id, currentUser?.id, holidays)
+    : { totalDays: diffDays, holidayDays: 0, deductibleDays: diffDays, overlappingHolidays: [] };
+
   const isOverQuota =
     form.leaveType !== 'Unpaid Leave' &&
     currentCategoryBal.remaining !== undefined &&
-    diffDays > currentCategoryBal.remaining;
+    deductibleInfo.deductibleDays > currentCategoryBal.remaining;
 
   const QUICK_REASONS = [
     'Family wedding / function',
@@ -206,14 +212,35 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Duration & Quota Status Banner */}
-        <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900">
-          <span className="font-semibold flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-emerald-600" />
-            Total Leave Duration:
-          </span>
-          <span className="font-extrabold text-sm px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-            {diffDays} {diffDays === 1 ? 'Day' : 'Days'}
-          </span>
+        <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2 text-xs text-emerald-900">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-emerald-600" />
+              Total Period Duration:
+            </span>
+            <span className="font-extrabold text-sm px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              {diffDays} {diffDays === 1 ? 'Day' : 'Days'}
+            </span>
+          </div>
+
+          {deductibleInfo.holidayDays > 0 ? (
+            <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200/90 text-purple-900 text-[11px] space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-purple-800">
+                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                <span>Holiday Policy Exemption Applied</span>
+              </div>
+              <div>
+                <strong>{deductibleInfo.holidayDays} holiday(s) excluded:</strong> {deductibleInfo.overlappingHolidays.map(h => h.name).join(', ')}.
+              </div>
+              <div className="font-semibold text-purple-950">
+                Net Deductible Leave: <span className="underline font-bold">{deductibleInfo.deductibleDays} day(s)</span> will be charged from your {form.leaveType} balance.
+              </div>
+            </div>
+          ) : (
+            <div className="text-[11px] text-emerald-700">
+              Net Deductible: <strong>{deductibleInfo.deductibleDays} day(s)</strong> charged to your quota.
+            </div>
+          )}
         </div>
 
         {/* Warning if over quota */}
@@ -221,7 +248,7 @@ export const LeaveRequestModal = ({ isOpen, onClose }) => {
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/90 flex items-start gap-2.5 text-xs text-amber-800 animate-in fade-in">
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Requested days exceed remaining {form.leaveType} balance ({currentCategoryBal.remaining}d left).</p>
+              <p className="font-semibold">Deductible days ({deductibleInfo.deductibleDays}d) exceed remaining {form.leaveType} balance ({currentCategoryBal.remaining}d left).</p>
               <p className="text-[11px] text-amber-700 mt-0.5">
                 The manager may review and adjust this as Unpaid Leave or approve with discretionary sign-off.
               </p>
