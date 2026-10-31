@@ -57,7 +57,7 @@ export const PurchaseOrdersPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
 
   // Modals
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialAction === 'create');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialAction === 'create' && currentUser?.role !== 'restaurant_owner');
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
@@ -90,7 +90,7 @@ export const PurchaseOrdersPage = () => {
   });
 
   useEffect(() => {
-    if (initialAction === 'create') {
+    if (initialAction === 'create' && currentUser?.role !== 'restaurant_owner') {
       setIsCreateModalOpen(true);
     }
   }, [initialAction]);
@@ -343,14 +343,16 @@ export const PurchaseOrdersPage = () => {
                 >
                   Receiving Dock (GRN)
                 </Button>
-                <Button
-                  variant="brand"
-                  size="sm"
-                  icon={Plus}
-                  onClick={() => setIsCreateModalOpen(true)}
-                >
-                  Create Purchase Order
-                </Button>
+                {currentUser?.role !== 'restaurant_owner' && (
+                  <Button
+                    variant="brand"
+                    size="sm"
+                    icon={Plus}
+                    onClick={() => setIsCreateModalOpen(true)}
+                  >
+                    Create Purchase Order
+                  </Button>
+                )}
               </>
             )}
           </div>

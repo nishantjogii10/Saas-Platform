@@ -11,6 +11,7 @@ import { LandingPage } from './pages/LandingPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { SuperAdminLoginPage } from './pages/auth/SuperAdminLoginPage';
 import { SetNewPasswordPage } from './pages/auth/SetNewPasswordPage';
 import { MyProfilePage } from './pages/profile/MyProfilePage';
 import { SignUpPage } from './pages/auth/SignUpPage';
@@ -94,6 +95,7 @@ const RoleGuard = ({ allowedRoles, children }) => {
     const safeFrom =
       location.pathname === '/notifications' ||
       location.pathname === '/login' ||
+      location.pathname === '/admin/login' ||
       location.pathname === '/app'
         ? undefined
         : location.pathname;
@@ -185,6 +187,8 @@ function App() {
           <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/admin/login" element={<SuperAdminLoginPage />} />
+          <Route path="/super-admin/login" element={<Navigate to="/admin/login" replace />} />
           <Route path="/set-new-password" element={<SetNewPasswordPage />} />
           <Route
             path="/profile"

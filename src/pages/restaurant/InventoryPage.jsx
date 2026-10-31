@@ -55,6 +55,14 @@ export const InventoryPage = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(initialAction === 'add');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const isOwner = currentUser?.role === 'restaurant_owner';
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewIngredient, setViewIngredient] = useState(null);
+
+  const handleOpenView = (ingredient) => {
+    setViewIngredient(ingredient);
+    setIsViewModalOpen(true);
+  };
 
   // Confirm delete dialog
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -109,6 +117,10 @@ export const InventoryPage = () => {
   };
 
   const handleOpenEdit = (ingredient) => {
+    if (isOwner) {
+      handleOpenView(ingredient);
+      return;
+    }
     setSelectedIngredient(ingredient);
     setFormData({
       name: ingredient.name,

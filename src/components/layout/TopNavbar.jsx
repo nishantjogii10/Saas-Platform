@@ -81,20 +81,50 @@ export const TopNavbar = ({ onOpenMobile }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-const roleFilteredAlerts = React.useMemo(() => {
-    return (restaurantAlerts || []).filter(a => {
-      if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
+const roleFilteredAlerts = useMemo(() => {
+    return (restaurantAlerts || []).filter((a) => {
+      if (
+        a.targetRoles &&
+        currentUser?.role &&
+        !a.targetRoles.includes(currentUser.role) &&
+        currentUser.role !== 'super_admin'
+      ) {
         return false;
       }
       return true;
     });
   }, [restaurantAlerts, currentUser]);
 
+  // Kitchen staff and inventory managers use staff-specific notifications.
   const isKitchenStaff =
     currentUser?.role === 'kitchen_staff' ||
     currentUser?.role === 'inventory_manager';
 
-  // Combine alerts and role-specific notifications for the notification popover.
+  const roleFilteredOwnerNotifs = useMemo(() => {
+    return (ownerNotifications || []).filter((n) => {
+      if (
+        n.targetRoles &&
+        currentUser?.role &&
+        !n.targetRoles.includes(currentUser.role) &&
+        currentUser.role !== 'super_admin'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerNotifications, currentUser]);
+
+  // Staff notifications must be addressed to the signed-in staff member.
+  const myStaffNotifs = useMemo(() => {
+    return (staffNotifications || []).filter(
+      (n) => n.targetStaffId === currentUser?.id
+    );
+  }, [staffNotifications, currentUser]);
+
+  const sourceNotifications = isKitchenStaff
+    ? myStaffNotifs
+    : roleFilteredOwnerNotifs;
+
   const combinedNotifications = useMemo(() => {
     const alerts = (roleFilteredAlerts || []).map((a) => ({
       id: a.id,
@@ -109,6 +139,7 @@ const roleFilteredAlerts = React.useMemo(() => {
       badge: 'Stock Alert',
       action: () => {
         markAlertRead(a.id);
+
         if (a.actionLink) {
           const managerRestricted =
             currentUser?.role === 'restaurant_manager' &&
@@ -118,6 +149,7 @@ const roleFilteredAlerts = React.useMemo(() => {
           const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
           navigate(managerRestricted ? '/alerts' : resolvedLink);
         }
+
         setShowNotifications(false);
       },
     }));
@@ -186,10 +218,11 @@ const roleFilteredAlerts = React.useMemo(() => {
       timestamp: n.timestamp,
       read: Boolean(n.read),
       type: n.actionLink === '/inbox' ? 'announcement' : 'notification',
-      severity: n.priority === 'urgent' ? 'critical' : (n.severity || 'normal'),
+      severity: n.priority === 'urgent' ? 'critical' : n.severity || 'normal',
       actionLink: n.actionLink,
       sourceType: 'notification',
-      badge: n.actionLink === '/inbox' ? 'Announcement' : (n.badge || 'Notice'),
+      badge:
+        n.actionLink === '/inbox' ? 'Announcement' : n.badge || 'Notice',
       action: () => {
         if (n.targetStaffId) {
           markStaffNotificationRead(n.id);
@@ -205,6 +238,7 @@ const roleFilteredAlerts = React.useMemo(() => {
         if (resolvedLink) {
           navigate(resolvedLink);
         }
+
         setShowNotifications(false);
       },
     }));
@@ -212,8 +246,7 @@ const roleFilteredAlerts = React.useMemo(() => {
     return [...alerts, ...notices];
   }, [
     roleFilteredAlerts,
-    staffNotifications,
-    ownerNotifications,
+    sourceNotifications,
     isKitchenStaff,
     currentUser,
     currentRestaurant,
@@ -224,11 +257,17 @@ const roleFilteredAlerts = React.useMemo(() => {
     navigate,
   ]);
 
-  const combinedItems = combinedNotifications.filter((item) => {
-    if (notifTab === 'alerts') return item.sourceType === 'alert';
-    if (notifTab === 'notifications') return item.sourceType === 'notification';
-    return true;
-  });
+  const combinedItems = combinedNotifications
+    .filter((item) => {
+      if (notifTab === 'alerts') return item.sourceType === 'alert';
+      if (notifTab === 'notifications') return item.sourceType === 'notification';
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.read !== b.read) return a.read ? 1 : -1;
+      return 0;
+    })
+    .slice(0, 8);
 
   const unreadAlerts = combinedNotifications.filter(
     (item) => item.sourceType === 'alert' && !item.read
@@ -240,7 +279,9 @@ const roleFilteredAlerts = React.useMemo(() => {
 
   const relevantUnreadNotifs = relevantNotifs.filter((item) => !item.read);
 
-  const totalUnreadCount = combinedNotifications.filter((item) => !item.read).length;
+  const totalUnreadCount = combinedNotifications.filter(
+    (item) => !item.read
+  ).length;
 
   const handleItemClick = (item) => {
     if (typeof item.action === 'function') {
@@ -263,6 +304,7 @@ const roleFilteredAlerts = React.useMemo(() => {
           : item.actionLink
       );
     }
+
     setShowNotifications(false);
   };
 
