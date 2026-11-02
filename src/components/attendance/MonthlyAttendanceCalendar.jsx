@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp, isDateInHoliday, isHolidayApplicableToStaff } from '../../context/AppContext';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
@@ -126,13 +126,19 @@ export const MonthlyAttendanceCalendar = ({
   // Applicable holidays for this month & scope
   const monthHolidays = useMemo(() => {
     return (holidays || []).filter((h) => {
-      const hDate = new Date(h.date);
-      if (hDate.getFullYear() !== currentYear || hDate.getMonth() !== currentMonth) return false;
-      if (h.scope === 'all') return true;
-      if (activeStaff?.branchId && h.branchId) return h.branchId === activeStaff.branchId;
+      if (h.status === 'cancelled') return false;
+      const hStart = new Date(h.startDate || h.date);
+      const hEnd = new Date(h.endDate || h.date || hStart);
+      const mStart = new Date(currentYear, currentMonth, 1);
+      const mEnd = new Date(currentYear, currentMonth, totalDaysInMonth);
+
+      if (hStart > mEnd || hEnd < mStart) return false;
+      if (activeStaff) {
+        return isHolidayApplicableToStaff(h, activeStaff);
+      }
       return true;
     });
-  }, [holidays, activeStaff, currentYear, currentMonth]);
+  }, [holidays, activeStaff, currentYear, currentMonth, totalDaysInMonth]);
 
   // Calendar Day Map: pre-calculate status for all 1..totalDaysInMonth
   const calendarDays = useMemo(() => {
@@ -145,7 +151,7 @@ export const MonthlyAttendanceCalendar = ({
       const dayOfWeek = dateObj.getDay(); // 0 = Sun
 
       // 1. Holiday check
-      const holiday = monthHolidays.find((h) => h.date === dateStr);
+      const holiday = monthHolidays.find((h) => isDateInHoliday(dateStr, h));
 
       // 2. Attendance record check
       const record = staffRecords.find((r) => r.date === dateStr);
@@ -161,7 +167,11 @@ export const MonthlyAttendanceCalendar = ({
       // Determine final status
       let status = 'absent';
       if (holiday) {
-        status = 'holiday';
+        if (record && (record.status === 'active' || (record.totalHours !== null && record.totalHours > 0))) {
+          status = 'holiday_worked';
+        } else {
+          status = 'holiday';
+        }
       } else if (approvedLeave) {
         status = 'on_leave';
       } else if (record) {
@@ -201,12 +211,16 @@ export const MonthlyAttendanceCalendar = ({
     let absentCount = 0;
     let leaveCount = 0;
     let holidayCount = 0;
+    let holidayWorkedCount = 0;
     let weeklyOffCount = 0;
     let totalWorkedHours = 0;
 
     calendarDays.forEach((day) => {
       if (day.status === 'holiday') {
         holidayCount++;
+      } else if (day.status === 'holiday_worked') {
+        holidayWorkedCount++;
+        totalWorkedHours += Number(day.record?.totalHours || 8.0);
       } else if (day.status === 'on_leave') {
         leaveCount++;
       } else if (day.status === 'weekly_off') {
@@ -239,6 +253,7 @@ export const MonthlyAttendanceCalendar = ({
       absentCount,
       leaveCount,
       holidayCount,
+      holidayWorkedCount,
       weeklyOffCount,
       pendingLeaves,
       totalWorkedHours: totalWorkedHours.toFixed(1),
@@ -271,6 +286,11 @@ export const MonthlyAttendanceCalendar = ({
       bg: 'bg-purple-50 text-purple-900 border-purple-200/90 hover:bg-purple-100',
       pill: 'bg-purple-600 text-white',
       label: 'Holiday',
+    },
+    holiday_worked: {
+      bg: 'bg-indigo-50 text-indigo-900 border-indigo-200/90 hover:bg-indigo-100',
+      pill: 'bg-indigo-600 text-white',
+      label: 'Holiday Worked',
     },
     weekly_off: {
       bg: 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100',
@@ -478,8 +498,16 @@ export const MonthlyAttendanceCalendar = ({
                 {/* Body Content */}
                 <div className="space-y-1 w-full my-auto">
                   {day.holiday ? (
-                    <div className="text-[10px] font-bold text-purple-900 truncate bg-purple-100/90 px-1.5 py-0.5 rounded-md" title={day.holiday.name}>
-                      🎉 {day.holiday.name}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-purple-900 truncate bg-purple-100/90 px-1.5 py-0.5 rounded-md" title={day.holiday.name}>
+                        🎉 {day.holiday.name}
+                      </div>
+                      {day.status === 'holiday_worked' && day.record && (
+                        <div className="text-[10px] font-bold text-indigo-900 flex items-center justify-between px-1">
+                          <span>Worked:</span>
+                          <span className="font-mono font-black">{day.record.totalHours !== null ? `${day.record.totalHours}h` : 'Active'}</span>
+                        </div>
+                      )}
                     </div>
                   ) : day.approvedLeave ? (
                     <div className="text-[10px] font-bold text-blue-900 truncate bg-blue-100/90 px-1.5 py-0.5 rounded-md" title={day.approvedLeave.reason}>

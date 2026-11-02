@@ -36,12 +36,15 @@ export const AttendanceDayDetailModal = ({
     year: 'numeric',
   }) : 'Attendance Day Details';
 
+  const isWorkedOnHoliday = holiday && record && (record.status === 'active' || (record.totalHours !== null && record.totalHours !== undefined && record.totalHours > 0));
+
   const statusColors = {
     present: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     late: 'bg-amber-100 text-amber-800 border-amber-200',
     half_day: 'bg-orange-100 text-orange-800 border-orange-200',
     on_leave: 'bg-blue-100 text-blue-800 border-blue-200',
     holiday: 'bg-purple-100 text-purple-800 border-purple-200',
+    holiday_worked: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     weekly_off: 'bg-slate-100 text-slate-700 border-slate-200',
     absent: 'bg-rose-100 text-rose-800 border-rose-200',
   };
@@ -52,13 +55,16 @@ export const AttendanceDayDetailModal = ({
     half_day: 'Half Day Shift',
     on_leave: 'On Approved Leave',
     holiday: 'Public / Festival Holiday',
+    holiday_worked: 'Holiday Worked (Duty Shift)',
     weekly_off: 'Weekly Roster Off',
     absent: 'Unexcused Absent',
   };
 
-  const effectiveStatus = holiday
-    ? 'holiday'
-    : record?.attendanceStatus || (record?.status === 'active' ? 'present' : (record?.totalHours ? 'present' : 'absent'));
+  const effectiveStatus = isWorkedOnHoliday
+    ? 'holiday_worked'
+    : holiday
+      ? 'holiday'
+      : record?.attendanceStatus || (record?.status === 'active' ? 'present' : (record?.totalHours ? 'present' : 'absent'));
 
   return (
     <Modal
@@ -111,21 +117,34 @@ export const AttendanceDayDetailModal = ({
               <span className="font-bold text-sm flex items-center gap-2">
                 🎉 {holiday.name}
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
-                {holiday.type || 'Holiday'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900">
+                  {holiday.type || 'Holiday'}
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${holiday.isPaid !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                  {holiday.isPaid !== false ? 'Paid Holiday' : 'Unpaid Holiday'}
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-purple-800">
-              {holiday.description || 'Public holiday scheduled for this date. No work shift scheduled.'}
-            </p>
+            {holiday.description && (
+              <p className="text-xs text-purple-800">
+                {holiday.description}
+              </p>
+            )}
             <div className="text-[10px] text-purple-600">
-              Scope: {holiday.scope === 'all' ? 'All Restaurant Branches' : 'Branch Specific'} • Scheduled by {holiday.createdBy || 'Management'}
+              Scope: {holiday.scope === 'all' ? 'All Restaurant Branches' : (holiday.branchName || 'Assigned Branch')} • Scheduled by {holiday.createdBy || 'Management'}
             </div>
+            {isWorkedOnHoliday && (
+              <div className="mt-2 pt-2 border-t border-purple-200/80 text-[11px] font-semibold text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Duty Shift Logged: Employee worked on this scheduled holiday. Hours are credited.</span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Regular Shift Metrics Grid */}
-        {record && !holiday && (
+        {/* Regular Shift Metrics Grid (shown if record exists, including when worked on holiday) */}
+        {record && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
               <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
@@ -222,7 +241,7 @@ export const AttendanceDayDetailModal = ({
             Close
           </Button>
 
-          {canCorrect && record && !holiday && (
+          {canCorrect && record && (
             <Button
               variant="brand"
               size="sm"
@@ -240,4 +259,3 @@ export const AttendanceDayDetailModal = ({
     </Modal>
   );
 };
-

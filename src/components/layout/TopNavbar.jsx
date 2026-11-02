@@ -146,22 +146,69 @@ const roleFilteredAlerts = useMemo(() => {
             !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
               a.actionLink.startsWith(path)
             );
-
-          const kitchenRestricted =
-            isKitchenStaff && !a.actionLink.startsWith('/kitchen');
-
-          navigate(
-            managerRestricted
-              ? '/alerts'
-              : kitchenRestricted
-                ? '/kitchen'
-                : a.actionLink
-          );
+          const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
+          navigate(managerRestricted ? '/alerts' : resolvedLink);
         }
 
         setShowNotifications(false);
       },
     }));
+
+    // Individually addressed staff notifications targeted at current employee
+    const personalStaffNotifs = (staffNotifications || []).filter(
+      (n) => n.targetStaffId === currentUser?.id
+    );
+
+    let sourceNotifications = [];
+    if (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') {
+      sourceNotifications = ownerNotifications || [];
+    } else if (currentUser?.role === 'restaurant_manager') {
+      const managerBranchNotifs = (ownerNotifications || []).filter(
+        (n) => !n.branchId || n.branchId === (currentUser.branchId || currentBranchId)
+      );
+      sourceNotifications = [...personalStaffNotifs, ...managerBranchNotifs];
+    } else {
+      sourceNotifications = personalStaffNotifs;
+    }
+
+    // Smart resolver for notification action links to exact tabs
+    const resolveNotificationActionLink = (item) => {
+      if (!item) return '/workforce';
+      const label = (item.actionLabel || '').toLowerCase();
+      const badge = (item.badge || '').toLowerCase();
+      const type = (item.type || '').toLowerCase();
+
+      if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
+        const holId = item.holidayId || '';
+        if (currentUser?.role === 'kitchen_staff' || currentUser?.role === 'inventory_manager') {
+          return `/my-attendance?tab=holidays${holId ? `&holidayId=${holId}` : ''}`;
+        }
+        return `/workforce?tab=holidays${holId ? `&holidayId=${holId}` : ''}`;
+      }
+
+      if (label.includes('roster') || badge.includes('invite') || type === 'staff_added' || type === 'manager_assigned') {
+        return '/workforce?tab=roster';
+      }
+      if (label.includes('timesheet') || badge.includes('shift end') || type === 'staff_punch_out') {
+        return '/workforce?tab=attendance';
+      }
+      if (label.includes('attendance') || badge.includes('attendance') || type === 'staff_punch_in') {
+        return '/workforce?tab=attendance';
+      }
+      if (label.includes('leave') || type === 'leave_request') {
+        const leaveId = item.leaveId ? `&leaveId=${item.leaveId}` : '';
+        return `/workforce?tab=leave${leaveId}`;
+      }
+      if (item.actionLink) {
+        let link = item.actionLink.replace('/branch-staff', '/workforce');
+        if (link === '/workforce') {
+          if (label.includes('roster')) return '/workforce?tab=roster';
+          if (label.includes('timesheet') || label.includes('attendance')) return '/workforce?tab=attendance';
+        }
+        return link;
+      }
+      return '/workforce';
+    };
 
     const notices = sourceNotifications.map((n) => ({
       ...n,
@@ -177,7 +224,7 @@ const roleFilteredAlerts = useMemo(() => {
       badge:
         n.actionLink === '/inbox' ? 'Announcement' : n.badge || 'Notice',
       action: () => {
-        if (isKitchenStaff) {
+        if (n.targetStaffId) {
           markStaffNotificationRead(n.id);
         } else {
           markOwnerNotificationRead(n.id);
@@ -187,12 +234,9 @@ const roleFilteredAlerts = useMemo(() => {
           markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
         }
 
-        if (n.actionLink) {
-          navigate(
-            isKitchenStaff && !n.actionLink.startsWith('/kitchen')
-              ? '/kitchen'
-              : n.actionLink
-          );
+        const resolvedLink = resolveNotificationActionLink(n);
+        if (resolvedLink) {
+          navigate(resolvedLink);
         }
 
         setShowNotifications(false);

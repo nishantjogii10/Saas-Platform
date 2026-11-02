@@ -92,27 +92,54 @@ export const ExpiryTrackingPage = () => {
 
   const columns = [
     {
-      header: 'Ingredient & Batch Details',
+      header: 'Ingredient Name',
       accessor: 'name',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.name}</div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-            <span className="font-mono text-emerald-800 font-semibold">{row.batchNumber}</span>
-            <span>•</span>
-            <span>Loc: {row.storageLocation}</span>
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 dark:text-white text-xs">
+          {row.name}
+        </span>
+      ),
+    },
+    {
+      header: 'Batch Number',
+      accessor: 'batchNumber',
+      sortable: true,
+      render: (row) => (
+        <span className="font-mono text-xs text-emerald-800 dark:text-emerald-400 font-semibold">
+          {row.batchNumber || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Storage Location',
+      accessor: 'storageLocation',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 dark:text-slate-400">
+          {row.storageLocation}
+        </span>
       ),
     },
     {
       header: 'On-Hand Qty',
       accessor: 'quantity',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
-        <span className="font-bold text-slate-800">
+        <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
           {row.quantity} {row.unit}
+        </span>
+      ),
+    },
+    {
+      header: 'Restocked Date',
+      accessor: 'lastRestocked',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {row.lastRestocked || '—'}
         </span>
       ),
     },
@@ -121,10 +148,9 @@ export const ExpiryTrackingPage = () => {
       accessor: 'expiryDate',
       sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">{row.expiryDate}</div>
-          <div className="text-slate-400">Restocked {row.lastRestocked}</div>
-        </div>
+        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+          {row.expiryDate}
+        </span>
       ),
     },
     {
@@ -135,35 +161,35 @@ export const ExpiryTrackingPage = () => {
         const d = row.daysUntilExpiry;
         if (d < 0) {
           return (
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
               Expired {Math.abs(d)} day{Math.abs(d) > 1 ? 's' : ''} ago
             </span>
           );
         }
         if (d === 0) {
           return (
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
               Expires TODAY
             </span>
           );
         }
         if (d <= 3) {
           return (
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
               {d} day{d > 1 ? 's' : ''} remaining
             </span>
           );
         }
         return (
-          <span className="text-xs font-medium text-slate-600">
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
             {d} days remaining
           </span>
         );
       },
     },
     {
-      header: 'Status',
-      accessor: 'daysUntilExpiry',
+      header: 'FEFO Status',
+      accessor: 'status',
       sortable: true,
       render: (row) => {
         const cat = getExpiryCategory(row.daysUntilExpiry);

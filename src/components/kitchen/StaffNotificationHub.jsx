@@ -15,6 +15,7 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { Button } from '../common/Button';
+import { HolidayDetailsModal } from '../attendance/HolidayDetailsModal';
 import { formatINR } from '../../data/financeData';
 
 export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
@@ -22,11 +23,13 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
     currentUser,
     staffNotifications,
     salaryPayments,
+    holidays,
     markStaffNotificationRead,
     markAllStaffNotificationsRead,
   } = useApp();
 
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'salary' | 'leave'
+  const [filterType, setFilterType] = useState('all');
+  const [viewingHoliday, setViewingHoliday] = useState(null); // 'all' | 'salary' | 'leave'
 
   // Notifications targeted at this staff member
   const myNotifications = staffNotifications.filter(
@@ -38,6 +41,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
   const filteredNotifs = myNotifications.filter((n) => {
     if (filterType === 'salary') return n.type === 'salary_credit';
     if (filterType === 'leave') return n.type === 'leave_status';
+    if (filterType === 'holiday') return n.type?.includes('holiday');
     return true;
   });
 
@@ -121,6 +125,18 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
           <Calendar className="w-3.5 h-3.5" />
           <span>Leave Updates</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setFilterType('holiday')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            filterType === 'holiday'
+              ? 'bg-purple-700 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Holiday Notices</span>
+        </button>
       </div>
 
       {/* Notifications List */}
@@ -137,6 +153,7 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
           filteredNotifs.map((notif) => {
             const isSalary = notif.type === 'salary_credit';
             const isLeave = notif.type === 'leave_status';
+            const isHoliday = notif.type?.includes('holiday');
 
             return (
               <div
@@ -152,7 +169,9 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                 <div className="flex items-start gap-3.5">
                   <div
                     className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${
-                      isSalary
+                      isHoliday
+                        ? 'bg-purple-600 text-white'
+                        : isSalary
                         ? 'bg-emerald-600 text-white'
                         : notif.status === 'approved'
                         ? 'bg-teal-600 text-white'
@@ -161,7 +180,9 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                         : 'bg-amber-500 text-white'
                     }`}
                   >
-                    {isSalary ? (
+                    {isHoliday ? (
+                      <Sparkles className="w-5 h-5" />
+                    ) : isSalary ? (
                       <IndianRupee className="w-5 h-5" />
                     ) : isLeave ? (
                       <Calendar className="w-5 h-5" />
@@ -189,6 +210,29 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
                 </div>
 
                 {/* Optional CTA per Notification */}
+                {isHoliday && (
+                  <div className="self-end sm:self-center shrink-0">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      icon={Sparkles}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markStaffNotificationRead(notif.id);
+                        const matchHol = (holidays || []).find((h) => String(h.id) === String(notif.holidayId));
+                        if (matchHol) {
+                          setViewingHoliday(matchHol);
+                        } else if (notif.actionLink) {
+                          window.location.hash = '#' + notif.actionLink;
+                        }
+                      }}
+                      className="bg-white border-purple-300 text-purple-800 hover:bg-purple-50 shadow-2xs"
+                    >
+                      View Holiday
+                    </Button>
+                  </div>
+                )}
+
                 {isSalary && (
                   <div className="self-end sm:self-center shrink-0">
                     <Button
@@ -212,6 +256,13 @@ export const StaffNotificationHub = ({ onOpenSalarySlip }) => {
           })
         )}
       </div>
+      {viewingHoliday && (
+        <HolidayDetailsModal
+          isOpen={!!viewingHoliday}
+          onClose={() => setViewingHoliday(null)}
+          holiday={viewingHoliday}
+        />
+      )}
     </div>
   );
 };

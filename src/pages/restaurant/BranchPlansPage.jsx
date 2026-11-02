@@ -352,12 +352,6 @@ export const BranchPlansPage = () => {
                 <td className="py-3 px-4 text-center text-emerald-600">✓ Included</td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-slate-700">Staff Transfer Between Branches</td>
-                <td className="py-3 px-4 text-center text-slate-400">Receive Only</td>
-                <td className="py-3 px-4 text-center text-emerald-600">✓ Full Transfer</td>
-                <td className="py-3 px-4 text-center text-emerald-600">✓ Full Transfer</td>
-              </tr>
-              <tr>
                 <td className="py-3 px-4 text-slate-700">Analytics, Wastage &amp; Costing Reports</td>
                 <td className="py-3 px-4 text-center text-slate-300">—</td>
                 <td className="py-3 px-4 text-center text-emerald-600">✓ Included</td>

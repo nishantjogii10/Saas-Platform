@@ -57,18 +57,22 @@ export const ActivityLogs = () => {
 
   const columns = [
     {
-      header: 'Timestamp',
+      header: 'Date',
       accessor: 'timestamp',
       sortable: true,
       render: (row) => (
-        <div className="text-xs">
-          <div className="font-semibold text-slate-800">
-            {new Date(row.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-          <div className="text-slate-400">
-            {new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </div>
-        </div>
+        <span className="font-semibold text-slate-800 text-xs">
+          {new Date(row.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+        </span>
+      ),
+    },
+    {
+      header: 'Time',
+      accessor: 'time',
+      render: (row) => (
+        <span className="text-xs text-slate-500 font-mono">
+          {new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
       ),
     },
     {

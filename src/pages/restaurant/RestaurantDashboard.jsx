@@ -56,7 +56,6 @@ export const RestaurantDashboard = () => {
     restaurantSuppliers,
     attendanceRecords,
     branchStaff,
-    staffTransfers,
     currentBranch,
     currentUser,
   } = useApp();
@@ -68,9 +67,6 @@ export const RestaurantDashboard = () => {
 
   const activeStaffAttendance = attendanceRecords?.filter((r) => r.status === 'active') || [];
   const totalStaffCount = branchStaff?.length || 0;
-  const pendingTransfers = staffTransfers?.filter(
-    (t) => t.status === 'Pending' && (!currentBranch?.id || t.fromBranchId === currentBranch.id || t.toBranchId === currentBranch.id)
-  ) || [];
 
   // Metrics calculations for the current restaurant tenant
   const totalIngredients = restaurantIngredients.length;

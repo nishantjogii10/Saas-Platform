@@ -593,8 +593,10 @@ export const ReportsPage = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                    <th className="py-3 px-4">PO & GRN Ref</th>
+                    <th className="py-3 px-4">PO Number</th>
+                    <th className="py-3 px-4">GRN Ref</th>
                     <th className="py-3 px-4">Supplier Partner</th>
+                    <th className="py-3 px-4">Invoice Number</th>
                     <th className="py-3 px-4 text-right">Billed Amount</th>
                     <th className="py-3 px-4 text-right">Accepted Stock</th>
                     <th className="py-3 px-4 text-right">Dock Damage Loss</th>
@@ -605,13 +607,17 @@ export const ReportsPage = () => {
                 <tbody className="divide-y divide-slate-100">
                   {(supplierInvoices || []).map((inv) => (
                     <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{inv.poNumber}</div>
-                        <div className="text-[11px] font-mono text-emerald-800">{inv.grnNumber}</div>
+                      <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                        {inv.poNumber}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{inv.supplierName}</div>
-                        <div className="text-[11px] text-slate-400">Inv: {inv.invoiceNumber}</div>
+                      <td className="py-3 px-4 font-mono text-emerald-800">
+                        {inv.grnNumber}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {inv.supplierName}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 font-mono">
+                        {inv.invoiceNumber}
                       </td>
                       <td className="py-3 px-4 text-right font-semibold text-slate-800">
                         {formatINR(inv.totalAmount)}
@@ -642,7 +648,7 @@ export const ReportsPage = () => {
                 {/* Summary Table Footer */}
                 <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
                   <tr>
-                    <td colSpan={2} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                    <td colSpan={4} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
                       Procurement Total ({supplierInvoices.length} Invoices)
                     </td>
                     <td className="py-3 px-4 text-right text-slate-900 font-bold">
@@ -689,11 +695,14 @@ export const ReportsPage = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                    <th className="py-3 px-4">Item & Specification</th>
-                    <th className="py-3 px-4">Supplier & PO Ref</th>
+                    <th className="py-3 px-4">Item Name</th>
+                    <th className="py-3 px-4">Return Number</th>
+                    <th className="py-3 px-4">Supplier Partner</th>
+                    <th className="py-3 px-4">PO Reference</th>
+                    <th className="py-3 px-4">GRN Ref</th>
                     <th className="py-3 px-4 text-center">Damaged Qty</th>
-                    <th className="py-3 px-4">Defect Cause & Incident Note</th>
                     <th className="py-3 px-4 text-right">Unit Rate</th>
+                    <th className="py-3 px-4">Defect Reason</th>
                     <th className="py-3 px-4 text-right">Write-Off Loss</th>
                     <th className="py-3 px-4 text-center">Settlement Status</th>
                   </tr>
@@ -701,24 +710,31 @@ export const ReportsPage = () => {
                 <tbody className="divide-y divide-slate-100">
                   {damageReturns.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{item.productName}</div>
-                        <div className="text-[11px] font-mono text-slate-400">{item.returnNumber}</div>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {item.productName}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{item.supplierName}</div>
-                        <div className="text-[11px] text-slate-500">{item.poNumber} • {item.grnNumber}</div>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        {item.returnNumber}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {item.supplierName}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-700">
+                        {item.poNumber}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-emerald-800">
+                        {item.grnNumber}
                       </td>
                       <td className="py-3 px-4 text-center font-bold text-slate-800">
                         {item.returnQty} {item.unit}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="text-rose-700 font-medium text-[11px] max-w-sm">
-                          {item.reason}
-                        </div>
-                      </td>
                       <td className="py-3 px-4 text-right text-slate-600 font-mono">
                         {formatINR(item.unitCost)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-rose-700 font-medium text-[11px] max-w-xs truncate" title={item.reason}>
+                          {item.reason}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-rose-600">
                         -{formatINR(item.totalLossAmount)}
@@ -733,7 +749,7 @@ export const ReportsPage = () => {
                 </tbody>
                 <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
                   <tr>
-                    <td colSpan={5} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                    <td colSpan={8} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
                       Total Loading Dock Damage Write-Offs ({damageReturns.length} Incidents)
                     </td>
                     <td className="py-3 px-4 text-right text-rose-600 font-extrabold">
@@ -771,25 +787,31 @@ export const ReportsPage = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                    <th className="py-3 px-4">Perishable Line / Product</th>
+                    <th className="py-3 px-4">Product Name</th>
+                    <th className="py-3 px-4">Return Reason</th>
                     <th className="py-3 px-4">Supplier Partner</th>
+                    <th className="py-3 px-4">Return Date</th>
                     <th className="py-3 px-4">Return SLA Clause</th>
                     <th className="py-3 px-4">Credit Ref (CRN)</th>
                     <th className="py-3 px-4 text-center">Returned Qty</th>
                     <th className="py-3 px-4 text-right">Credit Value</th>
-                    <th className="py-3 px-4 text-center">Cutoff & Compliance Status</th>
+                    <th className="py-3 px-4 text-center">Compliance Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {freshSlaReturns.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{item.productName}</div>
-                        <div className="text-[11px] text-slate-500">{item.reason}</div>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {item.productName}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{item.supplierName}</div>
-                        <div className="text-[11px] text-slate-400">Date: {item.requestDate}</div>
+                      <td className="py-3 px-4 text-slate-600">
+                        {item.reason}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {item.supplierName}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
+                        {item.requestDate}
                       </td>
                       <td className="py-3 px-4">
                         <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-[11px]">
@@ -815,7 +837,7 @@ export const ReportsPage = () => {
                 </tbody>
                 <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
                   <tr>
-                    <td colSpan={5} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
+                    <td colSpan={7} className="py-3 px-4 text-slate-900 font-extrabold uppercase text-[11px]">
                       Total Unsold Perishables SLA Credit Recovered
                     </td>
                     <td className="py-3 px-4 text-right text-emerald-700 font-extrabold">
@@ -862,7 +884,8 @@ export const ReportsPage = () => {
                 <thead>
                   <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                     <th className="py-3 px-4">Event Timestamp</th>
-                    <th className="py-3 px-4">Product & Batch Code</th>
+                    <th className="py-3 px-4">Product Name</th>
+                    <th className="py-3 px-4">Batch Code</th>
                     <th className="py-3 px-4 text-center">Movement Type</th>
                     <th className="py-3 px-4 text-right">Physical Quantity</th>
                     <th className="py-3 px-4">User Attribution</th>
@@ -872,7 +895,7 @@ export const ReportsPage = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredBatchMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                      <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
                         No batch movements found matching "{batchSearchTerm}".
                       </td>
                     </tr>
@@ -882,9 +905,11 @@ export const ReportsPage = () => {
                         <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
                           {mov.date}
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900">{mov.productName}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{mov.batchId}</div>
+                        <td className="py-3 px-4 font-bold text-slate-900">
+                          {mov.productName}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-emerald-800 font-semibold">
+                          {mov.batchId}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span

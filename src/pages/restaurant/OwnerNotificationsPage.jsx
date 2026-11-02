@@ -4,7 +4,6 @@ import { useApp } from '../../context/AppContext';
 import {
   Bell,
   CalendarCheck,
-  ArrowLeftRight,
   CreditCard,
   Sparkles,
   CheckCircle2,
@@ -35,7 +34,7 @@ export const OwnerNotificationsPage = () => {
     currentUser,
   } = useApp();
 
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'unread' | 'subscription' | 'transfer' | 'payment'
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'unread' | 'subscription' | 'payment'
   const [searchTerm, setSearchTerm] = useState('');
 
   // Unread count (filtered by role permissions)
@@ -64,10 +63,10 @@ export const OwnerNotificationsPage = () => {
         matchesType = !n.read;
       } else if (filterType === 'subscription') {
         matchesType = n.type?.includes('subscription') || n.type?.includes('renewal');
-      } else if (filterType === 'transfer') {
-        matchesType = n.type?.includes('transfer');
       } else if (filterType === 'payment') {
         matchesType = n.type?.includes('payment') || n.type?.includes('invoice');
+      } else if (filterType === 'holidays') {
+        matchesType = n.type?.includes('holiday') || n.badge?.toLowerCase().includes('holiday') || n.title?.toLowerCase().includes('holiday');
       }
 
       return matchesSearch && matchesType;
@@ -79,24 +78,70 @@ export const OwnerNotificationsPage = () => {
       case 'subscription_renewal':
       case 'renewal_due':
         return <CalendarCheck className="w-5 h-5 text-amber-600" />;
-      case 'transfer_request':
-      case 'transfer_approved':
-        return <ArrowLeftRight className="w-5 h-5 text-indigo-600" />;
       case 'payment_success':
       case 'payment_pending':
         return <Receipt className="w-5 h-5 text-emerald-600" />;
       case 'plan_upgrade':
+      case 'holiday_created':
+      case 'holiday_updated':
+      case 'holiday_cancelled':
         return <Sparkles className="w-5 h-5 text-purple-600" />;
       default:
         return <Bell className="w-5 h-5 text-slate-600" />;
     }
   };
 
+    // Resolves notification actions to exact Workforce tabs and destinations
+  const resolveNotificationActionLink = (notif) => {
+    if (!notif) return '/workforce';
+    const label = (notif.actionLabel || '').toLowerCase();
+    const badge = (notif.badge || '').toLowerCase();
+    const type = (notif.type || '').toLowerCase();
+
+    // 1. Staff Roster / Team Invite
+    if (label.includes('roster') || badge.includes('invite') || type === 'staff_added' || type === 'manager_assigned') {
+      return '/workforce?tab=roster';
+    }
+
+    // 2. Timesheet / Shift End / Punched Out
+    if (label.includes('timesheet') || badge.includes('shift end') || type === 'staff_punch_out') {
+      return '/workforce?tab=attendance';
+    }
+
+    // 3. Attendance / Punched In
+    if (label.includes('attendance') || badge.includes('attendance') || type === 'staff_punch_in') {
+      return '/workforce?tab=attendance';
+    }
+
+    // 4. Leave Requisition Review
+    if (label.includes('leave') || type === 'leave_request') {
+      const leaveId = notif.leaveId ? `&leaveId=${notif.leaveId}` : '';
+      return `/workforce?tab=leave${leaveId}`;
+    }
+
+    // Holiday Navigation
+    if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
+      const holidayId = notif.holidayId || '';
+      return holidayId ? `/workforce?tab=holidays&holidayId=${holidayId}` : '/workforce?tab=holidays';
+    }
+
+    // 5. Existing explicit actionLink
+    if (notif.actionLink) {
+      let link = notif.actionLink.replace('/branch-staff', '/workforce');
+      if (link === '/workforce') {
+        if (label.includes('roster') || badge.includes('invite')) return '/workforce?tab=roster';
+        if (label.includes('timesheet') || label.includes('attendance')) return '/workforce?tab=attendance';
+      }
+      return link;
+    }
+
+    return '/workforce';
+  };
+
   const handleActionClick = (notif) => {
     markOwnerNotificationRead(notif.id);
-    if (notif.actionLink) {
-      navigate(notif.actionLink);
-    }
+    const targetUrl = resolveNotificationActionLink(notif);
+    navigate(targetUrl);
   };
 
   return (
@@ -104,7 +149,7 @@ export const OwnerNotificationsPage = () => {
       {/* Page Header */}
       <PageHeader
         title="Notifications & Operational Alerts"
-        subtitle="Real-time alerts for subscription renewals, staff transfer requests, payments, and plan updates."
+        subtitle="Real-time alerts for subscription renewals, payments, and plan updates."
         action={
           <div className="flex items-center gap-2">
             {unreadCount > 0 && (
@@ -146,13 +191,6 @@ export const OwnerNotificationsPage = () => {
           variant={unreadCount > 0 ? "warning" : "default"}
         />
         <StatCard
-          title="Staff Transfers"
-          value={ownerNotifications.filter((n) => n.type?.includes('transfer')).length}
-          subtitle="Workflow Requests"
-          icon={ArrowLeftRight}
-          variant="default"
-        />
-        <StatCard
           title="Renewals & Payments"
           value={ownerNotifications.filter((n) => n.type?.includes('subscription') || n.type?.includes('payment')).length}
           subtitle="Billing Notices"
@@ -174,14 +212,14 @@ export const OwnerNotificationsPage = () => {
                 count: ownerNotifications.filter((n) => n.type?.includes('subscription') || n.type?.includes('renewal')).length,
               },
               {
-                id: 'transfer',
-                label: 'Staff Transfers',
-                count: ownerNotifications.filter((n) => n.type?.includes('transfer')).length,
-              },
-              {
                 id: 'payment',
                 label: 'Payments & Invoices',
                 count: ownerNotifications.filter((n) => n.type?.includes('payment')).length,
+              },
+              {
+                id: 'holidays',
+                label: 'Holidays',
+                count: ownerNotifications.filter((n) => n.type?.includes('holiday') || n.badge?.toLowerCase().includes('holiday')).length,
               },
             ].map((tab) => (
               <button

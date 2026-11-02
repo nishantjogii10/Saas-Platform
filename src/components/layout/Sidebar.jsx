@@ -32,7 +32,6 @@ import {
   CalendarCheck,
   Receipt,
   TrendingUp,
-  ArrowLeftRight,
   GitBranch,
   Layers,
   Sparkles,
@@ -212,7 +211,6 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
             section: 'Staff Management',
             items: [
               { to: '/workforce', label: 'People & Workforce', icon: Users },
-              { to: '/staff-transfers', label: 'Staff Transfers', icon: ArrowLeftRight },
               { to: '/reports', label: 'Staff Reports', icon: BarChart3 },
               {
                 to: '/alerts',
@@ -291,18 +289,8 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
   const isRouteActive = (itemTo, currentPath, currentSearch = '') => {
     if (!currentPath || !itemTo) return false;
 
-    // Handle tab-specific active states for workforce vs transfers
-    if (itemTo === '/staff-transfers') {
-      return (
-        currentPath === '/staff-transfers' ||
-        (currentPath === '/workforce' && currentSearch.includes('tab=transfers'))
-      );
-    }
     if (itemTo === '/workforce') {
-      return (
-        (currentPath === '/workforce' && !currentSearch.includes('tab=transfers')) ||
-        currentPath === '/branch-staff'
-      );
+      return currentPath === '/workforce' || currentPath === '/branch-staff';
     }
     if (!currentPath || !itemTo) return false;
 

@@ -12,6 +12,7 @@ import { DataTable } from '../../components/common/DataTable';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { formatINR } from '../../data/inventoryBillingData';
 
 export const SupplierHistoryPage = () => {
   const { purchaseOrders, currentUser, addToast } = useApp();
@@ -36,16 +37,21 @@ export const SupplierHistoryPage = () => {
 
   const columns = [
     {
-      header: 'PO Number & Delivery Date',
+      header: 'PO Number',
       accessor: 'poNumber',
       sortable: true,
       render: (row) => (
-        <div>
-          <div className="font-bold text-slate-900">{row.poNumber}</div>
-          <div className="text-xs text-slate-400">
-            Delivered: {row.deliveredAt ? new Date(row.deliveredAt).toLocaleDateString() : row.expectedDelivery}
-          </div>
-        </div>
+        <span className="font-bold text-slate-900 font-mono text-xs">{row.poNumber}</span>
+      ),
+    },
+    {
+      header: 'Delivery Date',
+      accessor: 'deliveredAt',
+      sortable: true,
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-mono">
+          {row.deliveredAt ? new Date(row.deliveredAt).toLocaleDateString() : (row.expectedDelivery || '—')}
+        </span>
       ),
     },
     {
@@ -71,9 +77,11 @@ export const SupplierHistoryPage = () => {
       header: 'Settlement Amount',
       accessor: 'totalAmount',
       sortable: true,
+      className: 'text-right',
+      cellClassName: 'text-right',
       render: (row) => (
         <div className="text-xs font-bold text-slate-900">
-          ${row.totalAmount.toFixed(2)}
+          {formatINR(row.totalAmount)}
         </div>
       ),
     },

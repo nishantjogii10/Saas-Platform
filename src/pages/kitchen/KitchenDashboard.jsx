@@ -114,7 +114,7 @@ export const KitchenDashboard = () => {
               </span>
               <span className="text-xs text-slate-400">•</span>
               <span className="text-xs text-emerald-200 font-medium">
-                {currentRestaurant?.name} ({currentBranch?.name || 'Pune Central'})
+                {currentRestaurant?.name}
               </span>
             </div>
 

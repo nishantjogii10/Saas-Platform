@@ -8,7 +8,6 @@ import {
   Calendar,
   AlertTriangle,
   Download,
-  ArrowLeftRight,
   ShieldCheck,
   ChefHat,
   Boxes,
@@ -49,7 +48,6 @@ export const StaffReports = ({
     organizationStaff,
     attendanceRecords,
     leaveRequests,
-    staffTransfers,
     staffAlerts,
     addToast,
   } = useApp();
@@ -100,13 +98,7 @@ export const StaffReports = ({
     );
   }, [leaveRequests, targetBranchId]);
 
-  // Filter transfers involving this branch (either from or to)
-  const branchTransfers = useMemo(() => {
-    return (staffTransfers || []).filter(
-      (t) => t.fromBranchId === targetBranchId || t.toBranchId === targetBranchId
-    );
-  }, [staffTransfers, targetBranchId]);
-
+  
   // Attendance summary metrics tailored to the timeframe
   const attendanceMetrics = useMemo(() => {
     const totalWorkingDays = timeframe === 'week' ? 6 : timeframe === 'month' ? 24 : 72;
@@ -329,40 +321,19 @@ export const StaffReports = ({
     });
   }, [branchStaffMembers, totalStaffCount]);
 
-  // Staff Notices & Recent Transfers
-  const noticesAndTransfers = useMemo(() => {
-    const items = [];
-
-    // Add branch transfers
-    branchTransfers.forEach((tr) => {
-      items.push({
-        id: tr.id,
-        type: 'Transfer Request',
-        title: tr.employeeName,
-        route: `${tr.fromBranchName} → ${tr.toBranchName}`,
-        detail: tr.reason || 'Operational branch staff balancing',
-        date: tr.requestDate || '2026-10-22',
-        status: tr.status || 'Pending',
-        author: tr.requestedBy || 'Branch Manager',
-      });
-    });
-
-    // Add recent staff notices / leave alerts
-    (staffAlerts || []).slice(0, 4).forEach((alert) => {
-      items.push({
-        id: alert.id,
-        type: 'Staff Notice',
-        title: alert.title,
-        route: activeBranch.name,
-        detail: alert.message,
-        date: '2026-10-24',
-        status: alert.severity === 'high' ? 'High Priority' : 'Acknowledged',
-        author: 'Operations Desk',
-      });
-    });
-
-    return items;
-  }, [branchTransfers, staffAlerts, activeBranch]);
+    // Staff Notices & Operational Bulletins
+  const staffNotices = useMemo(() => {
+    return (staffAlerts || []).slice(0, 6).map((alert) => ({
+      id: alert.id,
+      type: 'Staff Notice',
+      title: alert.title,
+      route: activeBranch?.name || 'Main Station',
+      detail: alert.message,
+      date: '2026-10-24',
+      status: alert.severity === 'high' ? 'High Priority' : 'Acknowledged',
+      author: 'Operations Desk',
+    }));
+  }, [staffAlerts, activeBranch]);
 
   // Export Staff Report to CSV
   const handleExportCSV = () => {
@@ -937,7 +908,7 @@ export const StaffReports = ({
         </div>
       </div>
 
-      {/* Table 4 & Table 5 Grid: Leave Records Table & Staff Notices/Transfers Table */}
+      {/* Table 4 & Table 5 Grid: Leave Records Table & Staff Notices Table */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Table 4: Leave Report Table */}
         <div className="lg:col-span-7">
@@ -1052,56 +1023,46 @@ export const StaffReports = ({
           </div>
         </div>
 
-        {/* Table 5: Staff Notices & Inter-Branch Transfers Table */}
+        {/* Table 5: Staff Notices & Operational Bulletins Table */}
         <div className="lg:col-span-5">
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden h-full flex flex-col justify-between">
             <div>
               <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <ArrowLeftRight className="w-4 h-4 text-emerald-800" />
-                    <h3 className="font-bold text-slate-900 text-sm">Staff Notices & Transfers Table</h3>
+                    <Bell className="w-4 h-4 text-emerald-800" />
+                    <h3 className="font-bold text-slate-900 text-sm">Staff Notices & Bulletins Table</h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Inter-branch relocations and operational shift notices
+                    Operational shift notices and station announcements
                   </p>
                 </div>
                 <span className="text-xs text-slate-500">
-                  {noticesAndTransfers.length} Logged Events
+                  {staffNotices.length} Active Notices
                 </span>
               </div>
 
               <div className="overflow-x-auto">
-                {noticesAndTransfers.length === 0 ? (
+                {staffNotices.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-xs">
-                    No transfer or notice records logged.
+                    No notice records logged.
                   </div>
                 ) : (
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                         <th className="py-3 px-4">Event Type</th>
-                        <th className="py-3 px-4">Subject / Staff Member</th>
-                        <th className="py-3 px-4">Transfer Route / Station</th>
+                        <th className="py-3 px-4">Subject</th>
+                        <th className="py-3 px-4">Station / Location</th>
                         <th className="py-3 px-4 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {noticesAndTransfers.map((item) => (
+                      {staffNotices.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                item.type.includes('Transfer')
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}
-                            >
-                              {item.type.includes('Transfer') ? (
-                                <ArrowLeftRight className="w-3 h-3" />
-                              ) : (
-                                <Bell className="w-3 h-3" />
-                              )}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              <Bell className="w-3 h-3" />
                               {item.type}
                             </span>
                             <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{item.date}</div>
@@ -1117,11 +1078,9 @@ export const StaffReports = ({
                           <td className="py-3 px-4 text-center">
                             <span
                               className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                item.status === 'Approved'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : item.status === 'Pending'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-slate-100 text-slate-700'
+                                item.status === 'High Priority'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-emerald-100 text-emerald-800'
                               }`}
                             >
                               {item.status}
@@ -1133,10 +1092,10 @@ export const StaffReports = ({
                     <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-xs">
                       <tr>
                         <td colSpan={2} className="py-3 px-4 text-slate-900 uppercase text-[11px] font-extrabold">
-                          Transfer Audits Logged
+                          Operational Bulletins Active
                         </td>
                         <td colSpan={2} className="py-3 px-4 text-right text-slate-500 font-normal text-[11px]">
-                          Authorized by Restaurant Owner
+                          Authorized by Restaurant Operations
                         </td>
                       </tr>
                     </tfoot>
@@ -1146,7 +1105,7 @@ export const StaffReports = ({
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
-              Inter-branch transfers require authorization from the Restaurant Owner.
+              Shift announcements and station notices for active branch staff.
             </div>
           </div>
         </div>
