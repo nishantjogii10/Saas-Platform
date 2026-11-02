@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   RotateCcw,
@@ -52,6 +52,23 @@ export const SupplierReturnsPage = () => {
     addToast,
     currentUser,
   } = useApp();
+
+  const [searchParams] = useSearchParams();
+
+  // Auto-open Return Claim modal from notification deep links
+  useEffect(() => {
+    const targetReturnId = searchParams.get('returnId') || searchParams.get('claimId');
+    if (targetReturnId && (branchReturns || []).length > 0) {
+      const match = branchReturns.find(
+        (ret) =>
+          String(ret.id).toLowerCase() === String(targetReturnId).toLowerCase() ||
+          String(ret.returnNumber).toLowerCase() === String(targetReturnId).toLowerCase()
+      );
+      if (match) {
+        setSelectedReturnDetails(match);
+      }
+    }
+  }, [searchParams, branchReturns]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -454,144 +471,146 @@ export const SupplierReturnsPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Damaged Goods & Supplier Returns"
-        subtitle="Dock damage tracking, Fresh Bread unsold return claims & Credit Note reconciliations"
+        subtitle="Dock damage tracking, Fresh Bread unsold return claims & Credit Note reconciliations."
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Inventory', href: '#/inventory' },
           { label: 'Supplier Returns' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Printer}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
               onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Print Summary
-            </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span>Print Summary</span>
+            </button>
+            <button
+              type="button"
               onClick={() => handleOpenCreateModal()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
-              Log Damaged / Return
-            </Button>
+              <Plus className="w-4 h-4" />
+              <span>Log Damaged / Return</span>
+            </button>
           </div>
         }
       />
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           title="Total Return Claims"
           value={totalClaims}
-          subtext="Dock rejects & fresh returns"
+          subtitle="Dock rejects & fresh returns"
           icon={RotateCcw}
-          accentColor="slate"
+          variant="default"
         />
         <StatCard
           title="Total Claimed Loss"
           value={formatINR(totalClaimValue)}
-          subtext="Cost of damaged/unsold goods"
+          subtitle="Cost of damaged/unsold goods"
           icon={AlertTriangle}
-          accentColor="rose"
+          variant="danger"
         />
         <StatCard
           title="Credit Notes Issued"
           value={formatINR(totalCreditNotesIssued)}
-          subtext="Supplier verified credits"
+          subtitle="Supplier verified credits"
           icon={CreditCard}
-          accentColor="emerald"
+          variant="success"
         />
         <StatCard
-          title="Pending Supplier Review"
+          title="Pending Review"
           value={pendingApprovals}
-          subtext="Awaiting credit approval"
+          subtitle="Awaiting credit approval"
           icon={Clock}
-          accentColor="amber"
+          variant={pendingApprovals > 0 ? "warning" : "default"}
         />
       </div>
 
-      {/* Fresh Bread & Unsold Goods Agreements Showcase Card */}
-      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-emerald-950 rounded-2xl p-6 text-white shadow-lg border border-emerald-800/40">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-800/50 pb-5 mb-5">
+      {/* Fresh Bread & Unsold Goods Agreements Showcase Card - Clean White Panel */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold mb-2 border border-emerald-500/30">
-              <Sparkles className="w-3.5 h-3.5" /> Fresh Bread & Perishables Contract Protection
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold mb-1 border border-emerald-200/80">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Fresh Bread & Perishables Contract Protection</span>
             </div>
-            <h3 className="text-xl font-bold tracking-tight text-white">
+            <h3 className="text-base font-bold text-slate-900">
               Active Supplier Unsold Return Agreements
             </h3>
-            <p className="text-xs text-emerald-200/80 mt-1 max-w-2xl">
-              Configurable supplier agreements guarantee credit notes for unsold fresh pav, bread, and dairy returned within their contractual freshness windows.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Guaranteed credit notes for unsold fresh pav, bread, and dairy returned within contractual freshness windows.
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-emerald-300 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-700/50">
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
               {supplierAgreements.length} Active SLA Agreements
             </span>
           </div>
         </div>
 
         {/* Agreements Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {supplierAgreements.map((agr) => (
             <div
               key={agr.supplierId}
-              className="bg-slate-900/80 backdrop-blur-sm rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-500/50 transition-all flex flex-col justify-between"
+              className="bg-slate-50/80 hover:bg-slate-100/70 rounded-xl p-3.5 border border-slate-200/80 text-xs flex flex-col justify-between transition-all"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
-                    <h4 className="font-bold text-sm text-white">{agr.supplierName}</h4>
-                    <span className="text-xs text-emerald-400 font-medium">{agr.category}</span>
+                    <h4 className="font-bold text-sm text-slate-900">{agr.supplierName}</h4>
+                    <span className="text-xs text-emerald-700 font-medium">{agr.category}</span>
                   </div>
                   {agr.unsoldReturnAllowed ? (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Returns OK
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-700 text-slate-300">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600">
                       Dock Only
                     </span>
                   )}
                 </div>
 
-                <div className="space-y-1.5 text-xs text-slate-300 mt-3 pt-3 border-t border-slate-800">
+                <div className="space-y-1 text-xs text-slate-600 mt-2.5 pt-2.5 border-t border-slate-200/60">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Return Window:</span>
-                    <span className="font-bold text-white">{agr.returnWindowHours} Hours</span>
+                    <span className="font-bold text-slate-800">{agr.returnWindowHours} Hours</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Daily Cutoff Time:</span>
-                    <span className="font-bold text-amber-300">{agr.returnCutoffTime}</span>
+                    <span className="font-bold text-amber-700">{agr.returnCutoffTime}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Max Allowed Return:</span>
-                    <span className="font-bold text-emerald-300">
+                    <span className="font-bold text-emerald-700">
                       {agr.maxReturnPercent > 0 ? `Up to ${agr.maxReturnPercent}% of Order` : 'Dock Rejection Only'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Settlement Mode:</span>
-                    <span className="font-bold text-cyan-300">{agr.settlementMode}</span>
+                    <span className="font-bold text-slate-800">{agr.settlementMode}</span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400 mt-3 italic line-clamp-2">
+                <p className="text-[11px] text-slate-400 mt-2.5 italic line-clamp-2">
                   "{agr.agreementNotes}"
                 </p>
               </div>
 
               {agr.unsoldReturnAllowed && (
                 <button
+                  type="button"
                   onClick={() => handleOpenCreateModal(agr)}
-                  className="mt-4 w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                  className="mt-3 w-full py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Return Unsold Fresh Goods
                 </button>
@@ -602,49 +621,107 @@ export const SupplierReturnsPage = () => {
       </div>
 
       {/* Main Returns Log Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        {/* Table Filters Header */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search Return #, PO #, batch ID, or supplier..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-700/20 focus:border-emerald-700"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-              <Filter className="w-3.5 h-3.5" /> Filters:
+      <div className="space-y-3">
+        {/* Search and Filters Toolbar */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search Return #, PO #, batch ID, or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/70 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-700"
-            >
-              <option value="all">All Statuses</option>
-              <option value="Pending">Pending Review</option>
-              <option value="Approved">Approved</option>
-              <option value="Completed">Credit Settled</option>
-              <option value="Rejected">Rejected</option>
-            </select>
+            <div className="w-full sm:w-auto min-w-[170px]">
+              <div className="relative">
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full appearance-none pl-3.5 pr-8 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100/70 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all cursor-pointer"
+                >
+                  <option value="all">All Return Types</option>
+                  <option value="Damaged on Delivery">Damaged on Delivery</option>
+                  <option value="Unsold Fresh Goods Agreement">Unsold Fresh Goods</option>
+                  <option value="Quality Inspection Failure">Quality Failure</option>
+                </select>
+                <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
 
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-700"
-            >
-              <option value="all">All Return Types</option>
-              <option value="Damaged on Delivery">Damaged on Delivery</option>
-              <option value="Unsold Fresh Goods Agreement">Unsold Fresh Goods Agreement</option>
-              <option value="Quality Failure">Quality Failure</option>
-            </select>
+            {/* Segmented Filter Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+              {[
+                { id: 'all', label: 'All Returns', count: (supplierReturns || []).length },
+                { id: 'Pending', label: 'Pending Review', count: pendingApprovals },
+                { id: 'Approved', label: 'Approved' },
+                { id: 'Completed', label: 'Settled' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
+                    statusFilter === tab.id
+                      ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                      : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {tab.count !== undefined && (
+                    <span
+                      className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                        statusFilter === tab.id
+                          ? 'bg-emerald-700 text-white'
+                          : tab.id === 'Pending' && tab.count > 0
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {(searchTerm || statusFilter !== 'all' || typeFilter !== 'all') && (
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+              <span>
+                Showing <strong className="text-slate-700">{filteredReturns.length}</strong> of{' '}
+                <strong className="text-slate-700">{(supplierReturns || []).length}</strong> return claims
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                  setTypeFilter('all');
+                }}
+                className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Filters</span>
+              </button>
+            </div>
+          )}
         </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
 
         {/* Table Content */}
         <div className="overflow-x-auto">

@@ -5507,7 +5507,12 @@ export const AppProvider = ({ children }) => {
       return h;
     }));
 
-    // Notify affected staff of the update
+    const targetBranchId = (updatedData && updatedData.branchId) || existing.branchId;
+    const targetBranch = branches.find(b => b.id === targetBranchId);
+    const branchDisplayName = ((updatedData && updatedData.scope) || existing.scope) === 'all'
+      ? 'All Restaurant Outlets'
+      : (targetBranch?.name || currentBranch?.name || 'Assigned Branch');
+
     const affectedStaff = (branchStaff || []).filter(staff => {
       if (staff.status && staff.status.toLowerCase() !== 'active') return false;
       if (existing.scope !== 'all' && existing.branchId && staff.branchId !== existing.branchId) {
@@ -5596,7 +5601,11 @@ export const AppProvider = ({ children }) => {
     // Remove holiday
     setHolidays(prev => prev.filter(h => h.id !== holidayId));
 
-    // Notify affected staff of cancellation
+    const targetBranch = branches.find(b => b.id === existing.branchId);
+    const branchDisplayName = existing.scope === 'all'
+      ? 'All Restaurant Outlets'
+      : (targetBranch?.name || currentBranch?.name || 'Assigned Branch');
+
     const affectedStaff = (branchStaff || []).filter(staff => {
       if (existing.scope !== 'all' && existing.branchId && staff.branchId !== existing.branchId) {
         return false;

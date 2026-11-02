@@ -4,93 +4,126 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 export const StatCard = ({
   title,
   value,
+  unit,
   change,
   trend = 'up', // up | down | neutral
   icon: Icon,
-  accentColor = 'emerald', // emerald | amber | rose | blue | purple | teal
+  accentColor,
+  variant = 'default',
   subtext,
+  subtitle,
   onClick,
   className = '',
 }) => {
+  // Map variant or accentColor to standardized theme matching Inventory Items standard
+  const resolvedColor = accentColor || (
+    variant === 'success' ? 'emerald' :
+    variant === 'warning' ? 'amber' :
+    variant === 'danger' || variant === 'rose' ? 'rose' :
+    variant === 'info' || variant === 'blue' ? 'blue' :
+    variant === 'purple' ? 'purple' :
+    variant === 'teal' ? 'teal' :
+    'slate'
+  );
+
   const COLOR_MAP = {
+    slate: {
+      iconBg: 'bg-slate-100',
+      iconColor: 'text-slate-600',
+      valueColor: 'text-slate-900',
+      dotColor: 'bg-slate-400',
+      subtextColor: 'text-slate-500',
+    },
     emerald: {
-      bg: 'bg-emerald-50/90',
-      text: 'text-emerald-700',
-      border: 'border-emerald-200/80',
-      glow: 'group-hover:border-emerald-300/90 group-hover:shadow-emerald-500/10',
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+      dotColor: 'bg-emerald-500',
+      subtextColor: 'text-emerald-700',
     },
     amber: {
-      bg: 'bg-amber-50/90',
-      text: 'text-amber-700',
-      border: 'border-amber-200/80',
-      glow: 'group-hover:border-amber-300/90 group-hover:shadow-amber-500/10',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+      dotColor: 'bg-amber-500',
+      subtextColor: 'text-amber-700',
     },
     rose: {
-      bg: 'bg-rose-50/90',
-      text: 'text-rose-700',
-      border: 'border-rose-200/80',
-      glow: 'group-hover:border-rose-300/90 group-hover:shadow-rose-500/10',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+      valueColor: 'text-rose-700',
+      dotColor: 'bg-rose-500',
+      subtextColor: 'text-rose-700',
     },
     blue: {
-      bg: 'bg-blue-50/90',
-      text: 'text-blue-700',
-      border: 'border-blue-200/80',
-      glow: 'group-hover:border-blue-300/90 group-hover:shadow-blue-500/10',
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+      dotColor: 'bg-blue-500',
+      subtextColor: 'text-blue-700',
     },
     purple: {
-      bg: 'bg-purple-50/90',
-      text: 'text-purple-700',
-      border: 'border-purple-200/80',
-      glow: 'group-hover:border-purple-300/90 group-hover:shadow-purple-500/10',
+      iconBg: 'bg-purple-50',
+      iconColor: 'text-purple-600',
+      valueColor: 'text-purple-700',
+      dotColor: 'bg-purple-500',
+      subtextColor: 'text-purple-700',
     },
     teal: {
-      bg: 'bg-teal-50/90',
-      text: 'text-teal-700',
-      border: 'border-teal-200/80',
-      glow: 'group-hover:border-teal-300/90 group-hover:shadow-teal-500/10',
+      iconBg: 'bg-teal-50',
+      iconColor: 'text-teal-600',
+      valueColor: 'text-teal-700',
+      dotColor: 'bg-teal-500',
+      subtextColor: 'text-teal-700',
     },
   };
 
-  const style = COLOR_MAP[accentColor] || COLOR_MAP.emerald;
+  const style = COLOR_MAP[resolvedColor] || COLOR_MAP.slate;
+  const displayText = subtext || subtitle;
 
   return (
     <div
       onClick={onClick}
-      className={`group glass-panel rounded-2xl p-5 sm:p-5.5 transition-all duration-200 ${
-        onClick ? 'cursor-pointer glass-panel-hover ' + style.glow : 'hover:border-slate-300/80'
+      className={`p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all ${
+        onClick ? 'cursor-pointer active:scale-[0.99]' : ''
       } ${className}`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{title}</p>
-          <div className="mt-2 flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl sm:text-[26px] font-black tracking-tight text-slate-900">{value}</span>
-            {change !== undefined && (
-              <span
-                className={`inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
-                  trend === 'up'
-                    ? 'text-emerald-800 bg-emerald-50/90 border-emerald-200'
-                    : trend === 'down'
-                    ? 'text-rose-800 bg-rose-50/90 border-rose-200'
-                    : 'text-slate-600 bg-slate-100/90 border-slate-200'
-                }`}
-              >
-                {trend === 'up' && <TrendingUp className="w-3 h-3 mr-1 inline shrink-0" />}
-                {trend === 'down' && <TrendingDown className="w-3 h-3 mr-1 inline shrink-0" />}
-                {trend === 'neutral' && <Minus className="w-3 h-3 mr-1 inline shrink-0" />}
-                {change}
-              </span>
-            )}
-          </div>
-          {subtext && <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{subtext}</p>}
-        </div>
-
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500 truncate mr-2">{title}</span>
         {Icon && (
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border shadow-xs transition-transform group-hover:scale-105 duration-200 ${style.bg} ${style.text} ${style.border}`}>
-            <Icon className="w-6 h-6" />
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg} ${style.iconColor}`}>
+            <Icon className="w-4 h-4" />
           </div>
         )}
       </div>
+
+      <div className="mt-2 flex items-baseline gap-1.5 flex-wrap">
+        <span className={`text-2xl font-bold tracking-tight ${style.valueColor}`}>{value}</span>
+        {unit && <span className="text-xs text-slate-400 font-medium">{unit}</span>}
+        {change !== undefined && (
+          <span
+            className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border ml-1 ${
+              trend === 'up'
+                ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                : trend === 'down'
+                ? 'text-rose-800 bg-rose-50 border-rose-200'
+                : 'text-slate-600 bg-slate-100 border-slate-200'
+            }`}
+          >
+            {trend === 'up' && <TrendingUp className="w-2.5 h-2.5 mr-0.5 inline shrink-0" />}
+            {trend === 'down' && <TrendingDown className="w-2.5 h-2.5 mr-0.5 inline shrink-0" />}
+            {trend === 'neutral' && <Minus className="w-2.5 h-2.5 mr-0.5 inline shrink-0" />}
+            {change}
+          </span>
+        )}
+      </div>
+
+      {displayText && (
+        <div className="mt-2 text-xs flex items-center gap-1.5 truncate">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dotColor}`} />
+          <span className={`text-[11px] font-medium truncate ${style.subtextColor}`}>{displayText}</span>
+        </div>
+      )}
     </div>
   );
 };

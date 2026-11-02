@@ -449,25 +449,26 @@ export const ReportsPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Analytics & Audits"
-        subtitle="Procurement verification, dock damage loss audits, fresh bread returns & inventory valuation in clear tabular views"
+        subtitle="Procurement verification, dock damage loss audits, fresh bread returns & inventory valuation."
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Reports & Audits' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
               {['week', 'month', 'quarter'].map((t) => (
                 <button
                   key={t}
+                  type="button"
                   onClick={() => setTimeframe(t)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all cursor-pointer ${
                     timeframe === t
-                      ? 'bg-emerald-800 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-emerald-800 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   {t}
@@ -475,52 +476,58 @@ export const ReportsPage = () => {
               ))}
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Download}
+            <button
+              type="button"
               onClick={() => setIsExportModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Export to Excel
-            </Button>
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Export</span>
+            </button>
           </div>
         }
       />
 
       {/* Main Tab Switcher */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-1.5 shadow-xs flex gap-2 overflow-x-auto">
         <button
+          type="button"
           onClick={() => setActiveTab('procurement_audit')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             currentTab === 'procurement_audit'
-              ? 'bg-emerald-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <Receipt className="w-4 h-4" /> Supplier Procurement & Return Audits
+          <Receipt className="w-4 h-4" />
+          <span>Procurement & Return Audits</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('inventory_analytics')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             currentTab === 'inventory_analytics'
-              ? 'bg-emerald-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
           }`}
         >
-          <BarChart3 className="w-4 h-4" /> Kitchen Valuation & Spoilage Trends
+          <BarChart3 className="w-4 h-4" />
+          <span>Kitchen Valuation & Spoilage</span>
         </button>
 
         {isOwner && (
           <button
+            type="button"
             onClick={() => setActiveTab('staff_reports')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
               currentTab === 'staff_reports'
-                ? 'bg-emerald-800 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <Users className="w-4 h-4" /> Staff Reports
+            <Users className="w-4 h-4" />
+            <span>Staff Reports</span>
           </button>
         )}
       </div>
@@ -532,7 +539,7 @@ export const ReportsPage = () => {
           onTimeframeChange={setTimeframe}
         />
       ) : currentTab === 'procurement_audit' ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Executive Supplier Procurement KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard

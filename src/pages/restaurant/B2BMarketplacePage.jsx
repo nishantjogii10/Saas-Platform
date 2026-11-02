@@ -220,42 +220,41 @@ export const B2BMarketplacePage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Page Header */}
       <PageHeader
         title="Third-Party Supplier B2B Marketplace"
         subtitle="Source commercial ingredients directly from verified wholesale producers, dairy farms, and distributors."
-        badge={
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Verified Wholesale Exchange</span>
-          </span>
-        }
+        breadcrumbs={[
+          { label: 'Restaurant', href: '#/dashboard' },
+          { label: 'B2B Marketplace' },
+        ]}
         actions={
           <div className="flex items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={ShoppingBag}
+            <button
+              type="button"
               onClick={() => navigate('/purchase-orders')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Active POs
-            </Button>
+              <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
+              <span>Active POs</span>
+            </button>
 
             {/* Cart Trigger Button */}
             <button
+              type="button"
               onClick={() => setCartDrawerOpen(true)}
-              className="relative px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all active:scale-95"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
-              <Store className="w-4 h-4 text-emerald-400" />
+              <Store className="w-4 h-4 text-emerald-200" />
               <span>Procurement Cart</span>
               {totalCartCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px]">
+                <span className="px-1.5 py-0.2 rounded-full bg-white text-emerald-800 font-bold text-[10px]">
                   {totalCartCount}
                 </span>
               )}
               {cartSubtotal > 0 && (
-                <span className="font-mono text-emerald-400 border-l border-slate-700 pl-2">
+                <span className="font-mono text-emerald-100 border-l border-emerald-500/60 pl-2">
                   ₹{cartSubtotal.toLocaleString('en-IN')}
                 </span>
               )}
@@ -264,21 +263,21 @@ export const B2BMarketplacePage = () => {
         }
       />
 
-      {/* Verified Suppliers Showcase Banner */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md">
+      {/* Verified Suppliers Showcase Banner - Clean White Panel */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shrink-0 font-bold shadow-lg shadow-emerald-500/20">
-            <Store className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shrink-0 font-bold">
+            <Store className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-black">Direct Supplier B2B Procurement Protocol</h3>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">Direct Supplier B2B Procurement Protocol</h3>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
                 Zero Middlemen Commission
               </span>
             </div>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Place wholesale requisitions with certified farm producers. Orders automatically generate digital POs, dispatch alerts, and update your restaurant inventory upon dock inspection.
+            <p className="text-xs text-slate-500 mt-0.5 max-w-2xl leading-relaxed">
+              Place wholesale requisitions with certified farm producers. Orders automatically generate digital POs, dispatch alerts, and update inventory upon dock inspection.
             </p>
           </div>
         </div>
@@ -287,9 +286,9 @@ export const B2BMarketplacePage = () => {
           <Link
             to="/supplier-portal"
             target="_blank"
-            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 bg-slate-950/60 hover:bg-slate-950 px-3 py-2 rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5"
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl border border-emerald-200 transition-all flex items-center gap-1.5"
           >
-            <span>Are you a Supplier? Vendor Portal Login</span>
+            <span>Supplier Portal Login</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
