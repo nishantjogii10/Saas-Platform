@@ -400,10 +400,6 @@ export const SupplierBillingPage = () => {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-            </select>
-          </div>
-        </div>
-
         {/* Table Content: Invoices Tab */}
         {activeTab === 'invoices' && (
           <div className="overflow-x-auto">
@@ -632,6 +628,7 @@ export const SupplierBillingPage = () => {
             </table>
           </div>
         )}
+      </div>
       </div>
 
       {/* Modal: Record Verified Supplier Payment */}

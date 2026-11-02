@@ -880,6 +880,7 @@ export const SupplierReturnsPage = () => {
           </table>
         </div>
       </div>
+      </div>
 
       {/* Modal: Log Damaged Stock / Unsold Fresh Goods Return */}
       <Modal

@@ -366,20 +366,6 @@ export const GoodsReceivingPage = () => {
           variant={totalDamageLoss > 0 ? "danger" : "default"}
         />
       </div>
-          title="Stock Accepted"
-          value={formatINR(totalAcceptedValue)}
-          subtitle="Added to Active Inventory"
-          icon={Boxes}
-          variant="default"
-        />
-        <StatCard
-          title="Damaged Stock Loss"
-          value={formatINR(totalDamageLoss)}
-          subtitle={totalDamageLoss > 0 ? "Claimed for Return / Credit" : "Zero Damaged Items"}
-          icon={IndianRupee}
-          variant={totalDamageLoss > 0 ? "danger" : "default"}
-        />
-      </div>
 
       {/* Crucial Verification Notice */}
       <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/90 text-amber-950 text-xs flex items-start gap-3">

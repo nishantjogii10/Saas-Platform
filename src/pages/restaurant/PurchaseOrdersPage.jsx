@@ -510,12 +510,6 @@ export const PurchaseOrdersPage = () => {
           </div>
         )}
       </div>
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Orders Table */}
       <DataTable
