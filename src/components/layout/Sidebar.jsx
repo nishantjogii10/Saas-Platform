@@ -250,6 +250,12 @@ export const Sidebar = ({ isMobileOpen, onCloseMobile }) => {
               { to: '/kitchen/usage', label: 'Record Ingredient Usage', icon: Scale },
               { to: '/kitchen/wastage', label: 'Record Food Wastage', icon: Trash2 },
               { to: '/kitchen/report-stock', label: 'Report Low Stock', icon: AlertCircle },
+              {
+                to: '/alerts',
+                label: 'Alerts & Notifications',
+                icon: Bell,
+                badge: (unreadAlertsCount + unreadStaffNotifs) > 0 ? (unreadAlertsCount + unreadStaffNotifs) : null,
+              },
               { to: '/profile', label: 'My Profile', icon: User },
             ],
           },

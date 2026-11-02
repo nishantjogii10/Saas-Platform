@@ -31,6 +31,8 @@ import {
   RefreshCw,
   Globe,
   Handshake,
+  Plus,
+  Package,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -48,6 +50,7 @@ export const SupplierMarketplaceViewPage = () => {
   const navigate = useNavigate();
   const {
     supplierProducts,
+    addSupplierProduct,
     updateSupplierProduct,
     toggleSupplierProductStock,
     currentUser,
@@ -70,6 +73,26 @@ export const SupplierMarketplaceViewPage = () => {
   const [newPrice, setNewPrice] = useState(0);
   const [newStock, setNewStock] = useState(0);
 
+  // Add Benchmark SKU Modal State
+  const [addSkuModalOpen, setAddSkuModalOpen] = useState(false);
+  const [targetBenchmark, setTargetBenchmark] = useState(null);
+  const [addSkuFormData, setAddSkuFormData] = useState({
+    name: '',
+    category: 'Dairy & Cheese',
+    unit: 'kg',
+    price: 100,
+    mrp: 125,
+    stock: 100,
+    minOrderQty: 2,
+    leadTimeDays: 1,
+    shelfLifeDays: 7,
+    fssai: '11522034000188',
+    organic: false,
+    description: '',
+    image: '',
+    benchmarkId: null,
+  });
+
   // RFQ / Demands Quote Modal State
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [selectedDemand, setSelectedDemand] = useState(null);
@@ -80,7 +103,7 @@ export const SupplierMarketplaceViewPage = () => {
   // Active Supplier Identification
   const activeSupplierId = currentUser?.supplierId;
   const mySupplier = suppliers.find((s) => s.id === activeSupplierId || s.name === currentUser?.supplierName) || {
-    id: activeSupplierId,
+    id: activeSupplierId || 'sup-1',
     name: currentUser?.supplierName || currentUser?.name || 'Vendor Partner',
     rating: 4.8,
     category: 'Food & Ingredient Wholesaler',
@@ -154,6 +177,177 @@ export const SupplierMarketplaceViewPage = () => {
 
     addToast(`Updated pricing for ${selectedProduct.name} to ${formatINR(newPrice)}`, 'success');
     setEditPriceModalOpen(false);
+  };
+
+  // Preset defaults per benchmark commodity
+  const getBenchmarkProductPreset = (bench) => {
+    const presets = {
+      'bench-1': {
+        name: 'Fresh Malai Paneer Blocks',
+        unit: 'kg',
+        category: 'Dairy & Cheese',
+        image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=500&auto=format&fit=crop&q=80',
+        description: 'Direct cow milk malai paneer with 52% milk solids, non-crumbly and melts smoothly in curries.',
+        shelfLifeDays: 7,
+        minOrderQty: 5,
+        stock: 150,
+      },
+      'bench-2': {
+        name: 'Fresh Boneless Chicken Breast Fillet',
+        unit: 'kg',
+        category: 'Meat & Poultry',
+        image: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=500&auto=format&fit=crop&q=80',
+        description: 'Tender antibiotic-residue-free chicken breast fillets, vacuum-sealed and chilled at 2°C.',
+        shelfLifeDays: 3,
+        minOrderQty: 10,
+        stock: 200,
+      },
+      'bench-3': {
+        name: 'Grade-A Farm Eggs (30-Egg Tray)',
+        unit: 'tray (30 pcs)',
+        category: 'Meat & Poultry',
+        image: 'https://images.unsplash.com/photo-1516448620398-c5f44bf9f441?w=500&auto=format&fit=crop&q=80',
+        description: 'Cleaned, sanitized and candled Grade-A poultry eggs from biosecure farms.',
+        shelfLifeDays: 21,
+        minOrderQty: 4,
+        stock: 300,
+      },
+      'bench-4': {
+        name: 'Aged Basmati 1121 XXL (25kg Bag)',
+        unit: 'bag (25kg)',
+        category: 'Rice, Grains & Pulses',
+        image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=80',
+        description: '2-year aged XXL 1121 grain basmati rice, rich aroma with 2.5x post-cooking elongation for biryanis.',
+        shelfLifeDays: 365,
+        minOrderQty: 2,
+        stock: 80,
+      },
+      'bench-5': {
+        name: 'Red Roma Tomatoes (20kg Crate)',
+        unit: 'crate (20kg)',
+        category: 'Fresh Vegetables & Greens',
+        image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=500&auto=format&fit=crop&q=80',
+        description: 'Firm, sun-ripened red Roma tomatoes with thick flesh and balanced acidity for restaurant gravies and purees.',
+        shelfLifeDays: 10,
+        minOrderQty: 2,
+        stock: 120,
+      },
+    };
+
+    const preset = presets[bench.id] || {
+      name: bench.productName.replace(/\(.*?\)/g, '').trim(),
+      unit: bench.productName.toLowerCase().includes('tray')
+        ? 'tray (30 pcs)'
+        : bench.productName.toLowerCase().includes('bag')
+        ? 'bag (25kg)'
+        : bench.productName.toLowerCase().includes('crate')
+        ? 'crate (20kg)'
+        : 'kg',
+      category: bench.category,
+      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+      description: `High-quality commercial grade wholesale ${bench.productName} compliant with FSSAI hygiene standards.`,
+      shelfLifeDays: 14,
+      minOrderQty: 2,
+      stock: 100,
+    };
+
+    return {
+      ...preset,
+      category: bench.category || preset.category,
+      price: bench.marketAvgPrice,
+      mrp: Math.round(bench.marketAvgPrice * 1.2),
+      leadTimeDays: 1,
+      organic: false,
+      fssai: '11522034000188',
+      benchmarkId: bench.id,
+    };
+  };
+
+  // Open modal pre-filled with benchmark details
+  const handleOpenAddSku = (bench) => {
+    setTargetBenchmark(bench);
+    const preset = getBenchmarkProductPreset(bench);
+    setAddSkuFormData(preset);
+    setAddSkuModalOpen(true);
+  };
+
+  // Direct 1-click Quick Add at market benchmark average
+  const handleQuickAddSku = (bench) => {
+    const preset = getBenchmarkProductPreset(bench);
+    addSupplierProduct({
+      ...preset,
+      supplierId: activeSupplierId || mySupplier.id,
+      supplierName: mySupplier.name,
+    });
+    addToast(
+      `"${preset.name}" added directly to your Product Catalog at ${formatINR(preset.price)}/${preset.unit}!`,
+      'success'
+    );
+  };
+
+  // Save SKU from modal
+  const handleSaveAddSku = (e) => {
+    e.preventDefault();
+    if (!addSkuFormData.name || !addSkuFormData.price) {
+      addToast('Please provide a valid product name and wholesale price.', 'error');
+      return;
+    }
+
+    const newProd = addSupplierProduct({
+      ...addSkuFormData,
+      price: Number(addSkuFormData.price),
+      mrp: Number(addSkuFormData.mrp) || Math.round(Number(addSkuFormData.price) * 1.2),
+      stock: Number(addSkuFormData.stock) || 50,
+      minOrderQty: Number(addSkuFormData.minOrderQty) || 1,
+      leadTimeDays: Number(addSkuFormData.leadTimeDays) || 1,
+      shelfLifeDays: Number(addSkuFormData.shelfLifeDays) || 7,
+      supplierId: activeSupplierId || mySupplier.id,
+      supplierName: mySupplier.name,
+      benchmarkId: targetBenchmark?.id || addSkuFormData.benchmarkId,
+    });
+
+    addToast(
+      `"${newProd.name}" added to your catalog at ${formatINR(newProd.price)}/${newProd.unit}`,
+      'success'
+    );
+    setAddSkuModalOpen(false);
+  };
+
+  // Intelligent benchmark matching against supplier's active catalog
+  const findBenchmarkMatch = (bench, products) => {
+    if (!products || !products.length) return null;
+
+    // 1. Direct benchmarkId match
+    const idMatch = products.find((p) => p.benchmarkId === bench.id);
+    if (idMatch) return idMatch;
+
+    // 2. Exact or clean name match
+    const cleanBenchName = bench.productName.toLowerCase().replace(/\(.*?\)/g, '').trim();
+    const exact = products.find((p) => {
+      const pName = p.name.toLowerCase().trim();
+      return pName === bench.productName.toLowerCase().trim() || pName.includes(cleanBenchName);
+    });
+    if (exact) return exact;
+
+    // 3. Keyword matching per benchmark commodity
+    const keywordMap = {
+      'bench-1': ['paneer'],
+      'bench-2': ['chicken', 'breast'],
+      'bench-3': ['egg', 'eggs'],
+      'bench-4': ['basmati', 'rice'],
+      'bench-5': ['tomato', 'tomatoes'],
+    };
+
+    const kws = keywordMap[bench.id] || [];
+    if (kws.length > 0) {
+      const kwMatch = products.find((p) => {
+        const pName = p.name.toLowerCase();
+        return kws.some((kw) => pName.includes(kw));
+      });
+      if (kwMatch) return kwMatch;
+    }
+
+    return null;
   };
 
   // Open Quote Modal for Demand
@@ -606,14 +800,10 @@ export const SupplierMarketplaceViewPage = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {LIVE_MARKET_BENCHMARKS.map((bench) => {
-                  // Check if supplier has a matching product
-                  const myMatch = displayProducts.find(
-                    (p) =>
-                      p.name.toLowerCase().includes(bench.productName.toLowerCase().split(' ')[0]) ||
-                      bench.productName.toLowerCase().includes(p.name.toLowerCase().split(' ')[0])
-                  );
+                  // Check if supplier has a matching product using smart matcher
+                  const myMatch = findBenchmarkMatch(bench, displayProducts);
 
-                  const isCheaper = myMatch ? myMatch.price < bench.marketAvgPrice : false;
+                  const isCheaper = myMatch ? myMatch.price <= bench.marketAvgPrice : false;
                   const priceDiff = myMatch
                     ? Math.round(
                         ((myMatch.price - bench.marketAvgPrice) / bench.marketAvgPrice) * 100
@@ -623,7 +813,9 @@ export const SupplierMarketplaceViewPage = () => {
                   return (
                     <tr key={bench.id} className="hover:bg-slate-800/40 transition">
                       <td className="py-3.5 px-4 font-semibold text-white">
-                        {bench.productName}
+                        <div className="flex items-center gap-2">
+                          <span>{bench.productName}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-300 border border-slate-700">
@@ -663,40 +855,78 @@ export const SupplierMarketplaceViewPage = () => {
                       <td className="py-3.5 px-4">
                         {myMatch ? (
                           <div>
-                            <div className="font-semibold text-white">
-                              {formatINR(myMatch.price)}/{myMatch.unit}
+                            <div className="flex items-center gap-1.5 font-semibold text-white">
+                              <span>{formatINR(myMatch.price)}/{myMatch.unit}</span>
+                              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800/50">
+                                <CheckCircle2 className="w-2.5 h-2.5 mr-0.5 text-emerald-400" />
+                                Listed
+                              </span>
                             </div>
-                            <span
-                              className={`text-[10px] font-bold ${
-                                isCheaper ? 'text-emerald-400' : 'text-amber-400'
-                              }`}
-                            >
-                              {priceDiff > 0 ? `+${priceDiff}% vs avg` : `${priceDiff}% vs avg (Competitive)`}
-                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  isCheaper ? 'text-emerald-400' : 'text-amber-400'
+                                }`}
+                              >
+                                {priceDiff === 0
+                                  ? '0% vs avg (Competitive)'
+                                  : priceDiff < 0
+                                  ? `${priceDiff}% vs avg (Competitive)`
+                                  : `+${priceDiff}% vs avg`}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                • {myMatch.stock ?? 0} in stock
+                              </span>
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-slate-500 italic">Not Listed</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-600"></span>
+                            <span className="text-slate-400 text-xs italic">Not Listed</span>
+                          </div>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         {myMatch ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenPriceEdit(myMatch)}
-                            className="text-xs py-1 px-2.5"
-                          >
-                            Adjust Price
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              icon={Edit2}
+                              onClick={() => handleOpenPriceEdit(myMatch)}
+                              className="text-xs py-1 px-2.5 text-slate-200 hover:text-white"
+                            >
+                              Adjust Price
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => navigate('/supplier/products')}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition"
+                              title="Inspect SKU in Product Catalog"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         ) : (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => navigate('/supplier/products')}
-                            className="text-xs py-1 px-2.5 bg-sky-600 hover:bg-sky-700 text-white"
-                          >
-                            + Add SKU
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              icon={Plus}
+                              onClick={() => handleOpenAddSku(bench)}
+                              className="text-xs py-1 px-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+                            >
+                              + Add SKU
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAddSku(bench)}
+                              className="px-2 py-1 text-[11px] font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition"
+                              title="1-Click Instant Add at Market Benchmark Price"
+                            >
+                              Quick Add
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -956,6 +1186,320 @@ export const SupplierMarketplaceViewPage = () => {
               >
                 Dispatch Quote to Buyer
               </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* ADD BENCHMARK SKU TO CATALOG MODAL */}
+      <Modal
+        isOpen={addSkuModalOpen}
+        onClose={() => setAddSkuModalOpen(false)}
+        title="Add Benchmark SKU to Product Catalog"
+        maxWidth="max-w-2xl"
+      >
+        {targetBenchmark && (
+          <form onSubmit={handleSaveAddSku} className="space-y-4">
+            {/* Benchmark Market Context Header */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-sky-950/60 to-slate-900 border border-sky-800/40 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">
+                      Market Benchmark: {targetBenchmark.productName}
+                    </h4>
+                    <span className="text-[11px] text-slate-400">
+                      Category: {targetBenchmark.category}
+                    </span>
+                  </div>
+                </div>
+                <Badge
+                  variant={targetBenchmark.demandLevel.includes('Very High') ? 'danger' : 'info'}
+                  size="sm"
+                >
+                  {targetBenchmark.demandLevel}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Market Average:</span>
+                  <strong className="text-white font-bold">
+                    {formatINR(targetBenchmark.marketAvgPrice)}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Wholesale Range:</span>
+                  <span className="text-slate-300 font-mono text-[11px]">
+                    {formatINR(targetBenchmark.lowestMarketPrice)} –{' '}
+                    {formatINR(targetBenchmark.highestMarketPrice)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Active Demand:</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {targetBenchmark.topPurchasersCount}+ Buyer POs/wk
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Product / SKU Display Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addSkuFormData.name}
+                  onChange={(e) => setAddSkuFormData({ ...addSkuFormData, name: e.target.value })}
+                  placeholder="e.g. Fresh Malai Paneer Blocks"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Wholesale Category <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={addSkuFormData.category}
+                    onChange={(e) =>
+                      setAddSkuFormData({ ...addSkuFormData, category: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  >
+                    {SUPPLIER_CATEGORIES.filter((c) => c !== 'All Categories').map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Unit of Measurement <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addSkuFormData.unit}
+                    onChange={(e) => setAddSkuFormData({ ...addSkuFormData, unit: e.target.value })}
+                    placeholder="e.g. kg, tray (30 pcs), crate (20kg)"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              {/* Price Fields with Live Intelligence Guidance */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-950/70 border border-slate-800 rounded-xl">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Wholesale Price (₹) <span className="text-rose-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAddSkuFormData({
+                          ...addSkuFormData,
+                          price: targetBenchmark.marketAvgPrice,
+                          mrp: Math.round(targetBenchmark.marketAvgPrice * 1.2),
+                        })
+                      }
+                      className="text-[10px] text-sky-400 hover:text-sky-300 underline"
+                    >
+                      Use Avg (₹{targetBenchmark.marketAvgPrice})
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-slate-500">₹</span>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={addSkuFormData.price}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setAddSkuFormData({
+                          ...addSkuFormData,
+                          price: val,
+                          mrp: Math.max(Number(addSkuFormData.mrp) || 0, Math.round(val * 1.2)),
+                        });
+                      }}
+                      className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white font-semibold focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  {/* Dynamic Pricing Recommendation */}
+                  <div className="mt-1.5 text-[10px]">
+                    {Number(addSkuFormData.price) <= targetBenchmark.marketAvgPrice ? (
+                      <span className="text-emerald-400 font-medium">
+                        ✓ Highly competitive (
+                        {Math.round(
+                          ((Number(addSkuFormData.price) - targetBenchmark.marketAvgPrice) /
+                            targetBenchmark.marketAvgPrice) *
+                            100
+                        )}
+                        % vs market avg)
+                      </span>
+                    ) : (
+                      <span className="text-amber-400 font-medium">
+                        ⚠️ +
+                        {Math.round(
+                          ((Number(addSkuFormData.price) - targetBenchmark.marketAvgPrice) /
+                            targetBenchmark.marketAvgPrice) *
+                            100
+                        )}
+                        % above market avg. Competitive prices win more POs.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    List MRP (₹ / {addSkuFormData.unit})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-slate-500">₹</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={addSkuFormData.mrp}
+                      onChange={(e) => setAddSkuFormData({ ...addSkuFormData, mrp: e.target.value })}
+                      className="w-full pl-7 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Shown as reference retail MRP to buyers
+                  </span>
+                </div>
+              </div>
+
+              {/* Stock, Min Order, Lead Time & Shelf Life */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Stock ({addSkuFormData.unit})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={addSkuFormData.stock}
+                    onChange={(e) => setAddSkuFormData({ ...addSkuFormData, stock: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Min Order Qty
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={addSkuFormData.minOrderQty}
+                    onChange={(e) =>
+                      setAddSkuFormData({ ...addSkuFormData, minOrderQty: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Lead Time (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="14"
+                    value={addSkuFormData.leadTimeDays}
+                    onChange={(e) =>
+                      setAddSkuFormData({ ...addSkuFormData, leadTimeDays: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Shelf Life (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={addSkuFormData.shelfLifeDays}
+                    onChange={(e) =>
+                      setAddSkuFormData({ ...addSkuFormData, shelfLifeDays: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Product Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={addSkuFormData.description}
+                  onChange={(e) =>
+                    setAddSkuFormData({ ...addSkuFormData, description: e.target.value })
+                  }
+                  placeholder="Wholesale grade specifications, FSSAI compliance, packaging..."
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="sku-organic"
+                  checked={addSkuFormData.organic}
+                  onChange={(e) => setAddSkuFormData({ ...addSkuFormData, organic: e.target.checked })}
+                  className="rounded border-slate-700 bg-slate-900 text-sky-600 focus:ring-sky-500"
+                />
+                <label htmlFor="sku-organic" className="text-xs text-slate-300 cursor-pointer">
+                  Certified Organic / Chemical Residue Free
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
+              <span className="text-[11px] text-slate-500">
+                Immediately updates listing status & publishes to Product Catalog.
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddSkuModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+                >
+                  Confirm & Add to Catalog
+                </Button>
+              </div>
             </div>
           </form>
         )}

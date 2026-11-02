@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Globe,
   Handshake,
+  RotateCcw,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -39,6 +40,7 @@ export const B2BMarketplacePage = () => {
   const {
     supplierProducts,
     suppliers,
+    supplierAgreements,
     createMarketplacePO,
     currentUser,
     currentRestaurant,
@@ -55,6 +57,27 @@ export const B2BMarketplacePage = () => {
 
   // Cart state: array of { ...product, quantity }
   const [cart, setCart] = useState([]);
+
+  const getProductSupplierReturnPolicy = (prod) => {
+    const sup = (suppliers || []).find(
+      (s) => s.id === prod.supplierId || s.name?.toLowerCase() === prod.supplierName?.toLowerCase()
+    );
+    const agr = (supplierAgreements || []).find((a) => a.supplierId === prod.supplierId);
+    const accepts = sup?.acceptsReturns !== undefined
+      ? sup.acceptsReturns
+      : agr
+      ? Boolean(agr.acceptsReturns ?? agr.unsoldReturnAllowed)
+      : prod.supplierId !== 'sup-1' && prod.supplierId !== 'sup-3' && prod.supplierId !== 'sup-6';
+    return {
+      accepts,
+      windowHours: sup?.returnWindowHours || agr?.returnWindowHours || 36,
+      conditions: [
+        (sup?.returnConditions?.unused ?? agr?.coversUnused ?? agr?.unsoldReturnAllowed ?? true) && 'Unused',
+        (sup?.returnConditions?.damaged ?? agr?.coversDamaged ?? true) && 'Damaged',
+        (sup?.returnConditions?.spoiled ?? agr?.coversSpoiled ?? true) && 'Spoiled',
+      ].filter(Boolean).join(', '),
+    };
+  };
 
   // Resolve whether product supplier is Third-Party vs Tie-up
   const getProductSupplierType = (prod) => {
@@ -503,6 +526,28 @@ export const B2BMarketplacePage = () => {
                   <p className="text-xs text-slate-500 line-clamp-2 mt-1">
                     {prod.description || 'Verified wholesale food supply item.'}
                   </p>
+
+                  {/* Return Policy SLA Tag */}
+                  {(() => {
+                    const policy = getProductSupplierReturnPolicy(prod);
+                    return policy.accepts ? (
+                      <div
+                        className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-700 font-semibold"
+                        title={`Supplier accepts returns for: ${policy.conditions || 'Unused, damaged, or spoiled items'} (${policy.windowHours}h window)`}
+                      >
+                        <RotateCcw className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Returns Accepted ({policy.windowHours}h SLA)</span>
+                      </div>
+                    ) : (
+                      <div
+                        className="mt-2 flex items-center gap-1 text-[10px] text-slate-400 font-medium"
+                        title="Final Sale - Vendor has strict no-returns policy once accepted at dock"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                        <span>Final Sale (No Returns)</span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Price & MOQ */}
                   <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
