@@ -44,6 +44,22 @@ export const InventoryPage = () => {
   const initialAction = searchParams.get('action');
 
   // Filter & Search states
+
+  // Auto-open ingredient details from alert/notification deep link
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const targetIngId = params.get('ingredientId');
+    if (targetIngId && (restaurantIngredients || []).length > 0) {
+      const match = restaurantIngredients.find(
+        (ing) => String(ing.id).toLowerCase() === String(targetIngId).toLowerCase()
+      );
+      if (match) {
+        setViewIngredient(match);
+        setIsViewModalOpen(true);
+      }
+    }
+  }, [location.search, restaurantIngredients]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState(initialFilter); // 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'

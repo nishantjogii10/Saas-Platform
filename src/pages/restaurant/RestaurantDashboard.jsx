@@ -21,6 +21,7 @@ import {
   Clock,
   UserCheck,
   Users,
+  Plus,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -87,10 +88,14 @@ export const RestaurantDashboard = () => {
   const CATEGORY_COLORS = ['#0E5C38', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B'];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Inventory Overview"
-        subtitle="Real-time stock valuation, active alerts, and consumption analytics"
+        subtitle="Real-time stock valuation, active alerts, and consumption analytics."
+        breadcrumbs={[
+          { label: 'Restaurant', href: '#/dashboard' },
+          { label: 'Inventory Overview' },
+        ]}
         badge={
           currentUser?.role === 'restaurant_owner' ? (
             <div className="flex items-center gap-2">
@@ -115,46 +120,46 @@ export const RestaurantDashboard = () => {
           ) : null
         }
         actions={
-  <div className="flex items-center gap-2">
-    {currentUser?.role !== 'restaurant_owner' ? (
-      <>
-        <Button
-          variant="outline"
-          size="sm"
-          icon={ShoppingBag}
-          onClick={() => navigate('/purchase-orders')}
-        >
-          Purchase Orders ({activePendingOrders.length})
-        </Button>
+          <div className="flex items-center gap-2.5">
+            {currentUser?.role !== 'restaurant_owner' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/purchase-orders')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Purchase Orders ({activePendingOrders.length})</span>
+                </button>
 
-        <Button
-          variant="brand"
-          size="sm"
-          icon={Plus}
-          onClick={() => navigate('/inventory?action=add')}
-        >
-          Add Ingredient
-        </Button>
-      </>
-    ) : (
-      <Button
-        variant="outline"
-        size="sm"
-        icon={Truck}
-        onClick={() => navigate('/suppliers')}
-      >
-        Supplier List ({(restaurantSuppliers || []).length})
-      </Button>
-    )}
-  </div>
-}
+                <button
+                  type="button"
+                  onClick={() => navigate('/inventory?action=add')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Ingredient</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate('/suppliers')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <Truck className="w-3.5 h-3.5 text-slate-500" />
+                <span>Supplier List ({(restaurantSuppliers || []).length})</span>
+              </button>
+            )}
+          </div>
+        }
       />
 
       {/* Real-time New Third-Party Supplier Registration Notification Banner for Restaurant Owner */}
       {currentUser?.role === 'restaurant_owner' && recentSupplierAlert && (
-        <div className="p-4 rounded-2xl bg-indigo-50/90 border border-indigo-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 border-l-4 border-l-indigo-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 border border-indigo-100">
               <Truck className="w-5 h-5" />
             </div>
             <div>
@@ -162,7 +167,7 @@ export const RestaurantDashboard = () => {
                 <span className="text-xs font-bold text-indigo-700 uppercase tracking-wide">
                   New Supplier Partner Joined
                 </span>
-                <span className="text-[10px] bg-indigo-200/60 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
                   Real-time Alert
                 </span>
               </div>
@@ -178,7 +183,7 @@ export const RestaurantDashboard = () => {
             <Button
               variant="outline"
               size="xs"
-              className="bg-white border-indigo-300 text-indigo-900 hover:bg-indigo-50"
+              className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
               onClick={() => navigate('/suppliers')}
             >
               View Supplier List
@@ -189,18 +194,18 @@ export const RestaurantDashboard = () => {
 
       {/* Critical Stock Alert Banner if any out of stock or low stock items (hidden for restaurant manager) */}
       {currentUser?.role !== 'restaurant_manager' && (lowStockItems > 0 || outOfStockItems > 0) && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 border-l-4 border-l-amber-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-amber-950">
+              <h4 className="text-sm font-bold text-slate-900">
                 Action Required: {outOfStockItems > 0 ? `${outOfStockItems} item(s) out of stock` : ''}
                 {outOfStockItems > 0 && lowStockItems > 0 ? ' and ' : ''}
                 {lowStockItems > 0 ? `${lowStockItems} ingredient(s) below reorder threshold` : ''}
               </h4>
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Inventory levels require attention to avoid kitchen stockouts during upcoming service.
               </p>
             </div>
@@ -209,7 +214,7 @@ export const RestaurantDashboard = () => {
             <Button
               variant="outline"
               size="xs"
-              className="bg-white border-amber-300 text-amber-900"
+              className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
               onClick={() => navigate('/alerts')}
             >
               View Alerts
@@ -228,67 +233,67 @@ export const RestaurantDashboard = () => {
       )}
 
       {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard
-            title="Total Stock Value"
-            value={formatINR(totalValuation)}
-            change="+4.2%"
-            trend="up"
-            subtext="Current on-hand inventory"
-            icon={IndianRupee}
-            accentColor="emerald"
-            onClick={() => navigate('/inventory')}
-          />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <StatCard
+          title="Total Stock Value"
+          value={formatINR(totalValuation)}
+          change="+4.2%"
+          trend="up"
+          subtitle="Current on-hand inventory"
+          icon={IndianRupee}
+          variant="emerald"
+          onClick={() => navigate('/inventory')}
+        />
 
-          <StatCard
-            title="Total Tracked Items"
-            value={totalIngredients}
-            change={`Limit: ${currentRestaurant?.monthlyUsage?.ingredientsLimit || 100}`}
-            trend="neutral"
-            subtext="Active SKU categories"
-            icon={Boxes}
-            accentColor="blue"
-            onClick={() => navigate('/inventory')}
-          />
+        <StatCard
+          title="Total Tracked Items"
+          value={totalIngredients}
+          change={`Limit: ${currentRestaurant?.monthlyUsage?.ingredientsLimit || 100}`}
+          trend="neutral"
+          subtitle="Active SKU categories"
+          icon={Boxes}
+          variant="default"
+          onClick={() => navigate('/inventory')}
+        />
 
-          <StatCard
-            title="Low Stock Items"
-            value={lowStockItems}
-            change={lowStockItems > 0 ? 'Urgent Reorder' : 'All Optimal'}
-            trend={lowStockItems > 0 ? 'down' : 'up'}
-            subtext="Below minimum threshold"
-            icon={AlertTriangle}
-            accentColor={lowStockItems > 0 ? 'amber' : 'emerald'}
-            onClick={() => navigate('/inventory?filter=low_stock')}
-          />
+        <StatCard
+          title="Low Stock Items"
+          value={lowStockItems}
+          change={lowStockItems > 0 ? 'Urgent Reorder' : 'All Optimal'}
+          trend={lowStockItems > 0 ? 'down' : 'up'}
+          subtitle="Below minimum threshold"
+          icon={AlertTriangle}
+          variant={lowStockItems > 0 ? 'warning' : 'default'}
+          onClick={() => navigate('/inventory?filter=low_stock')}
+        />
 
-          <StatCard
-            title="Out of Stock"
-            value={outOfStockItems}
-            change={outOfStockItems > 0 ? 'Depleted' : 'Zero items'}
-            trend={outOfStockItems > 0 ? 'down' : 'up'}
-            subtext="Requires instant restock"
-            icon={XCircle}
-            accentColor={outOfStockItems > 0 ? 'rose' : 'emerald'}
-            onClick={() => navigate('/inventory?filter=out_of_stock')}
-          />
+        <StatCard
+          title="Out of Stock"
+          value={outOfStockItems}
+          change={outOfStockItems > 0 ? 'Depleted' : 'Zero items'}
+          trend={outOfStockItems > 0 ? 'down' : 'up'}
+          subtitle="Requires instant restock"
+          icon={XCircle}
+          variant={outOfStockItems > 0 ? 'danger' : 'default'}
+          onClick={() => navigate('/inventory?filter=out_of_stock')}
+        />
 
-          <StatCard
-            title="Expiring <= 3 Days"
-            value={expiringSoonItems}
-            change={expiringSoonItems > 0 ? 'Monitor Shelf' : 'Fresh'}
-            trend={expiringSoonItems > 0 ? 'down' : 'up'}
-            subtext="FIFO rotation needed"
-            icon={ClockAlert}
-            accentColor={expiringSoonItems > 0 ? 'amber' : 'emerald'}
-            onClick={() => navigate('/expiry-tracking')}
-          />
-        </div>
+        <StatCard
+          title="Expiring <= 3 Days"
+          value={expiringSoonItems}
+          change={expiringSoonItems > 0 ? 'Monitor Shelf' : 'Fresh'}
+          trend={expiringSoonItems > 0 ? 'down' : 'up'}
+          subtitle="FIFO rotation needed"
+          icon={ClockAlert}
+          variant={expiringSoonItems > 0 ? 'warning' : 'default'}
+          onClick={() => navigate('/expiry-tracking')}
+        />
+      </div>
 
       {/* Live Kitchen Staff Attendance Widget for Managers */}
       {currentUser?.role !== 'inventory_manager' && (
-      <Card padding={false} className="border border-emerald-100">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/50 via-teal-50/30 to-white">
+      <Card padding={false} className="border border-slate-200/90 rounded-2xl shadow-xs">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
               <Clock className="w-5 h-5" />

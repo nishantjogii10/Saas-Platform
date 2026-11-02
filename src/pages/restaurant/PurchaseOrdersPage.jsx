@@ -52,6 +52,23 @@ export const PurchaseOrdersPage = () => {
     currentBranch,
   } = useApp();
 
+  // Auto-open PO details from notification deep links
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const targetPoId = params.get('poId') || params.get('orderId');
+    if (targetPoId && (restaurantOrders || []).length > 0) {
+      const match = restaurantOrders.find(
+        (po) =>
+          String(po.id).toLowerCase() === String(targetPoId).toLowerCase() ||
+          String(po.poNumber).toLowerCase() === String(targetPoId).toLowerCase()
+      );
+      if (match) {
+        setSelectedPO(match);
+        setDetailsModalOpen(true);
+      }
+    }
+  }, [location.search, restaurantOrders]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -314,44 +331,48 @@ export const PurchaseOrdersPage = () => {
     },
   ];
 
+  const pendingCount = branchPOs.filter((p) => p.status === 'pending' || p.status === 'pending_approval').length;
+  const dispatchedCount = branchPOs.filter((p) => p.status === 'dispatched').length;
+  const deliveredCount = branchPOs.filter((p) => p.status === 'delivered').length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Purchase Orders & Procurement"
-        subtitle="Manage supplier requisitions, 4-stage PO lifecycle, and dock receiving"
+        subtitle="Manage supplier requisitions, 4-stage PO lifecycle, and dock receiving."
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Purchase Orders' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Download}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
               onClick={() => setIsExportOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Export to Excel
-            </Button>
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Export</span>
+            </button>
             {currentUser.role !== 'kitchen_staff' && (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={PackageCheck}
+                <button
+                  type="button"
                   onClick={() => navigate('/goods-receiving')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
                 >
-                  Receiving Dock (GRN)
-                </Button>
+                  <PackageCheck className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Receiving Dock (GRN)</span>
+                </button>
                 {currentUser?.role !== 'restaurant_owner' && (
-                  <Button
-                    variant="brand"
-                    size="sm"
-                    icon={Plus}
+                  <button
+                    type="button"
                     onClick={() => setIsCreateModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
                   >
-                    Create Purchase Order
-                  </Button>
+                    <Plus className="w-4 h-4" />
+                    <span>Create Purchase Order</span>
+                  </button>
                 )}
               </>
             )}
@@ -359,43 +380,135 @@ export const PurchaseOrdersPage = () => {
         }
       />
 
-      {/* Purchase Orders Workflow Notice */}
-      <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-start gap-3">
-          <span className="w-5 h-5 rounded-full bg-teal-700 text-white flex items-center justify-center shrink-0 font-bold text-[11px] mt-0.5">
-            PO
-          </span>
-          <div>
-            <strong className="block font-semibold">Purchase Order &amp; Delivery Verification:</strong>
-            Issue digital purchase orders to wholesale suppliers. Once delivered to your dock, click <strong>"Verify &amp; Receive Stock"</strong> to inspect accepted vs. damaged quantities. Verified stock automatically enters inventory.
-          </div>
+      {/* 4 Summary Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          title="Total Orders"
+          value={branchPOs.length}
+          subtitle="All branch requisitions"
+          icon={ShoppingBag}
+          variant="default"
+          onClick={() => setStatusFilter('all')}
+          className={statusFilter === 'all' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : ''}
+        />
+        <StatCard
+          title="Pending Response"
+          value={pendingCount}
+          subtitle="Awaiting supplier review"
+          icon={Clock}
+          variant="warning"
+          onClick={() => setStatusFilter('pending')}
+          className={statusFilter === 'pending' ? 'border-amber-500 ring-2 ring-amber-500/10' : ''}
+        />
+        <StatCard
+          title="Dispatched / Transit"
+          value={dispatchedCount}
+          subtitle="En-route to outlet dock"
+          icon={Truck}
+          variant="info"
+          onClick={() => setStatusFilter('dispatched')}
+          className={statusFilter === 'dispatched' ? 'border-blue-500 ring-2 ring-blue-500/10' : ''}
+        />
+        <StatCard
+          title="Delivered & Stocked"
+          value={deliveredCount}
+          subtitle="GRN verified & in stock"
+          icon={CheckCircle2}
+          variant="success"
+          onClick={() => setStatusFilter('delivered')}
+          className={statusFilter === 'delivered' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : ''}
+        />
+      </div>
+
+      {/* Purchase Orders Workflow Info Panel */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/80 font-bold text-xs">
+          PO
+        </div>
+        <div className="text-xs text-slate-600">
+          <strong className="text-slate-900 font-semibold">Delivery Verification & GRN Sync:</strong>{' '}
+          Issue digital purchase orders to wholesale suppliers. Once delivered to your dock, verify accepted vs. damaged quantities. Verified stock automatically enters inventory.
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search by PO number or supplier..."
-          className="w-full sm:w-80"
-        />
+      {/* Search and Filter Toolbar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by PO number, supplier, or items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/70 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {['all', 'pending', 'accepted', 'dispatched', 'delivered', 'rejected'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap capitalize transition-all select-none ${
-                statusFilter === f
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+          {/* Segmented Filter Chips */}
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            {[
+              { id: 'all', label: 'All Orders', count: branchPOs.length },
+              { id: 'pending', label: 'Pending', count: pendingCount },
+              { id: 'accepted', label: 'Accepted' },
+              { id: 'dispatched', label: 'Dispatched', count: dispatchedCount },
+              { id: 'delivered', label: 'Delivered', count: deliveredCount },
+              { id: 'rejected', label: 'Rejected' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
+                  statusFilter === tab.id
+                    ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                      statusFilter === tab.id ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {(searchTerm || statusFilter !== 'all') && (
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+            <span>
+              Showing <strong className="text-slate-700">{filteredPOs.length}</strong> of{' '}
+              <strong className="text-slate-700">{branchPOs.length}</strong> purchase orders
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Filters</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Orders Table */}

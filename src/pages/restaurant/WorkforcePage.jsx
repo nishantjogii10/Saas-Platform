@@ -35,6 +35,7 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldAlert,
+  RotateCcw,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -86,6 +87,7 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isOwner = currentUser?.role === 'restaurant_owner';
   const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
   const ATTENDANCE_PER_PAGE = 8;
 
@@ -409,60 +411,64 @@ export const WorkforcePage = () => {
 
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Page Header */}
       <PageHeader
         title="People &amp; Workforce"
         subtitle="Unified team management: staff directory, live station clock-in, leave approvals, and payroll disbursements."
+        breadcrumbs={[
+          { label: 'Restaurant', href: '#/dashboard' },
+          { label: 'People & Workforce' },
+        ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Download}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
               onClick={() => setIsExportOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Export Roster
-            </Button>
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Export Roster</span>
+            </button>
             {currentUser?.role !== 'kitchen_staff' && currentUser?.role !== 'supplier' && (
-              <Button
-                variant="outline"
-                size="sm"
-                icon={UploadCloud}
+              <button
+                type="button"
                 onClick={() => setIsImportOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
               >
-                Import Staff
-              </Button>
+                <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
+                <span>Import Staff</span>
+              </button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              icon={IndianRupee}
+            <button
+              type="button"
               onClick={() => {
                 setSalaryTargetStaff(null);
                 setIsSalaryModalOpen(true);
               }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Disburse Salary
-            </Button>
+              <IndianRupee className="w-3.5 h-3.5 text-slate-500" />
+              <span>Disburse Salary</span>
+            </button>
             {currentUser?.role === 'restaurant_owner' && (
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Star}
+              <button
+                type="button"
                 onClick={() => setIsAssignMgrOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
               >
-                Appoint Manager
-              </Button>
+                <Star className="w-3.5 h-3.5 text-slate-500" />
+                <span>Appoint Manager</span>
+              </button>
             )}
-            <Button
-              variant="brand"
-              size="sm"
-              icon={Plus}
+            <button
+              type="button"
               onClick={() => setIsAddStaffOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
-              Add Staff Member
-            </Button>
+              <Plus className="w-4 h-4" />
+              <span>Add Staff Member</span>
+            </button>
           </div>
         }
       />
@@ -503,136 +509,87 @@ export const WorkforcePage = () => {
         />
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="border-b border-slate-200">
-        <nav className="flex space-x-6 overflow-x-auto">
-          {/* Tab 1: Staff Directory */}
-          <button
-            onClick={() => handleTabChange('roster')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'roster'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Staff Directory ({branchStaff.length})</span>
-          </button>
-
-          {/* Tab 2: Attendance */}
-          <button
-            onClick={() => handleTabChange('attendance')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'attendance'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>Attendance &amp; Timesheets</span>
-            {totalOnDuty > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                {totalOnDuty} Active
-              </span>
-            )}
-          </button>
-
-          {/* Tab 2.5: Monthly Attendance Calendar */}
-          {!isOwner && (
+      {/* Navigation Sub-Tabs */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto">
+        {[
+          { id: 'roster', label: `Staff Directory (${branchStaff.length})`, icon: Users },
+          { id: 'attendance', label: 'Attendance & Timesheets', icon: Clock, count: totalOnDuty, badgeClass: 'bg-emerald-100 text-emerald-800' },
+          ...(!isOwner ? [{ id: 'calendar', label: 'Monthly Attendance Calendar', icon: CalendarDays }] : []),
+          { id: 'holidays', label: `Branch Holidays (${branchHolidaysCount})`, icon: Sparkles },
+          ...(!isOwner ? [{ id: 'leave', label: 'Leave & Shifts', icon: Calendar, count: pendingLeavesCount, badgeClass: 'bg-amber-100 text-amber-800' }] : []),
+          ...(!isOwner ? [{ id: 'payroll', label: 'Payroll', icon: IndianRupee }] : []),
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
             <button
-              onClick={() => handleTabChange('calendar')}
-              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-                activeTab === 'calendar'
-                  ? 'border-emerald-700 text-emerald-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`flex-1 min-w-max py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <CalendarDays className="w-4 h-4" />
-              <span>Monthly Attendance Calendar</span>
-            </button>
-          )}
-
-          {/* Tab 2.6: Branch Holidays */}
-          <button
-            onClick={() => handleTabChange('holidays')}
-            className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-              activeTab === 'holidays'
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Branch Holidays ({branchHolidaysCount})</span>
-          </button>
-
-          {/* Tab 3: Leave & Shifts */}
-          {!isOwner && (
-            <button
-              onClick={() => handleTabChange('leave')}
-              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-                activeTab === 'leave'
-                  ? 'border-emerald-700 text-emerald-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Leave &amp; Shifts</span>
-              {pendingLeavesCount > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold animate-pulse">
-                  {pendingLeavesCount} Pending
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    isActive ? 'bg-emerald-700 text-white' : tab.badgeClass || 'bg-slate-200 text-slate-700 font-bold'
+                  }`}
+                >
+                  {tab.count}
                 </span>
               )}
             </button>
-          )}
-
-          {/* Tab 4: Payroll */}
-          {!isOwner && (
-            <button
-              onClick={() => handleTabChange('payroll')}
-              className={`py-3 px-1 border-b-2 font-semibold text-xs flex items-center gap-2 transition-colors whitespace-nowrap ${
-                activeTab === 'payroll'
-                  ? 'border-emerald-700 text-emerald-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <IndianRupee className="w-4 h-4" />
-              <span>Payroll</span>
-            </button>
-          )}
-
-                  </nav>
+          );
+        })}
       </div>
 
       {/* TAB 1: STAFF DIRECTORY */}
       {activeTab === 'roster' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search staff by name, title, email, phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/70 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 {!isManager ? (
-                  <select
-                    value={branchFilter}
-                    onChange={(e) => setBranchFilter(e.target.value)}
-                    className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  >
-                    <option value="all">All Outlets ({branchStaff.length})</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative min-w-[160px]">
+                    <select
+                      value={branchFilter}
+                      onChange={(e) => setBranchFilter(e.target.value)}
+                      className="w-full appearance-none pl-3.5 pr-8 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100/70 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all cursor-pointer"
+                    >
+                      <option value="all">All Outlets ({branchStaff.length})</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 ) : (
                   <div className="inline-flex items-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
                     <Store className="w-3.5 h-3.5 text-emerald-600" />
@@ -640,19 +597,50 @@ export const WorkforcePage = () => {
                   </div>
                 )}
 
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                >
-                  <option value="all">All Roles</option>
-                  <option value="manager">All Managers</option>
-                  <option value="restaurant_manager">Restaurant Managers</option>
-                  <option value="inventory_manager">Inventory Managers</option>
-                  <option value="kitchen">Kitchen Staff Only</option>
-                </select>
+                {/* Segmented Role Chips */}
+                <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+                  {[
+                    { id: 'all', label: 'All Staff' },
+                    { id: 'manager', label: 'Managers' },
+                    { id: 'kitchen', label: 'Kitchen' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setRoleFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
+                        roleFilter === tab.id
+                          ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                          : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {(searchTerm || roleFilter !== 'all' || branchFilter !== 'all') && (
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+                <span>
+                  Showing <strong className="text-slate-700">{filteredStaff.length}</strong> of{' '}
+                  <strong className="text-slate-700">{branchStaff.length}</strong> team members
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setRoleFilter('all');
+                    setBranchFilter('all');
+                  }}
+                  className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Filters</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -822,7 +810,7 @@ export const WorkforcePage = () => {
           {/* Manager's Personal Shift Terminal & Punch Clock */}
           {!isOwner && <PunchClockWidget />}
           {/* Live Station Clock-In Board */}
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -891,7 +879,7 @@ export const WorkforcePage = () => {
           </div>
 
           {/* Historical Shift Attendance Logs with Search, Filter & Corrections */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
             {/* Table Header and Filters Bar */}
             <div className="p-5 border-b border-slate-100 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

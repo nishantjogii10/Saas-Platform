@@ -31,6 +31,8 @@ import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
 import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { PageHeader } from '../../components/common/PageHeader';
+import { StatCard } from '../../components/common/StatCard';
 
 export const InventoryAttendancePage = () => {
   const {
@@ -94,94 +96,84 @@ export const InventoryAttendancePage = () => {
   };
 
   return (
-    <div className="space-y-6 w-full pb-12">
-      {/* Page Header Banner */}
-      <div className="rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-slate-900 via-slate-900 to-teal-950 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden border border-teal-500/20">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-teal-400" />
-                Staff Attendance &amp; Shift Terminal
-              </span>
-              <span className="text-xs text-slate-400">•</span>
-              <span className="text-xs text-teal-200 font-medium">
-                {currentRestaurant?.name}
-              </span>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              My Attendance, Leaves &amp; Shifts
-            </h1>
-
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Track your daily duty shifts, live clock-in hours, monthly attendance roster, leave balance requests, and official holiday schedules.
-            </p>
-
-            {/* Quick Status Chips */}
-            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold shadow-xs ${
-                  activeRecord?.isOnBreak
-                    ? 'bg-amber-500 text-white animate-pulse'
-                    : activeRecord
-                    ? 'bg-emerald-500 text-white animate-pulse'
-                    : 'bg-white/10 text-slate-300 border border-white/15'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${activeRecord ? 'bg-white' : 'bg-slate-400'}`} />
-                {activeRecord?.isOnBreak
-                  ? `On Break • ${activeRecord.station}`
-                  : activeRecord
-                  ? `On Duty • ${activeRecord.station}`
-                  : 'Off Duty (Not Clocked In)'}
-              </span>
-
-              {pendingLeaves.length > 0 && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {pendingLeaves.length} Leave Application Pending Review
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Action CTAs */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsLeaveModalOpen(true)}
-              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/15 shadow-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-teal-300" />
-              <span>Apply for Leave</span>
-            </button>
-
+    <div className="space-y-5 w-full pb-12">
+      {/* Page Header */}
+      <PageHeader
+        title="My Attendance, Leaves & Shifts"
+        subtitle="Track your daily duty shifts, live clock-in hours, monthly attendance roster, leave balance requests, and official holiday schedules."
+        breadcrumbs={[
+          { label: 'Restaurant', href: '#/dashboard' },
+          { label: 'Attendance', href: '#/my-attendance' },
+          { label: 'Shift Terminal' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setIsExportOpen(true)}
-              className="px-4 py-2.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-teal-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
               <span>Export Timesheet</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setIsLeaveModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Apply for Leave</span>
+            </button>
           </div>
-        </div>
+        }
+      />
+
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          title="Current Shift Status"
+          value={activeRecord?.isOnBreak ? 'On Break' : activeRecord ? 'On Duty' : 'Off Duty'}
+          subtitle={activeRecord ? `${activeRecord.station} • ${activeRecord.branchName || currentBranch?.name}` : 'Not Clocked In'}
+          icon={Clock}
+          variant={activeRecord?.isOnBreak ? 'warning' : activeRecord ? 'success' : 'default'}
+        />
+        <StatCard
+          title="Pending Leave Requests"
+          value={pendingLeaves.length}
+          subtitle={pendingLeaves.length > 0 ? 'Awaiting Manager Sign-off' : 'All Clear / Approved'}
+          icon={Calendar}
+          variant={pendingLeaves.length > 0 ? 'warning' : 'default'}
+          onClick={() => setActiveTab('leave')}
+        />
+        <StatCard
+          title="Total Shifts Logged"
+          value={myRecords.length}
+          subtitle="Attendance record history"
+          icon={CheckCircle2}
+          variant="default"
+          onClick={() => setActiveTab('history')}
+        />
+        <StatCard
+          title="Upcoming Holidays"
+          value={branchHolidays.filter((h) => (h.endDate || h.date) >= new Date().toISOString().split('T')[0]).length}
+          subtitle="Declared branch holidays"
+          icon={Palmtree}
+          variant="emerald"
+          onClick={() => setActiveTab('holidays')}
+        />
       </div>
 
       {/* Main Interactive Punch Clock Terminal */}
       <PunchClockWidget />
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1 scrollbar-thin">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto">
         {[
           { id: 'calendar', label: 'Monthly Attendance Calendar', icon: CalendarDays },
           { id: 'leave', label: 'Leave Requisitions & Balances', icon: Palmtree, count: pendingLeaves.length },
-          { id: 'holidays', label: 'Official Holidays List', icon: Calendar },
-          { id: 'history', label: 'Shift Attendance Ledger', icon: Clock },
-          ...(mySalaries.length > 0 ? [{ id: 'payroll', label: 'My Salary Slips', icon: Receipt }] : []),
+          { id: 'holidays', label: 'Official Holidays List', icon: Calendar, count: branchHolidays.length },
+          { id: 'history', label: 'Shift Attendance Ledger', icon: Clock, count: myRecords.length },
+          ...(mySalaries.length > 0 ? [{ id: 'payroll', label: 'My Salary Slips', icon: Receipt, count: mySalaries.length }] : []),
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -189,16 +181,20 @@ export const InventoryAttendancePage = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all duration-200 cursor-pointer ${
+              className={`flex-1 min-w-max py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-teal-400' : 'text-slate-400'}`} />
+              <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
-              {tab.count > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-white">
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    isActive ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700 font-bold'
+                  }`}
+                >
                   {tab.count}
                 </span>
               )}
@@ -259,7 +255,7 @@ export const InventoryAttendancePage = () => {
           </div>
 
           {/* Leave Applications History */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Submitted Leave Requests</h4>
@@ -350,7 +346,7 @@ export const InventoryAttendancePage = () => {
 
       {/* Tab 3: Official Holidays List */}
       {activeTab === 'holidays' && (
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-slate-900">Scheduled Holidays (2026)</h4>
@@ -430,7 +426,7 @@ export const InventoryAttendancePage = () => {
 
       {/* Tab 4: Shift Attendance Ledger */}
       {activeTab === 'history' && (
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-slate-900">Personal Shift Timesheet Ledger</h4>
@@ -504,7 +500,7 @@ export const InventoryAttendancePage = () => {
 
       {/* Tab 5: My Salary Slips */}
       {activeTab === 'payroll' && mySalaries.length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-slate-900">Salary Disbursals &amp; Pay Vouchers</h4>

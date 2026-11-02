@@ -116,29 +116,33 @@ export const BatchTrackingPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Page Header */}
       <PageHeader
-        title="QR Code &amp; Batch-Wise Inventory Tracking"
-        subtitle="Unique QR labels for every received batch, FEFO &amp; FIFO consumption intelligence, real-time expiry tracking, and storage location records."
-        action={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={PackageCheck}
+        title="QR Code & Batch-Wise Inventory Tracking"
+        subtitle="Unique QR labels for every received batch, FEFO & FIFO consumption intelligence, real-time expiry tracking, and storage location records."
+        breadcrumbs={[
+          { label: 'Restaurant', href: '#/dashboard' },
+          { label: 'Batch Matrix' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
               onClick={() => navigate('/goods-receiving')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Goods Receiving (GRN)
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={Scan}
+              <PackageCheck className="w-3.5 h-3.5 text-slate-500" />
+              <span>Goods Receiving (GRN)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsCameraActive(!isCameraActive)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
-              {isCameraActive ? 'Close Scanner' : 'Open QR Scanner'}
-            </Button>
+              <Scan className="w-4 h-4" />
+              <span>{isCameraActive ? 'Close Scanner' : 'Open QR Scanner'}</span>
+            </button>
           </div>
         }
       />
@@ -148,77 +152,79 @@ export const BatchTrackingPage = () => {
         <StatCard
           title="Tracked Batches"
           value={totalBatches}
-          subtitle="Unique QR Labels"
+          subtitle="Unique QR labels"
           icon={QrCode}
           variant="default"
         />
         <StatCard
           title="Active Stock Batches"
           value={activeBatches}
-          subtitle="Available for Prep"
+          subtitle="Available for prep"
           icon={CheckCircle2}
           variant="success"
         />
         <StatCard
           title="Near Expiry (FEFO)"
           value={nearExpiryBatches}
-          subtitle="Priority Usage (Next 72h)"
+          subtitle="Priority usage (<= 72h)"
           icon={AlertTriangle}
           variant={nearExpiryBatches > 0 ? "warning" : "default"}
         />
         <StatCard
           title="Expired / Wasted"
           value={expiredBatches}
-          subtitle={expiredBatches > 0 ? "Immediate Return/Waste" : "Zero Expired Stock"}
+          subtitle={expiredBatches > 0 ? "Immediate return/waste" : "Zero expired stock"}
           icon={AlertCircle}
           variant={expiredBatches > 0 ? "danger" : "default"}
         />
       </div>
 
-      {/* Live QR Scanner & Quick Lookup Console */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white shadow-md space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+      {/* Live QR Scanner & Quick Lookup Console - Clean White Card */}
+      <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600">
               <Scan className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">QR Batch Scanner &amp; Quick Lookup</h3>
-              <p className="text-[11px] text-slate-400">Scan via terminal camera, drop an image tag, or select a Batch ID below.</p>
+              <h3 className="font-bold text-sm text-slate-900">QR Batch Scanner & Quick Lookup</h3>
+              <p className="text-[11px] text-slate-500">Scan via terminal camera, drop an image tag, or select a Batch ID below.</p>
             </div>
           </div>
 
           {/* Quick Batch Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-medium">Quick Lookup:</span>
-            <select
-              value={selectedBatch?.batchId || ''}
-              onChange={(e) => {
-                const b = productBatches.find((item) => item.batchId === e.target.value);
-                if (b) setSelectedBatch(b);
-              }}
-              className="py-1.5 px-3 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono font-bold text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            >
-              {productBatches.map((b) => (
-                <option key={b.batchId} value={b.batchId}>
-                  {b.batchId} — {b.productName} ({b.remainingQty} {b.unit})
-                </option>
-              ))}
-            </select>
+            <span className="text-xs text-slate-500 font-medium">Quick Lookup:</span>
+            <div className="relative">
+              <select
+                value={selectedBatch?.batchId || ''}
+                onChange={(e) => {
+                  const b = productBatches.find((item) => item.batchId === e.target.value);
+                  if (b) setSelectedBatch(b);
+                }}
+                className="py-1.5 pl-3 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer"
+              >
+                {productBatches.map((b) => (
+                  <option key={b.batchId} value={b.batchId}>
+                    {b.batchId} — {b.productName} ({b.remainingQty} {b.unit})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Camera Scanner Simulation View */}
         {isCameraActive && (
-          <div className="p-4 rounded-xl bg-slate-950 border border-emerald-500/40 space-y-3">
+          <div className="p-4 rounded-xl bg-slate-50 border border-emerald-500/30 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
                   Terminal Camera Feed Active
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400">Simulate scanning by tapping any batch below:</span>
+              <span className="text-[11px] text-slate-500">Simulate scanning by tapping any batch below:</span>
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -226,7 +232,7 @@ export const BatchTrackingPage = () => {
                 <button
                   key={b.batchId}
                   onClick={() => handleSimulateScan(b)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-emerald-900/40 text-xs text-slate-200 hover:text-emerald-300 border border-slate-700 transition-all font-mono"
+                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-xs text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 transition-all font-mono cursor-pointer shadow-2xs"
                 >
                   [Scan {b.batchId}]
                 </button>
@@ -236,9 +242,9 @@ export const BatchTrackingPage = () => {
         )}
 
         {scanMessage && (
-          <div className="p-2.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-medium flex items-center justify-between">
+          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center justify-between">
             <span>{scanMessage}</span>
-            <button onClick={() => setScanMessage('')} className="text-xs text-slate-400 hover:text-white">&times;</button>
+            <button onClick={() => setScanMessage('')} className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer">&times;</button>
           </div>
         )}
       </div>
@@ -399,32 +405,104 @@ export const BatchTrackingPage = () => {
 
       {/* All Batches Table */}
       <div className="space-y-3">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search batches by ID, product, supplier, or location..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            />
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search batches by ID, product, supplier, or location..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/70 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="w-full sm:w-auto min-w-[170px]">
+              <div className="relative">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full appearance-none pl-3.5 pr-8 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100/70 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all cursor-pointer"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="Bakery">Bakery &amp; Pav</option>
+                  <option value="Dairy">Dairy Products</option>
+                  <option value="Poultry">Poultry &amp; Meats</option>
+                  <option value="Produce">Fresh Produce</option>
+                  <option value="Dry Spices">Dry Spices</option>
+                </select>
+                <Filter className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Segmented Filter Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+              {[
+                { id: 'all', label: 'All Batches', count: productBatches.length },
+                { id: 'active', label: 'Active', count: activeBatches },
+                { id: 'near_expiry', label: 'Near Expiry', count: nearExpiryBatches },
+                { id: 'depleted', label: 'Depleted' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
+                    statusFilter === tab.id
+                      ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                      : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {tab.count !== undefined && (
+                    <span
+                      className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                        statusFilter === tab.id
+                          ? 'bg-emerald-700 text-white'
+                          : tab.id === 'near_expiry' && tab.count > 0
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="text-xs font-medium py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700"
-            >
-              <option value="all">All Categories</option>
-              <option value="Bakery">Bakery &amp; Pav</option>
-              <option value="Dairy">Dairy Products</option>
-              <option value="Poultry">Poultry &amp; Meats</option>
-              <option value="Produce">Fresh Produce</option>
-              <option value="Dry Spices">Dry Spices</option>
-            </select>
-          </div>
+          {(searchTerm || categoryFilter !== 'all' || statusFilter !== 'all') && (
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+              <span>
+                Showing <strong className="text-slate-700">{filteredBatches.length}</strong> of{' '}
+                <strong className="text-slate-700">{productBatches.length}</strong> batches
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setCategoryFilter('all');
+                  setStatusFilter('all');
+                }}
+                className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Filters</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">

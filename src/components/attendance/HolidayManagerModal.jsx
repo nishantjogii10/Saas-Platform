@@ -27,7 +27,7 @@ import {
   X,
 } from 'lucide-react';
 
-export const HolidayManagerModal = ({ isOpen, onClose }) => {
+export const HolidayManagerModal = ({ isOpen, onClose, branchId: propBranchId }) => {
   const {
     holidays,
     addHoliday,
@@ -48,7 +48,7 @@ export const HolidayManagerModal = ({ isOpen, onClose }) => {
   const canUpdate = hasPermission(userRole, 'HOLIDAYS_UPDATE') && !isStaffOrInvMgr;
   const canDelete = hasPermission(userRole, 'HOLIDAYS_DELETE') && !isStaffOrInvMgr;
 
-  const assignedBranchId = currentUser?.branchId || currentBranch?.id || 'branch-pune-central';
+  const assignedBranchId = propBranchId || currentUser?.branchId || currentBranch?.id || 'branch-pune-central';
 
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingHolidayId, setEditingHolidayId] = useState(null);

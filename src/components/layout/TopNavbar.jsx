@@ -136,38 +136,22 @@ const roleFilteredAlerts = useMemo(() => {
       severity: a.severity,
       actionLink: a.actionLink,
       sourceType: 'alert',
-      badge: 'Stock Alert',
+      badge: a.badge || 'Stock Alert',
+      holidayId: a.holidayId,
+      leaveId: a.leaveId,
+      poId: a.poId || a.orderId,
+      returnId: a.returnId,
+      ingredientId: a.ingredientId,
+      branchId: a.branchId,
       action: () => {
-        markAlertRead(a.id);
-
-        if (a.actionLink) {
-          if (currentUser?.role === 'kitchen_staff') {
-            if (a.actionLink.startsWith('/purchase-orders')) {
-              navigate('/kitchen/report-stock');
-            } else if (a.actionLink.startsWith('/inventory')) {
-              navigate('/kitchen/ingredients');
-            } else if (['/kitchen', '/alerts', '/my-attendance', '/profile'].some((path) => a.actionLink.startsWith(path))) {
-              navigate(a.actionLink);
-            } else {
-              navigate('/alerts?tab=alerts');
-            }
-          } else {
-            const managerRestricted =
-              currentUser?.role === 'restaurant_manager' &&
-              !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
-                a.actionLink.startsWith(path)
-              );
-            navigate(managerRestricted ? '/alerts' : a.actionLink);
-          }
-          const managerRestricted =
-            currentUser?.role === 'restaurant_manager' &&
-            !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
-              a.actionLink.startsWith(path)
-            );
-          const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
-          navigate(managerRestricted ? '/alerts' : resolvedLink);
-        }
-
+        handleNotificationClick({
+          notification: a,
+          navigate,
+          currentUser,
+          currentBranchId,
+          addToast,
+          markAsRead: markAlertRead,
+        });
         setShowNotifications(false);
       },
     }));
@@ -238,38 +222,29 @@ const roleFilteredAlerts = useMemo(() => {
       message: n.message || '',
       timestamp: n.timestamp,
       read: Boolean(n.read),
-      type: n.actionLink === '/inbox' ? 'announcement' : 'notification',
+      type: n.actionLink === '/inbox' ? 'announcement' : (n.type || 'notification'),
       severity: n.priority === 'urgent' ? 'critical' : n.severity || 'normal',
       actionLink: n.actionLink,
       sourceType: 'notification',
-      badge:
-        n.actionLink === '/inbox' ? 'Announcement' : n.badge || 'Notice',
+      badge: n.actionLink === '/inbox' ? 'Announcement' : n.badge || 'Notice',
       action: () => {
-        if (n.targetStaffId) {
-          markStaffNotificationRead(n.id);
-        } else {
-          markOwnerNotificationRead(n.id);
-        }
-
         if (n.announcementId && currentRestaurant) {
           markAnnouncementAsRead(n.announcementId, currentRestaurant.id);
         }
-
-        if (n.actionLink) {
-          if (isKitchenStaff) {
-            if (['/kitchen', '/alerts', '/my-attendance', '/profile'].some((path) => n.actionLink.startsWith(path))) {
-              navigate(n.actionLink);
+        handleNotificationClick({
+          notification: n,
+          navigate,
+          currentUser,
+          currentBranchId,
+          addToast,
+          markAsRead: (id) => {
+            if (n.targetStaffId) {
+              markStaffNotificationRead(id);
             } else {
-              navigate('/alerts?tab=notifications');
+              markOwnerNotificationRead(id);
             }
-          } else {
-            navigate(n.actionLink);
-          }
-        const resolvedLink = resolveNotificationActionLink(n);
-        if (resolvedLink) {
-          navigate(resolvedLink);
-        }
-
+          },
+        });
         setShowNotifications(false);
       },
     }));
@@ -320,21 +295,22 @@ const roleFilteredAlerts = useMemo(() => {
       return;
     }
 
-    if (item.sourceType === 'alert') {
-      markAlertRead(item.id);
-    } else if (isKitchenStaff) {
-      markStaffNotificationRead(item.id);
-    } else {
-      markOwnerNotificationRead(item.id);
-    }
-
-    if (item.actionLink) {
-      navigate(
-        isKitchenStaff && !item.actionLink.startsWith('/kitchen')
-          ? '/kitchen'
-          : item.actionLink
-      );
-    }
+    handleNotificationClick({
+      notification: item,
+      navigate,
+      currentUser,
+      currentBranchId,
+      addToast,
+      markAsRead: (id) => {
+        if (item.sourceType === 'alert') {
+          markAlertRead(id);
+        } else if (item.targetStaffId || isKitchenStaff) {
+          markStaffNotificationRead(id);
+        } else {
+          markOwnerNotificationRead(id);
+        }
+      },
+    });
 
     setShowNotifications(false);
   };

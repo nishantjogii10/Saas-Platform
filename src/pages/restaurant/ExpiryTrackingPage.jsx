@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   ClockAlert,
@@ -33,6 +33,23 @@ import { formatINR } from '../../data/inventoryBillingData';
 export const ExpiryTrackingPage = () => {
   const navigate = useNavigate();
   const { restaurantIngredients, recordWastage, currentUser, currentBranch, productBatches, supplierAgreements } = useApp();
+
+  const [searchParams] = useSearchParams();
+
+  // Auto-filter by ingredient from alert deep links
+  useEffect(() => {
+    const targetIngId = searchParams.get('ingredientId');
+    if (targetIngId && (restaurantIngredients || []).length > 0) {
+      const match = restaurantIngredients.find(
+        (ing) =>
+          String(ing.id).toLowerCase() === String(targetIngId).toLowerCase() ||
+          (ing.batchNumber && String(ing.batchNumber).toLowerCase() === String(targetIngId).toLowerCase())
+      );
+      if (match) {
+        setSearchTerm(match.name);
+      }
+    }
+  }, [searchParams, restaurantIngredients]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -214,66 +231,112 @@ export const ExpiryTrackingPage = () => {
     },
   ];
 
+  const safeCount = Math.max(0, restaurantIngredients.length - urgentCount - expiredCount);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Batch Expiry & Shelf-Life Tracking"
-        subtitle="Enforce FIFO & FEFO inventory rotation, prevent food waste, and enforce fresh bread return agreements"
+        subtitle="Enforce FIFO & FEFO inventory rotation, prevent food waste, and enforce fresh bread return agreements."
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Expiry Tracking' },
         ]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Download}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
               onClick={() => setIsExportOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Export to Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={RotateCcw}
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Export</span>
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/supplier-returns')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Fresh Goods Returns
-            </Button>
-            <Button
-              variant="brand"
-              size="sm"
-              icon={QrCode}
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Fresh Goods Returns</span>
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/batch-tracking')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
-              QR & Batch Console
-            </Button>
+              <QrCode className="w-4 h-4" />
+              <span>QR & Batch Console</span>
+            </button>
           </div>
         }
       />
 
-      {/* FEFO Priority Queue & Policy Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-emerald-950 rounded-2xl p-5 text-white border border-emerald-800/40 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-800/50 pb-4 mb-4">
+      {/* 4 Summary Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          title="Total Monitored"
+          value={restaurantIngredients.length}
+          unit="batches"
+          subtitle="Active stock batches"
+          icon={Layers}
+          variant="default"
+          onClick={() => setFilterMode('all')}
+          className={filterMode === 'all' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : ''}
+        />
+        <StatCard
+          title="Expiring <= 3 Days"
+          value={urgentCount}
+          unit="items"
+          subtitle="Prioritize on prep lines"
+          icon={ClockAlert}
+          variant="warning"
+          onClick={() => setFilterMode('urgent')}
+          className={filterMode === 'urgent' ? 'border-amber-500 ring-2 ring-amber-500/10' : ''}
+        />
+        <StatCard
+          title="Expired Batches"
+          value={expiredCount}
+          unit="items"
+          subtitle="Requires discard / wastage"
+          icon={AlertTriangle}
+          variant="danger"
+          onClick={() => setFilterMode('expired')}
+          className={filterMode === 'expired' ? 'border-rose-500 ring-2 ring-rose-500/10' : ''}
+        />
+        <StatCard
+          title="Safe & Fresh (> 7d)"
+          value={safeCount}
+          unit="items"
+          subtitle="Optimal shelf-life"
+          icon={CheckCircle2}
+          variant="success"
+          onClick={() => setFilterMode('safe')}
+          className={filterMode === 'safe' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : ''}
+        />
+      </div>
+
+      {/* FEFO Priority Queue & Policy Clean White Panel */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold mb-1 border border-emerald-500/30">
-              <Sparkles className="w-3.5 h-3.5" /> Food Safety Standard: FEFO & FIFO Rotation
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold mb-1 border border-emerald-200/80">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Food Safety Standard: FEFO & FIFO Rotation</span>
             </div>
-            <h3 className="text-lg font-bold text-white">FEFO Priority Queue (First-Expired, First-Out)</h3>
-            <p className="text-xs text-slate-300">
-              Perishable ingredients must be consumed strictly by earliest expiration date. Non-perishables follow FIFO. Never invent expiry dates.
+            <h3 className="text-base font-bold text-slate-900">FEFO Priority Queue (First-Expired, First-Out)</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Perishable ingredients must be consumed strictly by earliest expiration date. Non-perishables follow FIFO.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="xs"
-            className="text-white border-emerald-600 hover:bg-emerald-900"
-            iconRight={ArrowRight}
+          <button
+            type="button"
             onClick={() => navigate('/batch-tracking')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer self-start md:self-auto"
           >
-            Open Batch Matrix
-          </Button>
+            <span>Open Batch Matrix</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Top 3 Earliest Expiring Batches */}
@@ -288,38 +351,40 @@ export const ExpiryTrackingPage = () => {
               return (
                 <div
                   key={b.batchId}
-                  className="bg-slate-900/90 rounded-xl p-3 border border-emerald-700/40 text-xs flex flex-col justify-between"
+                  className="bg-slate-50/80 hover:bg-slate-100/70 rounded-xl p-3.5 border border-slate-200/80 text-xs flex flex-col justify-between transition-all"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-[10px] text-emerald-400 bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-800">
-                        FEFO Priority #{idx + 1}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        FEFO #{idx + 1}
                       </span>
-                      <span className={`text-[11px] font-bold ${daysLeft <= 2 ? 'text-amber-400' : 'text-slate-300'}`}>
-                        {daysLeft <= 0 ? 'Expires Today' : `${daysLeft}d remaining`}
+                      <span className={`text-[11px] font-bold ${daysLeft <= 2 ? 'text-amber-700' : 'text-slate-600'}`}>
+                        {daysLeft <= 0 ? 'Expires Today' : `${daysLeft}d left`}
                       </span>
                     </div>
-                    <div className="font-bold text-white text-sm truncate">{b.productName}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      Batch: <span className="font-mono text-slate-300">{b.batchId}</span> • Stock: <span className="font-bold text-emerald-300">{b.remainingQty} {b.unit}</span>
+                    <div className="font-bold text-slate-900 text-sm truncate">{b.productName}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      Batch: <span className="font-mono text-slate-700">{b.batchId}</span> • Stock: <span className="font-bold text-slate-800">{b.remainingQty} {b.unit}</span>
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      Expiry: <strong className="text-amber-300">{b.expiryDate}</strong> ({b.storageLocation})
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Expiry: <strong className="text-amber-700">{b.expiryDate}</strong> ({b.storageLocation})
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                  <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between gap-2">
                     {isBakeryOrDairy ? (
                       <button
+                        type="button"
                         onClick={() => navigate('/supplier-returns')}
-                        className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
                       >
-                        <RotateCcw className="w-3 h-3" /> Return Unsold Fresh Stock
+                        <RotateCcw className="w-3 h-3" /> Return Fresh Stock
                       </button>
                     ) : (
                       <button
+                        type="button"
                         onClick={() => navigate('/batch-tracking')}
-                        className="text-[11px] font-semibold text-slate-300 hover:text-white flex items-center gap-1"
+                        className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
                       >
                         <QrCode className="w-3 h-3" /> Scan / Log Prep
                       </button>
@@ -331,75 +396,91 @@ export const ExpiryTrackingPage = () => {
         </div>
       </div>
 
-      {/* Expiry Overview Badges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Expiring in &le; 3 Days</span>
-            <div className="text-2xl font-bold text-amber-950 mt-1">{urgentCount} Items</div>
-            <p className="text-[11px] text-amber-800 mt-0.5">Prioritize on kitchen prep stations</p>
+      {/* Search and Filter Toolbar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by ingredient or batch number..."
+              className="w-full pl-10 pr-9 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/70 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                title="Clear search"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            )}
           </div>
-          <ClockAlert className="w-8 h-8 text-amber-600" />
+
+          {/* Filter Chips */}
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            {[
+              { id: 'all', label: 'All Batches', count: restaurantIngredients.length },
+              { id: 'urgent', label: 'Expiring <= 3 Days', count: urgentCount },
+              { id: 'week', label: 'Expiring <= 7 Days' },
+              { id: 'expired', label: 'Expired', count: expiredCount },
+              { id: 'safe', label: 'Safe / Good', count: safeCount },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilterMode(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
+                  filterMode === tab.id
+                    ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                      filterMode === tab.id
+                        ? 'bg-emerald-700 text-white'
+                        : tab.id === 'expired' && tab.count > 0
+                        ? 'bg-rose-100 text-rose-700'
+                        : tab.id === 'urgent' && tab.count > 0
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-rose-900 uppercase tracking-wider">Expired Batches</span>
-            <div className="text-2xl font-bold text-rose-950 mt-1">{expiredCount} Items</div>
-            <p className="text-[11px] text-rose-800 mt-0.5">Must be discarded & logged as wastage</p>
-          </div>
-          <AlertTriangle className="w-8 h-8 text-rose-600" />
-        </div>
-
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Good Condition</span>
-            <div className="text-2xl font-bold text-emerald-950 mt-1">
-              {restaurantIngredients.length - urgentCount - expiredCount} Items
-            </div>
-            <p className="text-[11px] text-emerald-800 mt-0.5">Healthy shelf-life buffer</p>
-          </div>
-          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-        </div>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search by ingredient or batch number..."
-          className="w-full sm:w-80"
-        />
-
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {[
-            { id: 'all', label: 'All Batches' },
-            { id: 'urgent', label: 'Expiring <= 3 Days', count: urgentCount },
-            { id: 'week', label: 'Expiring <= 7 Days' },
-            { id: 'expired', label: 'Expired', count: expiredCount },
-            { id: 'safe', label: 'Safe / Good' },
-          ].map((tab) => (
+        {/* Reset Filter indicator */}
+        {(searchTerm || filterMode !== 'all') && (
+          <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+            <span>
+              Showing <strong className="text-slate-700">{filteredItems.length}</strong> of{' '}
+              <strong className="text-slate-700">{restaurantIngredients.length}</strong> batches
+            </span>
             <button
-              key={tab.id}
-              onClick={() => setFilterMode(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none ${
-                filterMode === tab.id
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterMode('all');
+              }}
+              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
             >
-              {tab.label}
-              {tab.count !== undefined && tab.count > 0 && (
-                <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  tab.id === 'expired' ? 'bg-rose-500 text-white' : 'bg-amber-400 text-amber-950'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Filters</span>
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Main Table */}

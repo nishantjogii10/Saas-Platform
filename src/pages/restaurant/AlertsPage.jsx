@@ -22,15 +22,13 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
+import { handleNotificationClick } from '../../utils/notificationNavigation';
 
 export const AlertsPage = () => {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const urlTab = searchParams.get('tab') || searchParams.get('filter');
-
   const {
     currentUser,
+    currentBranchId,
     restaurantAlerts,
     staffNotifications,
     ownerNotifications,
@@ -42,6 +40,7 @@ export const AlertsPage = () => {
     markOwnerNotificationRead,
     markAllOwnerNotificationsRead,
     dismissAlert,
+    addToast,
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
@@ -311,68 +310,49 @@ export const AlertsPage = () => {
         { label: 'Alerts' },
       ];
 
-  // Resolves and normalizes action links with exact requisition IDs and tabs
-  const getAlertActionLink = (alert) => {
-    if (!alert.actionLink && !alert.actionLabel) return null;
-    const label = (alert.actionLabel || '').toLowerCase();
-    const type = (alert.type || '').toLowerCase();
-    const badge = (alert.badge || '').toLowerCase();
-
-    if (label.includes('roster') || badge.includes('invite') || type === 'staff_added') {
-      return '/workforce?tab=roster';
-    }
-    if (label.includes('timesheet') || badge.includes('shift end') || type === 'staff_punch_out') {
-      return '/workforce?tab=attendance';
-    }
-    if (label.includes('attendance') || badge.includes('attendance') || type === 'staff_punch_in' || type === 'attendance_notice') {
-      return '/workforce?tab=attendance';
-    }
-    if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
-      const holidayId = alert.holidayId || '';
-      return holidayId ? `/workforce?tab=holidays&holidayId=${holidayId}` : '/workforce?tab=holidays';
-    }
-    if (type === 'leave_request' || label.includes('leave')) {
-      const leaveId = alert.leaveId || (alert.id?.startsWith('alert-leave-') ? alert.id.replace('alert-leave-', '') : '');
-      if (leaveId) {
-        return `/workforce?tab=leave&leaveId=${leaveId}`;
-      }
-      return '/workforce?tab=leave';
-    }
-    let link = alert.actionLink || '';
-    return link.replace('/branch-staff', '/workforce');
+    // Dispatches notification clicks with centralized RBAC and record resolution
+  const onNotificationAction = (alt, e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    handleNotificationClick({
+      notification: alt,
+      navigate,
+      currentUser,
+      currentBranchId,
+      addToast,
+      markAsRead: markAlertRead,
+    });
   };
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title={pageTitle}
         subtitle={pageSubtitle}
         breadcrumbs={breadcrumbs}
         title={isManager ? "Staff & Operations Notices" : "Kitchen & Stock Notifications"}
-        subtitle={isManager ? "Real-time employee leave requests and station attendance alerts" : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates"}
+        subtitle={isManager ? "Real-time employee leave requests and station attendance alerts." : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates."}
         breadcrumbs={[
           { label: 'Restaurant', href: '#/dashboard' },
           { label: 'Alerts' },
         ]}
         actions={
           unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Check}
-              onClick={handleMarkAllRead}
+            <button
+              type="button"
+              onClick={markAllAlertsRead}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
             >
-              Mark All as Read ({unreadCount})
-            </Button>
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Mark All as Read ({unreadCount})</span>
+            </button>
           )
         }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {tabs.map((tab) => (
+      {/* Filter Toolbar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs">
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
           {(isManager
             ? [
                 { id: 'all', label: 'All Staff Notices', count: roleFilteredAlerts.length },
@@ -391,22 +371,23 @@ export const AlertsPage = () => {
           ).map((tab) => (
             <button
               key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
+              type="button"
+              onClick={() => setFilterMode(tab.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
                 filterMode === tab.id
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                  : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
                 <span
-                  className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    tab.id === 'unread'
-                      ? 'bg-rose-500 text-white'
-                      : filterMode === tab.id
-                      ? 'bg-emerald-900 text-emerald-100'
-                      : 'bg-slate-300 text-slate-800'
+                  className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                    filterMode === tab.id
+                      ? 'bg-emerald-700 text-white'
+                      : tab.id === 'unread'
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                 >
                   {tab.count}
@@ -449,10 +430,8 @@ export const AlertsPage = () => {
           filteredAlerts.map((alt) => (
             <div
               key={alt.id}
-              onClick={() => {
-                if (!alt.read) markAlertRead(alt.id);
-              }}
-              title={!alt.read ? 'Click anywhere on this alert to mark as read' : undefined}
+              onClick={(e) => onNotificationAction(alt, e)}
+              title="Click anywhere to open notice details"
               className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs cursor-pointer ${
                 !alt.read
                   ? 'bg-white border-emerald-300/80 ring-1 ring-emerald-500/10 hover:border-emerald-400 hover:shadow-sm'
@@ -622,11 +601,7 @@ export const AlertsPage = () => {
                     iconRight={ExternalLink}
                     onClick={(e) => {
                       e.stopPropagation();
-                      markAlertRead(alt.id);
-                      const targetLink = getAlertActionLink(alt);
-                      if (targetLink) {
-                        navigate(targetLink);
-                      }
+                      onNotificationAction(alt, e);
                     }}
                   >
                     {alt.actionLabel || 'Take Action'}
