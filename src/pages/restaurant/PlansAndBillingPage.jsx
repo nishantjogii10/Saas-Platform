@@ -338,7 +338,7 @@ export const PlansAndBillingPage = () => {
                   {branchesByPlan['plan-enterprise'].length} Outlets Assigned
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Full flagship operations: unlimited staff, multi-location transfers, automated GRN dock &amp; supplier billing.
+                  Full flagship operations: unlimited staff, central commissary dispatch, automated GRN dock &amp; supplier billing.
                 </p>
                 <div className="mt-3 space-y-1.5">
                   {branchesByPlan['plan-enterprise'].map((b) => (

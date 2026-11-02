@@ -274,21 +274,26 @@ export const SupplierInvoicesPage = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-4">Invoice # & Date</th>
+                  <th className="py-3 px-4">Invoice #</th>
+                  <th className="py-3 px-4">Issue Date</th>
+                  <th className="py-3 px-4">Due Date</th>
                   <th className="py-3 px-4">Billed Restaurant</th>
-                  <th className="py-3 px-4">PO & Delivery Status</th>
+                  <th className="py-3 px-4">PO Reference</th>
+                  <th className="py-3 px-4">GRN Ref</th>
                   <th className="py-3 px-4 text-right">Gross Amount</th>
                   <th className="py-3 px-4 text-right">Deductions</th>
                   <th className="py-3 px-4 text-right">Net Payable</th>
+                  <th className="py-3 px-4 text-right">Received</th>
                   <th className="py-3 px-4 text-right">Outstanding</th>
-                  <th className="py-3 px-4">Status & UTR</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4">UTR Ref</th>
                   <th className="py-3 px-4 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-10 text-center text-slate-400">
+                    <td colSpan={14} className="py-10 text-center text-slate-400">
                       <div className="font-bold text-slate-700 text-sm">
                         {myInvoices.length === 0 ? 'No Invoices Found' : 'No Invoices Match Filter'}
                       </div>
@@ -302,25 +307,33 @@ export const SupplierInvoicesPage = () => {
                 ) : (
                   filteredInvoices.map((inv) => (
                     <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{inv.invoiceNumber}</div>
-                        <div className="text-[11px] text-slate-400">Issued: {inv.issueDate}</div>
-                        <div className="text-[11px] font-medium text-amber-700">Due: {inv.dueDate}</div>
+                      <td className="py-3 px-4 font-bold text-slate-900 font-mono">
+                        {inv.invoiceNumber}
                       </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-800">{inv.restaurantName}</div>
-                        <div className="text-[11px] text-slate-400">Commercial Client</div>
+                      <td className="py-3 px-4 text-slate-600 font-mono">
+                        {inv.issueDate}
                       </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-700">{inv.poNumber}</div>
-                        <div className="text-[11px] font-mono text-emerald-800">{inv.verificationStatus || inv.grnNumber || 'Order Placed'}</div>
+                      <td className="py-3 px-4 text-amber-700 font-semibold font-mono">
+                        {inv.dueDate}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <div className="font-semibold text-slate-800">{formatINR(inv.totalAmount)}</div>
-                        <div className="text-[11px] text-slate-400">Tax: {formatINR(inv.taxAmount)}</div>
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        {inv.restaurantName}
+                      </td>
+
+                      <td className="py-3 px-4 font-bold text-slate-700 font-mono">
+                        {inv.poNumber}
+                      </td>
+
+                      <td className="py-3 px-4 font-mono text-emerald-800">
+                        {inv.verificationStatus || inv.grnNumber || 'Order Placed'}
+                      </td>
+
+                      <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                        <div>{formatINR(inv.totalAmount)}</div>
+                        <div className="text-[10px] text-slate-400">Tax: {formatINR(inv.taxAmount)}</div>
                       </td>
 
                       <td className="py-3 px-4 text-right">
@@ -333,31 +346,35 @@ export const SupplierInvoicesPage = () => {
                         )}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <div className="font-bold text-slate-900">{formatINR(inv.netPayable)}</div>
-                        <div className="text-[11px] text-emerald-700 font-semibold">
-                          Received: {formatINR(inv.paidAmount || 0)}
-                        </div>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900">
+                        {formatINR(inv.netPayable)}
+                      </td>
+
+                      <td className="py-3 px-4 text-right text-emerald-700 font-bold">
+                        {formatINR(inv.paidAmount || 0)}
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <div
+                        <span
                           className={`font-bold ${
                             inv.outstandingBalance > 0 ? 'text-amber-700 text-sm' : 'text-slate-400'
                           }`}
                         >
                           {formatINR(inv.outstandingBalance)}
-                        </div>
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4 text-center">
+                        {getStatusBadge(inv.paymentStatus)}
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="mb-1">{getStatusBadge(inv.paymentStatus)}</div>
                         {inv.transactionRef ? (
-                          <div className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded inline-block">
-                            Ref: {inv.transactionRef}
-                          </div>
+                          <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded inline-block">
+                            {inv.transactionRef}
+                          </span>
                         ) : (
-                          <span className="text-[11px] text-slate-400 italic">Pending Transfer</span>
+                          <span className="text-[11px] text-slate-400 italic">—</span>
                         )}
                       </td>
 

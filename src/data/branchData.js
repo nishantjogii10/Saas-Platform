@@ -1,4 +1,4 @@
-// StockMate Multi-Branch Management, Branch Subscriptions, Staff Transfers & Notifications Dataset
+// StockMate Multi-Branch Management, Branch Subscriptions & Notifications Dataset
 
 export const formatINR = (amount) => {
   if (amount === undefined || amount === null || isNaN(amount)) return '₹0';
@@ -496,7 +496,7 @@ export const initialBranchStaff = [
       ifscCode: 'HDFC0001234',
       bankStatus: 'Verified',
     },
-    assignedModules: ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Transfers', 'Staff Reports', 'Alerts'],
+    assignedModules: ['Staff Management', 'Attendance Clock', 'Leave Approvals', 'Staff Reports', 'Alerts'],
   },
   {
     id: 'usr-sg-2',
@@ -703,81 +703,48 @@ export const initialBranchStaff = [
   },
 ];
 
-// Staff Transfer Requests
-export const initialStaffTransfers = [
-  {
-    id: 'TR-101',
-    employeeId: 'usr-sg-3',
-    employeeName: 'Chef Anita Rao',
-    employeeAvatar: 'https://images.unsplash.com/photo-1583394293214-28ded15ee548?w=150&auto=format&fit=crop&q=80',
-    role: 'kitchen_staff',
-    roleLabel: 'Head Chef',
-    fromBranchId: 'branch-pune-central',
-    fromBranchName: 'Spice Garden — Pune Central',
-    toBranchId: 'branch-hinjawadi',
-    toBranchName: 'Spice Garden — Hinjawadi',
-    reason: 'Urgent weekend chef support for peak IT park lunch rush',
-    requestedBy: 'Deepak Shinde (Manager, Hinjawadi)',
-    requestedById: 'usr-hinj-mgr',
-    requestDate: '2026-10-22',
-    status: 'Pending', // Pending | Approved | Rejected
-    comments: 'Awaiting Restaurant Owner authorization.',
-    history: [
-      { date: '2026-10-22 10:30 AM', action: 'Transfer Request Submitted', by: 'Deepak Shinde' },
-    ],
-  },
-  {
-    id: 'TR-102',
-    employeeId: 'usr-hinj-cook',
-    employeeName: 'Chef Rohan Jadhav',
-    employeeAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-    role: 'kitchen_staff',
-    roleLabel: 'Line Cook',
-    fromBranchId: 'branch-hinjawadi',
-    fromBranchName: 'Spice Garden — Hinjawadi',
-    toBranchId: 'branch-baner',
-    toBranchName: 'Spice Garden — Baner',
-    reason: 'Permanent relocation closer to new residence in Baner',
-    requestedBy: 'Chef Rohan Jadhav',
-    requestedById: 'usr-hinj-cook',
-    requestDate: '2026-10-18',
-    status: 'Approved',
-    approvedBy: 'Priya Sharma (Restaurant Owner)',
-    approvalDate: '2026-10-19',
-    comments: 'Approved. Destination branch staff quota validated (5/15 staff).',
-    history: [
-      { date: '2026-10-18 03:15 PM', action: 'Transfer Requested by Employee', by: 'Rohan Jadhav' },
-      { date: '2026-10-19 11:00 AM', action: 'Approved and Reassigned by Owner', by: 'Priya Sharma' },
-    ],
-  },
-  {
-    id: 'TR-103',
-    employeeId: 'usr-wakad-cook',
-    employeeName: 'Chef Sameer More',
-    employeeAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
-    role: 'kitchen_staff',
-    roleLabel: 'Quick Station Cook',
-    fromBranchId: 'branch-wakad',
-    fromBranchName: 'Spice Garden — Wakad',
-    toBranchId: 'branch-pune-central',
-    toBranchName: 'Spice Garden — Pune Central',
-    reason: 'Advanced culinary training and inventory management certification at flagship',
-    requestedBy: 'Rahul Verma (Manager, Pune Central)',
-    requestedById: 'usr-sg-2',
-    requestDate: '2026-10-15',
-    status: 'Approved',
-    approvedBy: 'Priya Sharma (Restaurant Owner)',
-    approvalDate: '2026-10-16',
-    comments: 'Certified and scheduled for 60-day rotation.',
-    history: [
-      { date: '2026-10-15 02:00 PM', action: 'Rotation Request Submitted', by: 'Rahul Verma' },
-      { date: '2026-10-16 10:15 AM', action: 'Approved by Owner', by: 'Priya Sharma' },
-    ],
-  },
-];
 
 // Restaurant Owner Notifications Dataset
 export const initialOwnerNotifications = [
+  {
+    id: 'notif-staff-invite',
+    type: 'staff_added',
+    title: 'New Staff Member Invited: Chef Rohan Jadhav',
+    message: 'Chef Rohan Jadhav invited to Spice Garden — Hinjawadi as Line Cook. Credentials dispatched.',
+    branchId: 'branch-hinjawadi',
+    branchName: 'Spice Garden — Hinjawadi',
+    read: false,
+    timestamp: '1 hour ago',
+    actionLink: '/workforce?tab=roster',
+    actionLabel: 'View Staff Roster',
+    badge: 'Team Invite',
+  },
+  {
+    id: 'notif-punch-out-karan',
+    type: 'staff_punch_out',
+    title: 'Staff Punched Out: Karan Joshi',
+    message: 'Karan Joshi completed shift at Station: Line Cook. Total work duration: 8.5 hrs.',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
+    read: false,
+    timestamp: '2 hours ago',
+    actionLink: '/workforce?tab=attendance',
+    actionLabel: 'View Timesheet',
+    badge: 'Shift End',
+  },
+  {
+    id: 'notif-punch-in-anita',
+    type: 'staff_punch_in',
+    title: 'Staff Punched In: Chef Anita Rao',
+    message: 'Chef Anita Rao (Head Chef) clocked in at 08:30 AM • Station: Main Prep Line.',
+    branchId: 'branch-pune-central',
+    branchName: 'Spice Garden — Pune Central',
+    read: false,
+    timestamp: '3 hours ago',
+    actionLink: '/workforce?tab=attendance',
+    actionLabel: 'View Attendance',
+    badge: 'Attendance',
+  },
   {
     id: 'notif-1',
     type: 'renewal_upcoming',
@@ -794,21 +761,7 @@ export const initialOwnerNotifications = [
     actionLabel: 'Review Subscription',
     badge: 'Renewal Alert',
   },
-  {
-    id: 'notif-2',
-    type: 'transfer_request',
-    title: 'Staff Transfer Request: Chef Anita Rao',
-    message: 'Deepak Shinde requested transfer of Chef Anita Rao from Pune Central to Hinjawadi.',
-    branchId: 'branch-hinjawadi',
-    branchName: 'Spice Garden — Hinjawadi',
-    transferId: 'TR-101',
-    read: false,
-    timestamp: 'Yesterday',
-    actionLink: '/staff-transfers',
-    actionLabel: 'Review Transfer',
-    badge: 'Staff Workflow',
-  },
-  {
+    {
     id: 'notif-3',
     type: 'payment_success',
     title: 'Subscription Payment Cleared',

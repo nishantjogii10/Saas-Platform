@@ -41,6 +41,8 @@ import {
   ANNOUNCEMENT_CATEGORIES,
   PRIORITY_CONFIGS,
   interpolateTemplateVariables,
+  resolveAnnouncementCategory,
+  resolveAnnouncementPriority,
 } from '../../data/announcementData';
 
 export const OwnerInboxPage = () => {
@@ -94,7 +96,8 @@ export const OwnerInboxPage = () => {
   const tenantAnnouncements = useMemo(() => {
     if (!currentRestaurant) return [];
 
-    return announcements
+    return (announcements || [])
+      .filter(Boolean)
       .filter((ann) => {
         if (ann.status !== 'published') return false;
         // Tenant scope check:
@@ -142,24 +145,27 @@ export const OwnerInboxPage = () => {
 
   // Folder Counts
   const folderCounts = useMemo(() => {
-    const unarchived = tenantAnnouncements.filter((a) => !a.isArchived);
+    const unarchived = (tenantAnnouncements || []).filter((a) => a && !a.isArchived);
+    const getCat = (a) => a?.category || a?.type || 'general';
     return {
       all: unarchived.length,
       unread: unarchived.filter((a) => !a.isRead).length,
       important: unarchived.filter((a) => a.priority === 'urgent' || a.priority === 'important').length,
-      receipt: unarchived.filter((a) => a.category === 'receipt').length,
-      subscription: unarchived.filter((a) => a.category === 'subscription' || a.category === 'billing').length,
-      policy: unarchived.filter((a) => a.category === 'policy').length,
-      security: unarchived.filter((a) => a.category === 'security').length,
-      maintenance: unarchived.filter((a) => a.category === 'maintenance').length,
-      feature: unarchived.filter((a) => a.category === 'feature').length,
-      archived: tenantAnnouncements.filter((a) => a.isArchived).length,
+      receipt: unarchived.filter((a) => getCat(a) === 'receipt').length,
+      subscription: unarchived.filter((a) => getCat(a) === 'subscription' || getCat(a) === 'billing').length,
+      policy: unarchived.filter((a) => getCat(a) === 'policy').length,
+      security: unarchived.filter((a) => getCat(a) === 'security').length,
+      maintenance: unarchived.filter((a) => getCat(a) === 'maintenance').length,
+      feature: unarchived.filter((a) => getCat(a) === 'feature').length,
+      archived: (tenantAnnouncements || []).filter((a) => a && a.isArchived).length,
     };
   }, [tenantAnnouncements]);
 
   // Filtered by selected folder and search query
   const filteredList = useMemo(() => {
-    return tenantAnnouncements.filter((ann) => {
+    return (tenantAnnouncements || []).filter((ann) => {
+      if (!ann) return false;
+      const cat = ann.category || ann.type || 'general';
       // Archive handling
       if (activeFolder === 'archived') {
         if (!ann.isArchived) return false;
@@ -176,25 +182,25 @@ export const OwnerInboxPage = () => {
       ) {
         return false;
       }
-      if (activeFolder === 'receipt' && ann.category !== 'receipt') return false;
-      if (activeFolder === 'policy' && ann.category !== 'policy') return false;
-      if (activeFolder === 'security' && ann.category !== 'security') return false;
+      if (activeFolder === 'receipt' && cat !== 'receipt') return false;
+      if (activeFolder === 'policy' && cat !== 'policy') return false;
+      if (activeFolder === 'security' && cat !== 'security') return false;
       if (
         activeFolder === 'subscription' &&
-        ann.category !== 'subscription' &&
-        ann.category !== 'billing'
+        cat !== 'subscription' &&
+        cat !== 'billing'
       ) {
         return false;
       }
-      if (activeFolder === 'maintenance' && ann.category !== 'maintenance') return false;
-      if (activeFolder === 'feature' && ann.category !== 'feature') return false;
+      if (activeFolder === 'maintenance' && cat !== 'maintenance') return false;
+      if (activeFolder === 'feature' && cat !== 'feature') return false;
 
       // Search matching
       if (searchTerm) {
         const query = searchTerm.toLowerCase();
-        const matchesTitle = ann.title?.toLowerCase().includes(query);
-        const matchesSummary = ann.summary?.toLowerCase().includes(query);
-        const matchesBody = ann.body?.toLowerCase().includes(query);
+        const matchesTitle = (ann.title || '').toLowerCase().includes(query);
+        const matchesSummary = (ann.summary || '').toLowerCase().includes(query);
+        const matchesBody = (ann.body || '').toLowerCase().includes(query);
         return matchesTitle || matchesSummary || matchesBody;
       }
 
@@ -287,11 +293,11 @@ export const OwnerInboxPage = () => {
   }, [activeAnnouncement, ownerContext]);
 
   const activeCategoryObj = activeAnnouncement
-    ? ANNOUNCEMENT_CATEGORIES[activeAnnouncement.category] || ANNOUNCEMENT_CATEGORIES.general
+    ? resolveAnnouncementCategory(activeAnnouncement)
     : null;
 
   const activePriorityObj = activeAnnouncement
-    ? PRIORITY_CONFIGS[activeAnnouncement.priority] || PRIORITY_CONFIGS.normal
+    ? resolveAnnouncementPriority(activeAnnouncement)
     : null;
 
   return (
@@ -424,11 +430,10 @@ export const OwnerInboxPage = () => {
               </div>
             ) : (
               filteredList.map((ann) => {
+                if (!ann) return null;
                 const isSelected = activeAnnouncement?.id === ann.id;
-                const cat =
-                  ANNOUNCEMENT_CATEGORIES[ann.category] || ANNOUNCEMENT_CATEGORIES.general;
-                const prio =
-                  PRIORITY_CONFIGS[ann.priority] || PRIORITY_CONFIGS.normal;
+                const cat = resolveAnnouncementCategory(ann);
+                const prio = resolveAnnouncementPriority(ann);
 
                 return (
                   <div
@@ -572,8 +577,8 @@ export const OwnerInboxPage = () => {
                   subject={activeAnnouncement.title}
                   summary={activeAnnouncement.summary}
                   body={interpolatedBody}
-                  category={activeAnnouncement.category}
-                  priority={activeAnnouncement.priority}
+                  category={activeAnnouncement?.category || activeAnnouncement?.type || 'general'}
+                  priority={activeAnnouncement?.priority || 'normal'}
                   author={activeAnnouncement.author}
                   authorRole={activeAnnouncement.authorRole}
                   publishedAt={activeAnnouncement.publishedAt}

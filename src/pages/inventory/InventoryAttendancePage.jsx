@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Clock,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import { PunchClockWidget } from '../../components/kitchen/PunchClockWidget';
 import { MonthlyAttendanceCalendar } from '../../components/attendance/MonthlyAttendanceCalendar';
+import { HolidayDetailsModal } from '../../components/attendance/HolidayDetailsModal';
 import { LeaveRequestModal } from '../../components/kitchen/LeaveRequestModal';
 import { SalarySlipModal } from '../../components/kitchen/SalarySlipModal';
 import { ColumnExportDialog } from '../../components/common/ColumnExportDialog';
@@ -44,10 +46,28 @@ export const InventoryAttendancePage = () => {
     addToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar' | 'leave' | 'holidays' | 'history' | 'payroll'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'calendar');
+  const [viewingHoliday, setViewingHoliday] = useState(null); // 'calendar' | 'leave' | 'holidays' | 'history' | 'payroll'
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [selectedSalarySlip, setSelectedSalarySlip] = useState(null);
+
+  // Sync search params
+  useEffect(() => {
+    const rawTab = searchParams.get('tab');
+    if (rawTab && ['calendar', 'leave', 'holidays', 'history', 'payroll'].includes(rawTab)) {
+      setActiveTab(rawTab);
+    }
+    const rawHolidayId = searchParams.get('holidayId');
+    if (rawHolidayId) {
+      const matchHol = (holidays || []).find((h) => String(h.id) === String(rawHolidayId));
+      if (matchHol) {
+        setViewingHoliday(matchHol);
+        setActiveTab('holidays');
+      }
+    }
+  }, [searchParams, holidays]);
 
   // Active attendance session
   const activeRecord = attendanceRecords.find(
@@ -88,7 +108,7 @@ export const InventoryAttendancePage = () => {
               </span>
               <span className="text-xs text-slate-400">•</span>
               <span className="text-xs text-teal-200 font-medium">
-                {currentRestaurant?.name} ({currentBranch?.name || 'Assigned Branch'})
+                {currentRestaurant?.name}
               </span>
             </div>
 
@@ -352,6 +372,7 @@ export const InventoryAttendancePage = () => {
                   <th className="py-3 px-4">Holiday Name</th>
                   <th className="py-3 px-4">Classification</th>
                   <th className="py-3 px-4">Applicability</th>
+                  <th className="py-3 px-4 text-right">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -387,6 +408,16 @@ export const InventoryAttendancePage = () => {
                       </td>
                       <td className="py-3 px-4 text-slate-500 text-[11px]">
                         {h.branchId === 'all' || !h.branchId ? 'All Branches' : currentBranch?.name || 'Local Branch'}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          icon={Eye}
+                          onClick={() => setViewingHoliday(h)}
+                        >
+                          View
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -526,6 +557,22 @@ export const InventoryAttendancePage = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Holiday Details Modal */}
+      {viewingHoliday && (
+        <HolidayDetailsModal
+          isOpen={!!viewingHoliday}
+          onClose={() => {
+            setViewingHoliday(null);
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('holidayId');
+              return next;
+            });
+          }}
+          holiday={viewingHoliday}
+        />
       )}
 
       {/* Leave Application Modal */}

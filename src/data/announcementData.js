@@ -190,6 +190,33 @@ export const interpolateTemplateVariables = (text = '', context = {}, options = 
   return result;
 };
 
+/**
+ * Safely resolves a category object for any announcement, template, alert, or notification.
+ * Handles missing/null values, unknown categories, and maps alternate field names like type.
+ */
+export const resolveAnnouncementCategory = (item) => {
+  if (!item) return ANNOUNCEMENT_CATEGORIES.general;
+  const raw = String(item.category || item.type || 'general').toLowerCase();
+  if (ANNOUNCEMENT_CATEGORIES[raw]) return ANNOUNCEMENT_CATEGORIES[raw];
+  if (raw.includes('policy')) return ANNOUNCEMENT_CATEGORIES.policy;
+  if (raw.includes('renew') || raw.includes('subscript')) return ANNOUNCEMENT_CATEGORIES.subscription;
+  if (raw.includes('bill') || raw.includes('invoice') || raw.includes('payment')) return ANNOUNCEMENT_CATEGORIES.billing;
+  if (raw.includes('receipt')) return ANNOUNCEMENT_CATEGORIES.receipt;
+  if (raw.includes('sec') || raw.includes('auth')) return ANNOUNCEMENT_CATEGORIES.security;
+  if (raw.includes('maint') || raw.includes('down')) return ANNOUNCEMENT_CATEGORIES.maintenance;
+  if (raw.includes('feat') || raw.includes('release')) return ANNOUNCEMENT_CATEGORIES.feature;
+  return ANNOUNCEMENT_CATEGORIES.general;
+};
+
+/**
+ * Safely resolves a priority config object for any item.
+ */
+export const resolveAnnouncementPriority = (item) => {
+  if (!item) return PRIORITY_CONFIGS.normal;
+  const raw = String(item.priority || 'normal').toLowerCase();
+  return PRIORITY_CONFIGS[raw] || PRIORITY_CONFIGS.normal;
+};
+
 // 8 Commercial SaaS Predefined Message Templates
 export const INITIAL_ANNOUNCEMENT_TEMPLATES = [
   {
@@ -287,7 +314,7 @@ export const INITIAL_ANNOUNCEMENT_TEMPLATES = [
     ctaLink: '/workforce',
     requiresAcknowledgment: false,
     policyVersion: null,
-  },,
+  },
   {
     id: 'tpl-receipt-07',
     category: 'receipt',

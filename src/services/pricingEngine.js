@@ -99,7 +99,7 @@ export const BASE_PLANS = {
       'Everything in Professional, plus:',
       'Up to 10 Outlets & 50 Staff Accounts',
       'Up to 5 Dedicated POS Terminals',
-      'Multi-Store Staff Transfers & Central Commissary',
+      'Central Commissary & Multi-Store Stock Management',
       'Swiggy / Zomato Online Aggregator Sync',
       'Predictive Consumption & Wastage BI',
       'Dedicated Account Manager & 24/7 Phone SLA',
