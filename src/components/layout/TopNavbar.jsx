@@ -110,19 +110,31 @@ const roleFilteredAlerts = React.useMemo(() => {
       action: () => {
         markAlertRead(a.id);
         if (a.actionLink) {
-          const managerRestricted =
-            currentUser?.role === 'restaurant_manager' &&
-            !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
-              a.actionLink.startsWith(path)
-            );
-          navigate(managerRestricted ? '/alerts' : a.actionLink);
+          if (currentUser?.role === 'kitchen_staff') {
+            if (a.actionLink.startsWith('/purchase-orders')) {
+              navigate('/kitchen/report-stock');
+            } else if (a.actionLink.startsWith('/inventory')) {
+              navigate('/kitchen/ingredients');
+            } else if (['/kitchen', '/alerts', '/my-attendance', '/profile'].some((path) => a.actionLink.startsWith(path))) {
+              navigate(a.actionLink);
+            } else {
+              navigate('/alerts?tab=alerts');
+            }
+          } else {
+            const managerRestricted =
+              currentUser?.role === 'restaurant_manager' &&
+              !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
+                a.actionLink.startsWith(path)
+              );
+            navigate(managerRestricted ? '/alerts' : a.actionLink);
+          }
         }
         setShowNotifications(false);
       },
     }));
 
     const sourceNotifications = isKitchenStaff
-      ? (staffNotifications || [])
+      ? (staffNotifications || []).filter((n) => !n.targetStaffId || n.targetStaffId === currentUser?.id)
       : (ownerNotifications || []);
 
     const notices = sourceNotifications.map((n) => ({
@@ -149,11 +161,15 @@ const roleFilteredAlerts = React.useMemo(() => {
         }
 
         if (n.actionLink) {
-          navigate(
-            isKitchenStaff && !n.actionLink.startsWith('/kitchen')
-              ? '/kitchen'
-              : n.actionLink
-          );
+          if (isKitchenStaff) {
+            if (['/kitchen', '/alerts', '/my-attendance', '/profile'].some((path) => n.actionLink.startsWith(path))) {
+              navigate(n.actionLink);
+            } else {
+              navigate('/alerts?tab=notifications');
+            }
+          } else {
+            navigate(n.actionLink);
+          }
         }
         setShowNotifications(false);
       },
@@ -480,7 +496,7 @@ const roleFilteredAlerts = React.useMemo(() => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Notices ({relevantUnreadNotifs.length})
+                    Notifications ({relevantUnreadNotifs.length})
                   </button>
                 </div>
 
@@ -542,7 +558,7 @@ const roleFilteredAlerts = React.useMemo(() => {
 
 <div className="border-t border-slate-100 p-2.5 bg-slate-50/50 flex items-center justify-between text-xs font-semibold px-4">
                   <Link
-                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
+                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts?tab=alerts'}
                     onClick={() => setShowNotifications(false)}
 className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1 transition-colors"
                   >
@@ -550,11 +566,11 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                   <Link
-                    to={isKitchenStaff ? '/kitchen' : '/notifications'}
+                    to={isKitchenStaff ? '/alerts?tab=notifications' : (currentUser?.role === 'restaurant_owner' ? '/notifications' : '/alerts?tab=notifications')}
                     onClick={() => setShowNotifications(false)}
                     className="text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 transition-colors"
                   >
-                    <span>All Notices ({relevantNotifs.length})</span>
+                    <span>All Notifications ({relevantNotifs.length})</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                   {currentUser?.role === 'restaurant_owner' && (

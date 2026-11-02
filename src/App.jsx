@@ -140,7 +140,7 @@ const DashboardDispatcher = () => {
     case 'supplier':
       return <Navigate to="/supplier" replace />;
     case 'kitchen_staff':
-      return <Navigate to="/kitchen" replace />;
+      return <Navigate to="/alerts?tab=notifications" replace />;
     case 'restaurant_manager':
       return <Navigate to="/workforce" replace />;
     case 'inventory_manager':
@@ -157,9 +157,9 @@ const NotificationsDispatcher = () => {
 
   switch (currentUser.role) {
     case 'kitchen_staff':
-      return <Navigate to="/kitchen" replace />;
+      return <Navigate to="/alerts?tab=notifications" replace />;
     case 'inventory_manager':
-      return <Navigate to="/alerts" replace />;
+      return <Navigate to="/alerts?tab=notifications" replace />;
     case 'supplier':
       return <Navigate to="/supplier" replace />;
     case 'super_admin':
@@ -533,7 +533,7 @@ function App() {
             path="/alerts"
             element={
               <AppLayout>
-                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager']}>
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager', 'kitchen_staff']}>
                   <AlertsPage />
                 </RoleGuard>
               </AppLayout>
@@ -655,7 +655,9 @@ function App() {
             path="/notifications"
             element={
               <AppLayout>
-                <NotificationsDispatcher />
+                <RoleGuard allowedRoles={['restaurant_owner', 'inventory_manager', 'restaurant_manager', 'kitchen_staff', 'supplier']}>
+                  <NotificationsDispatcher />
+                </RoleGuard>
               </AppLayout>
             }
           />

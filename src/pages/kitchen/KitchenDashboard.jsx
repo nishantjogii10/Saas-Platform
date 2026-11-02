@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   ChefHat,
@@ -60,7 +60,15 @@ export const KitchenDashboard = () => {
   } = useApp();
 
   // Active Tab: 'operations' | 'calendar' | 'leave' | 'notifications' | 'payroll'
-  const [activeTab, setActiveTab] = useState('operations');
+  const [searchParams] = useSearchParams();
+  const tabQuery = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabQuery || 'operations');
+
+  useEffect(() => {
+    if (tabQuery && ['operations', 'calendar', 'leave', 'notifications', 'payroll'].includes(tabQuery)) {
+      setActiveTab(tabQuery);
+    }
+  }, [tabQuery]);
 
   // Modals
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
