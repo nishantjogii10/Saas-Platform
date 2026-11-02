@@ -156,6 +156,9 @@ const roleFilteredAlerts = useMemo(() => {
       },
     }));
 
+    const sourceNotifications = isKitchenStaff
+      ? (staffNotifications || []).filter((n) => !n.targetStaffId || n.targetStaffId === currentUser?.id)
+      : (ownerNotifications || []);
     // Individually addressed staff notifications targeted at current employee
     const personalStaffNotifs = (staffNotifications || []).filter(
       (n) => n.targetStaffId === currentUser?.id
@@ -576,7 +579,7 @@ const roleFilteredAlerts = useMemo(() => {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    Notices ({relevantUnreadNotifs.length})
+                    Notifications ({relevantUnreadNotifs.length})
                   </button>
                 </div>
 
@@ -638,7 +641,7 @@ const roleFilteredAlerts = useMemo(() => {
 
 <div className="border-t border-slate-100 p-2.5 bg-slate-50/50 flex items-center justify-between text-xs font-semibold px-4">
                   <Link
-                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts'}
+                    to={currentUser?.role === 'restaurant_manager' ? '/branch-staff' : '/alerts?tab=alerts'}
                     onClick={() => setShowNotifications(false)}
 className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1 transition-colors"
                   >
@@ -646,11 +649,11 @@ className="text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                   <Link
-                    to={isKitchenStaff ? '/kitchen' : '/notifications'}
+                    to={isKitchenStaff ? '/alerts?tab=notifications' : (currentUser?.role === 'restaurant_owner' ? '/notifications' : '/alerts?tab=notifications')}
                     onClick={() => setShowNotifications(false)}
                     className="text-slate-600 hover:text-slate-900 inline-flex items-center gap-1 transition-colors"
                   >
-                    <span>All Notices ({relevantNotifs.length})</span>
+                    <span>All Notifications ({relevantNotifs.length})</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                   {currentUser?.role === 'restaurant_owner' && (

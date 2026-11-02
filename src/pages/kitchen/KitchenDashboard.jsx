@@ -60,7 +60,15 @@ export const KitchenDashboard = () => {
   } = useApp();
 
   // Active Tab: 'operations' | 'calendar' | 'leave' | 'notifications' | 'payroll'
-  const [activeTab, setActiveTab] = useState('operations');
+  const [searchParams] = useSearchParams();
+  const tabQuery = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabQuery || 'operations');
+
+  useEffect(() => {
+    if (tabQuery && ['operations', 'calendar', 'leave', 'notifications', 'payroll'].includes(tabQuery)) {
+      setActiveTab(tabQuery);
+    }
+  }, [tabQuery]);
 
   // Modals
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);

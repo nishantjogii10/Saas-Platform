@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import {
   Bell,
@@ -13,6 +13,9 @@ import {
   ExternalLink,
   Check,
   X,
+  IndianRupee,
+  Receipt,
+  Megaphone,
   Trash2,
   Sparkles,
 } from 'lucide-react';
@@ -27,22 +30,119 @@ export const AlertsPage = () => {
     currentUser,
     currentBranchId,
     restaurantAlerts,
+    staffNotifications,
+    ownerNotifications,
+    salaryPayments,
     markAlertRead,
     markAllAlertsRead,
+    markStaffNotificationRead,
+    markAllStaffNotificationsRead,
+    markOwnerNotificationRead,
+    markAllOwnerNotificationsRead,
     dismissAlert,
     addToast,
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isKitchenStaff = currentUser?.role === 'kitchen_staff';
   const [filterMode, setFilterMode] = useState('all'); // all | unread | critical | expiry | leaves | shifts
 
-  const roleFilteredAlerts = (restaurantAlerts || []).filter((a) => {
-    if (a.targetRoles && currentUser?.role && !a.targetRoles.includes(currentUser.role) && currentUser.role !== 'super_admin') {
-      return false;
-    }
-    return true;
-  });
+  const [filterMode, setFilterMode] = useState(urlTab || 'all');
+  const [selectedSalarySlip, setSelectedSalarySlip] = useState(null);
 
+  // Sync tab with URL search parameter
+  useEffect(() => {
+    if (urlTab) {
+      setFilterMode(urlTab);
+    }
+  }, [urlTab]);
+
+  // 1. Filtered stock/operational alerts for current user
+  const roleFilteredAlerts = useMemo(() => {
+    return (restaurantAlerts || [])
+      .filter((a) => {
+        if (
+          a.targetRoles &&
+          currentUser?.role &&
+          !a.targetRoles.includes(currentUser.role) &&
+          currentUser.role !== 'super_admin'
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((a) => ({
+        ...a,
+        sourceType: 'alert',
+        badgeLabel: a.badge || 'Stock Alert',
+      }));
+  }, [restaurantAlerts, currentUser]);
+
+  // 2. Role-specific notifications (staff notices for kitchen staff, owner notices for owner/admin)
+  const relevantNotifs = useMemo(() => {
+    if (isKitchenStaff) {
+      return (staffNotifications || [])
+        .filter((n) => !n.targetStaffId || n.targetStaffId === currentUser?.id)
+        .map((n) => ({
+          ...n,
+          sourceType: 'notification',
+          badgeLabel:
+            n.type === 'salary_credit'
+              ? 'Payroll'
+              : n.type === 'leave_status'
+              ? 'Leave Update'
+              : 'Kitchen Notice',
+          severity: n.type === 'salary_credit' ? 'normal' : n.severity || 'low',
+        }));
+    }
+    if (isManager) {
+      return (ownerNotifications || [])
+        .filter((n) => n.type === 'leave_request' || n.type === 'transfer_request')
+        .map((n) => ({
+          ...n,
+          sourceType: 'notification',
+          badgeLabel: n.badge || 'Staff Notice',
+        }));
+    }
+    // Owner / Inventory Manager
+    return (ownerNotifications || []).map((n) => ({
+      ...n,
+      sourceType: 'notification',
+      badgeLabel: n.badge || 'Notice',
+      severity: n.severity || 'normal',
+    }));
+  }, [isKitchenStaff, isManager, staffNotifications, ownerNotifications, currentUser]);
+
+  // 3. Combined items sorted chronologically
+  const allItems = useMemo(() => {
+    if (isManager) {
+      return roleFilteredAlerts;
+    }
+    const combined = [...roleFilteredAlerts, ...relevantNotifs];
+    return combined.sort((a, b) => {
+      const timeA = new Date(a.timestamp || 0).getTime() || 0;
+      const timeB = new Date(b.timestamp || 0).getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [isManager, roleFilteredAlerts, relevantNotifs]);
+
+  // 4. Filtered items based on active tab
+  const filteredItems = useMemo(() => {
+    return allItems.filter((item) => {
+      if (filterMode === 'unread') return !item.read;
+      if (filterMode === 'alerts') return item.sourceType === 'alert';
+      if (filterMode === 'notifications' || filterMode === 'notices')
+        return item.sourceType === 'notification';
+
+      if (isManager) {
+        if (filterMode === 'leaves') return item.type === 'leave_request';
+        if (filterMode === 'transfers')
+          return item.type === 'transfer_request' || item.type === 'attendance_notice';
+        return true;
+      }
+
+      if (filterMode === 'critical') return item.severity === 'critical' || item.severity === 'high';
+      if (filterMode === 'expiry') return item.type === 'expiring_soon' || item.type === 'expired';
   const filteredAlerts = roleFilteredAlerts.filter((a) => {
     if (filterMode === 'unread') return !a.read;
     if (filterMode === 'holidays') {
@@ -52,13 +152,163 @@ export const AlertsPage = () => {
       if (filterMode === 'leaves') return a.type === 'leave_request';
       if (filterMode === 'shifts') return a.type === 'attendance_notice';
       return true;
-    }
-    if (filterMode === 'critical') return a.severity === 'critical' || a.severity === 'high';
-    if (filterMode === 'expiry') return a.type === 'expiring_soon' || a.type === 'expired';
-    return true;
-  });
+    });
+  }, [allItems, filterMode, isManager]);
 
-  const unreadCount = roleFilteredAlerts.filter(a => !a.read).length;
+  const unreadCount = allItems.filter((a) => !a.read).length;
+
+  const handleTabChange = (tabId) => {
+    setFilterMode(tabId);
+    setSearchParams({ tab: tabId });
+  };
+
+  const handleMarkItemRead = (item) => {
+    if (item.sourceType === 'notification') {
+      if (isKitchenStaff) {
+        markStaffNotificationRead(item.id);
+      } else {
+        markOwnerNotificationRead(item.id);
+      }
+    } else {
+      markAlertRead(item.id);
+    }
+  };
+
+  const handleMarkAllRead = () => {
+    markAllAlertsRead();
+    if (isKitchenStaff) {
+      markAllStaffNotificationsRead(currentUser?.id);
+    } else if (!isManager) {
+      markAllOwnerNotificationsRead();
+    }
+  };
+
+  const handleDismiss = (item) => {
+    if (item.sourceType === 'alert') {
+      dismissAlert(item.id);
+    } else {
+      handleMarkItemRead(item);
+    }
+  };
+
+  const getSafeAction = (item) => {
+    if (item.type === 'salary_credit') {
+      const match =
+        salaryPayments?.find(
+          (p) =>
+            p.referenceNumber === item.referenceNumber ||
+            p.targetStaffId === currentUser?.id
+        ) || {
+          referenceNumber: item.referenceNumber || 'UTR-SAL-202610-8842',
+          payPeriod: item.payPeriod || 'October 2026',
+          netPayable: item.amount || 32000,
+          staffName: currentUser?.name || 'Kitchen Staff',
+          employeeCode: currentUser?.code || 'EMP-KITCHEN',
+          status: 'Credited',
+          paymentDate: '31 Oct 2026',
+          branchName: 'Spice Garden - Pune Central',
+        };
+      return {
+        label: 'View Pay Slip',
+        onClick: () => {
+          handleMarkItemRead(item);
+          setSelectedSalarySlip(match);
+        },
+      };
+    }
+
+    if (!item.actionLink) return null;
+
+    let targetLink = item.actionLink;
+    let targetLabel = item.actionLabel || 'Take Action';
+
+    if (isKitchenStaff) {
+      if (item.actionLink.startsWith('/purchase-orders')) {
+        targetLink = '/kitchen/report-stock';
+        targetLabel = 'Report Stock';
+      } else if (item.actionLink.startsWith('/inventory')) {
+        targetLink = '/kitchen/ingredients';
+        targetLabel = 'Check Stock';
+      } else if (item.actionLink.startsWith('/expiry-tracking')) {
+        targetLink = '/kitchen/ingredients';
+        targetLabel = 'View Shelf-Life';
+      } else if (
+        !['/kitchen', '/alerts', '/my-attendance', '/profile'].some((p) =>
+          item.actionLink.startsWith(p)
+        )
+      ) {
+        targetLink = '/kitchen';
+        targetLabel = 'Kitchen Station';
+      }
+    } else if (isManager) {
+      if (
+        !['/workforce', '/branch-staff', '/staff-transfers', '/alerts', '/reports', '/my-attendance', '/profile'].some(
+          (p) => item.actionLink.startsWith(p)
+        )
+      ) {
+        targetLink = '/alerts';
+      }
+    }
+
+    return {
+      label: targetLabel,
+      onClick: () => {
+        handleMarkItemRead(item);
+        navigate(targetLink);
+      },
+    };
+  };
+
+  const tabs = useMemo(() => {
+    if (isKitchenStaff) {
+      return [
+        { id: 'all', label: 'All Activity', count: allItems.length },
+        { id: 'alerts', label: 'Stock Alerts', count: roleFilteredAlerts.length },
+        { id: 'notifications', label: 'Staff Notices & Payroll', count: relevantNotifs.length },
+        { id: 'unread', label: 'Unread Only', count: unreadCount },
+        { id: 'critical', label: 'Critical & High' },
+        { id: 'expiry', label: 'Expiry Warnings' },
+      ];
+    }
+    if (isManager) {
+      return [
+        { id: 'all', label: 'All Staff Notices', count: roleFilteredAlerts.length },
+        { id: 'unread', label: 'Unread Only', count: unreadCount },
+        { id: 'leaves', label: 'Leave Requests' },
+        { id: 'transfers', label: 'Transfers & Shifts' },
+      ];
+    }
+    return [
+      { id: 'all', label: 'All Activity', count: allItems.length },
+      { id: 'alerts', label: 'Stock Alerts', count: roleFilteredAlerts.length },
+      { id: 'notifications', label: 'System Notices', count: relevantNotifs.length },
+      { id: 'unread', label: 'Unread Only', count: unreadCount },
+      { id: 'critical', label: 'Critical & High' },
+      { id: 'expiry', label: 'Expiry Warnings' },
+    ];
+  }, [isKitchenStaff, isManager, allItems.length, roleFilteredAlerts.length, relevantNotifs.length, unreadCount]);
+
+  const pageTitle = isManager
+    ? 'Staff & Operations Notices'
+    : isKitchenStaff
+    ? 'Kitchen Station Alerts & Notifications'
+    : 'Kitchen & Stock Notifications';
+
+  const pageSubtitle = isManager
+    ? 'Real-time employee leave requests, transfer approvals, and station attendance alerts'
+    : isKitchenStaff
+    ? 'Real-time threshold alerts, batch shelf-life warnings, salary credits, and kitchen notices'
+    : 'Real-time threshold alerts, batch shelf-life warnings, and procurement updates';
+
+  const breadcrumbs = isKitchenStaff
+    ? [
+        { label: 'Kitchen Station', href: '#/kitchen' },
+        { label: 'Notifications & Alerts' },
+      ]
+    : [
+        { label: 'Restaurant', href: '#/dashboard' },
+        { label: 'Alerts' },
+      ];
 
     // Dispatches notification clicks with centralized RBAC and record resolution
   const onNotificationAction = (alt, e) => {
@@ -77,6 +327,9 @@ export const AlertsPage = () => {
   return (
     <div className="space-y-5">
       <PageHeader
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        breadcrumbs={breadcrumbs}
         title={isManager ? "Staff & Operations Notices" : "Kitchen & Stock Notifications"}
         subtitle={isManager ? "Real-time employee leave requests and station attendance alerts." : "Real-time threshold alerts, batch shelf-life warnings, and procurement updates."}
         breadcrumbs={[
@@ -145,11 +398,29 @@ export const AlertsPage = () => {
         </div>
       </div>
 
-      {/* Alerts List */}
+      {/* Items List */}
       <div className="space-y-3">
-        {filteredAlerts.length === 0 ? (
+        {filteredItems.length === 0 ? (
           <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-200">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-800">
+              {isManager
+                ? 'No active staff notices'
+                : isKitchenStaff
+                ? 'No active alerts or notices'
+                : 'No active alerts'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              {isManager
+                ? 'All staff leave requests, transfer applications, and shift rosters are in good standing.'
+                : isKitchenStaff
+                ? 'Your station inventory thresholds, ingredient shelf-lives, and remuneration updates are all up to date.'
+                : 'Your kitchen stock thresholds and batch expiry dates are in good standing.'}
+            </p>
+          </div>
+        ) : (
+          filteredItems.map((item) => {
+            const action = getSafeAction(item);
             <h3 className="text-base font-bold text-slate-800">{isManager ? "No active staff notices" : "No active alerts"}</h3>
             <p className="text-xs text-slate-500 mt-1">
               {isManager ? "All staff leave requests and shift rosters are in good standing." : "Your kitchen stock thresholds and batch expiry dates are in good standing."}
@@ -200,26 +471,127 @@ export const AlertsPage = () => {
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 text-sm">{alt.title}</span>
-                    <Badge status={alt.severity} size="xs" />
-                    {!alt.read && (
-                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="Unread"></span>
+            return (
+              <div
+                key={`${item.sourceType}-${item.id}`}
+                onClick={() => {
+                  if (!item.read) handleMarkItemRead(item);
+                }}
+                title={!item.read ? 'Click anywhere on this alert to mark as read' : undefined}
+                className={`p-4 sm:p-5 rounded-2xl border transition-all duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs cursor-pointer ${
+                  !item.read
+                    ? 'bg-white border-emerald-300/80 ring-1 ring-emerald-500/10 hover:border-emerald-400 hover:shadow-sm'
+                    : 'bg-white/80 border-slate-200 opacity-80 hover:opacity-100'
+                }`}
+              >
+                <div className="flex items-start gap-3.5 flex-1">
+                  <div className="mt-0.5 shrink-0">
+                    {item.type === 'salary_credit' ? (
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                        <IndianRupee className="w-5 h-5" />
+                      </div>
+                    ) : item.type === 'leave_status' || item.type === 'leave_request' ? (
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                    ) : item.type === 'transfer_request' ? (
+                      <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                        <ArrowLeftRight className="w-5 h-5" />
+                      </div>
+                    ) : item.type === 'attendance_notice' ? (
+                      <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                    ) : item.severity === 'critical' ? (
+                      <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                    ) : item.severity === 'high' ? (
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5" />
+                      </div>
+                    ) : item.type === 'expiring_soon' ? (
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                        <ClockAlert className="w-5 h-5" />
+                      </div>
+                    ) : item.sourceType === 'notification' ? (
+                      <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <ShoppingBag className="w-5 h-5" />
+                      </div>
                     )}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">{alt.message}</p>
-                  <span className="text-[11px] text-slate-400 block">
-                    {new Date(alt.timestamp).toLocaleString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-              </div>
 
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{item.title}</span>
+                      {item.severity && <Badge status={item.severity} size="xs" />}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        {item.badgeLabel}
+                      </span>
+                      {!item.read && (
+                        <span
+                          className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"
+                          title="Unread"
+                        />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                      {item.message}
+                    </p>
+                    <span className="text-[11px] text-slate-400 block">
+                      {item.timestamp && item.timestamp.includes('T')
+                        ? new Date(item.timestamp).toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : item.timestamp}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div
+                  className="flex items-center gap-2 shrink-0 self-end sm:self-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {action && (
+                    <Button
+                      variant="brand"
+                      size="xs"
+                      iconRight={ExternalLink}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        action.onClick();
+                      }}
+                    >
+                      {action.label}
+                    </Button>
+                  )}
+
+                  {!item.read ? (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkItemRead(item);
+                      }}
+                      title="Mark as Read"
+                      className="text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 font-medium px-1.5">Read</span>
+                  )}
+
+                  <button
               {/* Action Buttons */}
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-center" onClick={(e) => e.stopPropagation()}>
                 {alt.actionLink && (
@@ -242,33 +614,28 @@ export const AlertsPage = () => {
                     size="xs"
                     onClick={(e) => {
                       e.stopPropagation();
-                      markAlertRead(alt.id);
+                      handleDismiss(item);
                     }}
-                    title="Mark as Read"
-                    className="text-emerald-700 hover:bg-emerald-50"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
+                    title="Dismiss"
                   >
-                    <Check className="w-3.5 h-3.5" />
-                  </Button>
-                ) : (
-                  <span className="text-[11px] text-slate-400 font-medium px-1.5">Read</span>
-                )}
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    dismissAlert(alt.id);
-                  }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
-                  title="Dismiss notification"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* Salary Slip Modal */}
+      {selectedSalarySlip && (
+        <SalarySlipModal
+          isOpen={Boolean(selectedSalarySlip)}
+          onClose={() => setSelectedSalarySlip(null)}
+          payment={selectedSalarySlip}
+        />
+      )}
     </div>
   );
 };
-
