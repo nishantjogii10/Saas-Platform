@@ -47,6 +47,7 @@ export const SupplierDashboard = () => {
     suppliers,
     supplierPlanPayments,
     switchSupplierPlan,
+    staffNotifications,
   } = useApp();
 
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
@@ -95,6 +96,15 @@ export const SupplierDashboard = () => {
   const acceptedOrders = myOrders.filter((po) => po.status === 'accepted');
   const dispatchedOrders = myOrders.filter((po) => po.status === 'dispatched');
   const deliveredOrders = myOrders.filter((po) => po.status === 'delivered');
+  const draftAutoOrders = myOrders.filter((po) => po.status === 'draft' || po.isAutoReorder);
+  const lowStockNotifs = (staffNotifications || []).filter(
+    (n) =>
+      n.targetRole === 'supplier' &&
+      ((currentSupplierId && n.targetSupplierId === currentSupplierId) ||
+       (mySupplier.id && n.targetSupplierId === mySupplier.id) ||
+       (currentUser?.supplierName && n.message?.toLowerCase().includes(currentUser.supplierName.toLowerCase()))) &&
+      !n.read
+  );
 
   const totalFulfillValue = myOrders
     .filter((po) => po.status !== 'rejected' && po.status !== 'cancelled')
@@ -291,6 +301,34 @@ export const SupplierDashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* Automated Low-Stock Reorder / Replenishment Notice */}
+      {(lowStockNotifs.length > 0 || draftAutoOrders.length > 0) && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Zap className="w-5 h-5 fill-white text-white" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                <span>⚡ Low-Stock Replenishment Alert ({lowStockNotifs.length > 0 ? lowStockNotifs.length : draftAutoOrders.length} notice{lowStockNotifs.length === 1 ? '' : 's'})</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">Priority Replenishment</span>
+              </h4>
+              <p className="text-xs text-amber-900 mt-0.5">
+                {lowStockNotifs[0]?.message || 'Restaurant partner inventory is running low (e.g. Paneer / Chicken). Auto-reorder draft purchase orders have been queued.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="brand"
+            size="sm"
+            icon={ShoppingBag}
+            onClick={() => navigate('/supplier/orders')}
+          >
+            Review Assigned Orders
+          </Button>
+        </div>
+      )}
 
       {/* Pending Requisitions Banner (Workflow C Highlight) */}
       {pendingOrders.length > 0 && (

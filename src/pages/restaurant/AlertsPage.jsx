@@ -19,6 +19,7 @@ import {
   Trash2,
   Sparkles,
   ArrowLeftRight,
+  Zap,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/common/Button';
@@ -43,6 +44,7 @@ export const AlertsPage = () => {
     markOwnerNotificationRead,
     markAllOwnerNotificationsRead,
     dismissAlert,
+    triggerAutomatedLowStockReorder,
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
@@ -510,6 +512,22 @@ export const AlertsPage = () => {
                   className="flex items-center gap-2 shrink-0 self-end sm:self-center"
                   onClick={(e) => e.stopPropagation()}
                 >
+                  {/* Quick Auto-Reorder Trigger for Low-Stock Items */}
+                  {(item.type === 'low_stock' || item.type === 'out_of_stock') && item.ingredientId && !isKitchenStaff && !isManager && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      icon={Zap}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerAutomatedLowStockReorder({ ingredientId: item.ingredientId });
+                      }}
+                      title="Trigger automated low-stock reorder & supplier alert"
+                    >
+                      ⚡ Auto-Reorder
+                    </Button>
+                  )}
+
                   {action && (
                     <Button
                       variant="brand"

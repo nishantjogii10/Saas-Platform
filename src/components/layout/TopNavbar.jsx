@@ -175,16 +175,32 @@ const roleFilteredAlerts = useMemo(() => {
         (n) => !n.branchId || n.branchId === (currentUser.branchId || currentBranchId)
       );
       activeNotifications = [...personalStaffNotifs, ...managerBranchNotifs];
+    } else if (currentUser?.role === 'supplier') {
+      activeNotifications = (staffNotifications || []).filter(
+        (n) =>
+          (!n.targetSupplierId && !n.targetStaffId) ||
+          n.targetSupplierId === currentUser?.supplierId ||
+          n.targetStaffId === currentUser?.id ||
+          n.targetRole === 'supplier' ||
+          (currentUser?.supplierName && n.message?.toLowerCase().includes(currentUser.supplierName.toLowerCase()))
+      );
     } else {
       activeNotifications = personalStaffNotifs;
     }
 
     // Smart resolver for notification action links to exact tabs
     const resolveNotificationActionLink = (item) => {
-      if (!item) return '/workforce';
+      if (!item) return currentUser?.role === 'supplier' ? '/supplier/orders' : '/workforce';
       const label = (item.actionLabel || '').toLowerCase();
       const badge = (item.badge || '').toLowerCase();
       const type = (item.type || '').toLowerCase();
+
+      if (item.actionLink?.startsWith('/supplier') || type === 'low_stock_reorder') {
+        return item.actionLink || '/supplier/orders';
+      }
+      if (item.actionLink?.startsWith('/purchase-orders')) {
+        return item.actionLink;
+      }
 
       if (label.includes('holiday') || type.includes('holiday') || badge.includes('holiday')) {
         const holId = item.holidayId || '';

@@ -17,6 +17,7 @@ const BADGE_STYLES = {
   suspended: 'bg-rose-50/90 text-rose-800 border-rose-200/90',
 
   // Purchase Order Statuses
+  draft: 'bg-indigo-50/90 text-indigo-800 border-indigo-200/90 font-semibold',
   accepted: 'bg-blue-50/90 text-blue-800 border-blue-200/90',
   dispatched: 'bg-purple-50/90 text-purple-800 border-purple-200/90',
   delivered: 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90',
@@ -56,6 +57,7 @@ const FORMATTED_LABELS = {
   expired: 'Expired',
   active: 'Active',
   pending: 'Pending',
+  draft: 'Draft',
   suspended: 'Suspended',
   accepted: 'Accepted',
   dispatched: 'Dispatched',

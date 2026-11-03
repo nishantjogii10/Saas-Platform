@@ -22,6 +22,7 @@ import {
   UserCheck,
   Users,
   Plus,
+  Zap,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatCard } from '../../components/common/StatCard';
@@ -59,6 +60,7 @@ export const RestaurantDashboard = () => {
     branchStaff,
     currentBranch,
     currentUser,
+    triggerAutomatedLowStockReorder,
   } = useApp();
 
   // Strict Role Guard: Restaurant Manager is restricted to Staff Management (/workforce)
@@ -214,6 +216,15 @@ export const RestaurantDashboard = () => {
               onClick={() => navigate('/alerts')}
             >
               View Alerts
+            </Button>
+            <Button
+              variant="brand"
+              size="xs"
+              icon={Zap}
+              onClick={() => triggerAutomatedLowStockReorder()}
+              title="Automatically trigger draft PO and alert supplier"
+            >
+              ⚡ Auto-Reorder Stock
             </Button>
             {currentUser?.role !== 'restaurant_manager' && currentUser?.role !== 'restaurant_owner' && (
               <Button
