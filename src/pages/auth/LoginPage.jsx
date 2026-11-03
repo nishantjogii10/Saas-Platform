@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { getRoleLandingRoute } from '../../utils/permissions';
+import { getRoleLandingRoute, canAccessRoute } from '../../utils/permissions';
 import {
   Boxes,
   Shield,
@@ -1008,16 +1008,16 @@ export const LoginPage = () => {
   const routeToUserDashboard = (role) => {
     const targetDashboard = getRoleLandingRoute(role);
 
+    // If destination is missing, a generic entry point, or the role has no permission to access it,
+    // route safely to the role's target dashboard
     if (
-      role === 'restaurant_manager' ||
-      role === 'kitchen_staff' ||
-      role === 'inventory_manager' ||
-      role === 'supplier' ||
       !redirectDestination ||
       redirectDestination === '/notifications' ||
       redirectDestination === '/dashboard' ||
       redirectDestination === '/login' ||
-      redirectDestination === '/'
+      redirectDestination === '/' ||
+      redirectDestination === '/app' ||
+      !canAccessRoute(role, redirectDestination)
     ) {
       navigate(targetDashboard, { replace: true });
       return;

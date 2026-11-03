@@ -16,6 +16,7 @@ import {
   UploadCloud,
   X,
   RotateCcw,
+  Zap,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -36,6 +37,7 @@ export const InventoryPage = () => {
     currentUser,
     currentBranch,
     importIngredientsBulk,
+    triggerAutomatedLowStockReorder,
   } = useApp();
 
   const location = useLocation();
@@ -387,36 +389,54 @@ export const InventoryPage = () => {
     {
       header: 'Actions',
       accessor: 'id',
-      className: 'text-center w-24',
+      className: 'text-center w-28',
       cellClassName: 'text-center',
-      render: (row) => (
-        <div className="flex items-center justify-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => handleOpenEdit(row)}
-            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-300"
-            title="Edit ingredient"
-            aria-label="Edit ingredient"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
+      render: (row) => {
+        const qty = Number(row.quantity) || 0;
+        const minT = Number(row.minThreshold) || 0;
+        const isDepleted = qty <= minT || row.status === 'low_stock' || row.status === 'out_of_stock';
 
-          {currentUser?.role !== 'kitchen_staff' && (
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            {isDepleted && (
+              <button
+                type="button"
+                onClick={() => triggerAutomatedLowStockReorder({ ingredientId: row.id })}
+                className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-900 flex items-center justify-center transition-colors cursor-pointer border border-amber-200"
+                title={`⚡ Auto-reorder ${row.name} & notify supplier`}
+                aria-label={`Auto-reorder ${row.name}`}
+              >
+                <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => {
-                setIngredientToDelete(row);
-                setDeleteConfirmOpen(true);
-              }}
-              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-rose-200"
-              title="Delete ingredient"
-              aria-label="Delete ingredient"
+              onClick={() => handleOpenEdit(row)}
+              className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-300"
+              title="Edit ingredient"
+              aria-label="Edit ingredient"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
-      ),
+
+            {currentUser?.role !== 'kitchen_staff' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIngredientToDelete(row);
+                  setDeleteConfirmOpen(true);
+                }}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                title="Delete ingredient"
+                aria-label="Delete ingredient"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -432,6 +452,16 @@ export const InventoryPage = () => {
         ]}
         actions={
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => triggerAutomatedLowStockReorder()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 shadow-2xs hover:shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+              title="Run automated check to reorder all low stock ingredients"
+            >
+              <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              <span>Auto-Reorder</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsExportOpen(true)}
@@ -567,6 +597,33 @@ export const InventoryPage = () => {
           </div>
         </div>
       </div>
+
+      {/* 2.1 Automated Low-Stock Reordering Banner */}
+      {(summaryMetrics.lowStock > 0 || summaryMetrics.outOfStock > 0) && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-amber-50/80 to-orange-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Zap className="w-5 h-5 fill-white text-white" />
+            </div>
+            <div>
+              <div className="font-bold text-sm">
+                Automated Low-Stock Reordering ({summaryMetrics.lowStock + summaryMetrics.outOfStock} items below safety threshold)
+              </div>
+              <div className="text-xs text-amber-800/90 mt-0.5">
+                Automatically generate draft purchase orders and dispatch replenishment notices to tied-up &amp; third-party suppliers (e.g. Fresh Paneer &amp; Chicken).
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => triggerAutomatedLowStockReorder()}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:scale-95"
+          >
+            <Zap className="w-3.5 h-3.5 fill-white text-white" />
+            <span>⚡ Auto-Reorder All Depleted</span>
+          </button>
+        </div>
+      )}
 
       {/* 3. Search and Filter Toolbar */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs space-y-3">

@@ -21,6 +21,7 @@ import {
   UserCheck,
   Globe,
   Handshake,
+  Zap,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
@@ -48,6 +49,8 @@ export const PurchaseOrdersPage = () => {
     approvePurchaseOrder,
     verifyAndReceiveStock,
     receivePOAndStock,
+    triggerAutomatedLowStockReorder,
+    submitDraftPO,
     currentUser,
     currentBranch,
   } = useApp();
@@ -191,6 +194,12 @@ export const PurchaseOrdersPage = () => {
           <div className="text-xs text-slate-400">
             {new Date(row.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
           </div>
+          {row.isAutoReorder && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 mt-1">
+              <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+              Auto-Reorder
+            </span>
+          )}
         </div>
       ),
     },
@@ -274,6 +283,18 @@ export const PurchaseOrdersPage = () => {
             Details
           </Button>
 
+          {/* Draft Auto-Reorder PO Approval & Submission to Supplier */}
+          {row.status === 'draft' && (
+            <Button
+              variant="brand"
+              size="xs"
+              icon={CheckCircle2}
+              onClick={() => submitDraftPO(row.id)}
+            >
+              Approve &amp; Send
+            </Button>
+          )}
+
           {/* Owner / Admin Direct Requisition Fallback (if any legacy PO pending approval) */}
           {row.status === 'pending_approval' &&
             (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
@@ -336,6 +357,15 @@ export const PurchaseOrdersPage = () => {
             {currentUser.role !== 'kitchen_staff' && (
               <>
                 <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Zap}
+                  onClick={() => triggerAutomatedLowStockReorder()}
+                  title="Scan inventory for low-stock items and auto-generate draft POs & supplier alerts"
+                >
+                  ⚡ Auto-Reorder Check
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   icon={PackageCheck}
@@ -382,7 +412,7 @@ export const PurchaseOrdersPage = () => {
         />
 
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {['all', 'pending', 'accepted', 'dispatched', 'delivered', 'rejected'].map((f) => (
+          {['all', 'draft', 'pending', 'accepted', 'dispatched', 'delivered', 'rejected'].map((f) => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
@@ -606,6 +636,19 @@ export const PurchaseOrdersPage = () => {
                 Supplier: <strong>{selectedPO.supplierName}</strong>
               </span>
               <div className="flex items-center gap-2">
+                {selectedPO.status === 'draft' && (
+                  <Button
+                    variant="brand"
+                    size="sm"
+                    icon={CheckCircle2}
+                    onClick={() => {
+                      submitDraftPO(selectedPO.id);
+                      setDetailsModalOpen(false);
+                    }}
+                  >
+                    Approve &amp; Send to Supplier
+                  </Button>
+                )}
                 {selectedPO.status === 'pending_approval' && (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') && (
                   <Button
                     variant="brand"
@@ -693,6 +736,16 @@ export const PurchaseOrdersPage = () => {
                 <div className="text-xl font-bold text-slate-900">{formatINR(selectedPO.totalAmount)}</div>
               </div>
             </div>
+
+            {selectedPO.isAutoReorder && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                <Zap className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <strong className="font-semibold">Automated Low-Stock Trigger:</strong>
+                  <p className="mt-0.5 text-amber-800">{selectedPO.notes || selectedPO.triggerReason}</p>
+                </div>
+              </div>
+            )}
 
             {/* Line items breakdown */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden">

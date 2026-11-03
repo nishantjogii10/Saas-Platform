@@ -106,7 +106,14 @@ export const SupplierOrdersPage = () => {
       accessor: 'poNumber',
       sortable: true,
       render: (row) => (
-        <span className="font-bold text-slate-900 font-mono text-xs">{row.poNumber}</span>
+        <div>
+          <span className="font-bold text-slate-900 font-mono text-xs block">{row.poNumber}</span>
+          {row.isAutoReorder && (
+            <span className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+              ⚡ Auto-Reorder
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -184,6 +191,12 @@ export const SupplierOrdersPage = () => {
           >
             Manifest
           </Button>
+
+          {row.status === 'draft' && (
+            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-lg">
+              Draft Pending Client Approval
+            </span>
+          )}
 
           {row.status === 'pending' && (
             <>
@@ -266,7 +279,7 @@ export const SupplierOrdersPage = () => {
         />
 
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {['all', 'pending', 'accepted', 'dispatched', 'delivered', 'rejected'].map((f) => (
+          {['all', 'draft', 'pending', 'accepted', 'dispatched', 'delivered', 'rejected'].map((f) => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}

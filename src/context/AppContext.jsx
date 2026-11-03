@@ -358,35 +358,72 @@ export const AppProvider = ({ children }) => {
 
   const [suppliers, setSuppliers] = useState(() => {
     const loaded = loadStored('suppliers', initialSuppliers);
-    if (Array.isArray(loaded)) {
-      return loaded.map((sup) => {
-        const isTieUp =
-          sup.registeredVia === 'main_system' ||
-          sup.id === 'sup-4' ||
-          sup.id === 'sup-5' ||
-          sup.name?.toLowerCase().includes('golden crust') ||
-          sup.name?.toLowerCase().includes('amrit dairy');
-        const acceptsReturns = sup.acceptsReturns !== undefined
-          ? sup.acceptsReturns
-          : (sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6');
-        return {
-          ...sup,
-          supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
-          registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
-          acceptsReturns,
-          returnPolicy: sup.returnPolicy || (acceptsReturns ? 'accepts_returns' : 'no_returns'),
-          unsoldReturnAllowed: sup.unsoldReturnAllowed !== undefined ? sup.unsoldReturnAllowed : acceptsReturns,
-          returnConditions: sup.returnConditions || {
-            unused: acceptsReturns,
-            damaged: acceptsReturns,
-            spoiled: acceptsReturns,
-          },
-        };
-      });
-    }
-    return initialSuppliers;
+    const defaults = Array.isArray(initialSuppliers) ? initialSuppliers : [];
+    let baseList = Array.isArray(loaded) ? [...loaded] : [...defaults];
+
+    // Ensure initial tie-up suppliers (Golden Crust, Amrit Dairy) are present even if localStorage had an older state
+    defaults.forEach((defSup) => {
+      const exists = baseList.some(
+        (s) => s.id === defSup.id || (defSup.name && s.name?.toLowerCase() === defSup.name.toLowerCase())
+      );
+      if (!exists) {
+        baseList = [defSup, ...baseList];
+      }
+    });
+
+    return baseList.map((sup) => {
+      const isTieUp =
+        sup.registeredVia === 'main_system' ||
+        sup.supplierType === 'Tie-up Supplier' ||
+        sup.id === 'sup-4' ||
+        sup.id === 'sup-5' ||
+        sup.hasSignedInMainLogin ||
+        sup.name?.toLowerCase().includes('golden crust') ||
+        sup.name?.toLowerCase().includes('amrit dairy');
+
+      const currRestIds = Array.isArray(sup.restaurantIds) ? sup.restaurantIds : [];
+      const updatedRestIds = isTieUp
+        ? Array.from(new Set([...currRestIds, 'rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron']))
+        : currRestIds;
+
+      const acceptsReturns = sup.acceptsReturns !== undefined
+        ? sup.acceptsReturns
+        : (sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6');
+
+      return {
+        ...sup,
+        supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
+        registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
+        hasSignedInMainLogin: isTieUp ? true : Boolean(sup.hasSignedInMainLogin),
+        restaurantIds: updatedRestIds,
+        acceptsReturns,
+        returnPolicy: sup.returnPolicy || (acceptsReturns ? 'accepts_returns' : 'no_returns'),
+        unsoldReturnAllowed: sup.unsoldReturnAllowed !== undefined ? sup.unsoldReturnAllowed : acceptsReturns,
+        returnConditions: sup.returnConditions || {
+          unused: acceptsReturns,
+          damaged: acceptsReturns,
+          spoiled: acceptsReturns,
+        },
+      };
+    });
   });
-  const [ingredients, setIngredients] = useState(() => loadStored('ingredients', initialIngredients));
+  const [ingredients, setIngredients] = useState(() => {
+    const loaded = loadStored('ingredients', initialIngredients);
+    const defaults = Array.isArray(initialIngredients) ? initialIngredients : [];
+    let baseList = Array.isArray(loaded) ? [...loaded] : [...defaults];
+
+    // Ensure all default restaurant ingredients (especially Paneer & Chicken for rest-mango and rest-1) are present
+    defaults.forEach((defIng) => {
+      const exists = baseList.some(
+        (i) => i.id === defIng.id || (i.name === defIng.name && i.restaurantId === defIng.restaurantId)
+      );
+      if (!exists) {
+        baseList = [defIng, ...baseList];
+      }
+    });
+
+    return baseList;
+  });
   const [purchaseOrders, setPurchaseOrders] = useState(() => loadStored('purchaseOrders', initialPurchaseOrders));
   const [stockMovements, setStockMovements] = useState(() => loadStored('stockMovements', initialStockMovements));
   const [alerts, setAlerts] = useState(() => loadStored('alerts', initialAlerts));
@@ -927,7 +964,10 @@ export const AppProvider = ({ children }) => {
     // Main System / Home Page Login -> "Tie-up Supplier"
     if (user.role === 'supplier') {
       const isPortalLogin = loginOrigin === 'supplier_portal';
-      const isMainSystemLogin = loginOrigin === 'main_system' || (requestedRole === 'supplier' && !isPortalLogin);
+      const isMainSystemLogin =
+        loginOrigin === 'main_system' ||
+        loginOrigin === 'unified_auth_portal' ||
+        (requestedRole === 'supplier' && !isPortalLogin);
 
       const assignedType = isPortalLogin
         ? 'Third-Party Supplier'
@@ -941,25 +981,62 @@ export const AppProvider = ({ children }) => {
         ...user,
         supplierType: assignedType,
         registeredVia: assignedVia,
+        hasSignedInMainLogin: isMainSystemLogin,
       };
 
       // Sync matching supplier record in suppliers state
-      setSuppliers((prev) =>
-        prev.map((s) => {
-          if (
+      setSuppliers((prev) => {
+        const existingIndex = prev.findIndex(
+          (s) =>
             s.id === user.supplierId ||
             (user.supplierName && s.name?.toLowerCase() === user.supplierName.toLowerCase()) ||
             (user.email && s.email?.toLowerCase() === user.email.toLowerCase())
-          ) {
-            return {
-              ...s,
-              supplierType: assignedType,
-              registeredVia: assignedVia,
-            };
-          }
-          return s;
-        })
-      );
+        );
+
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          const curr = updated[existingIndex];
+          const currRestIds = Array.isArray(curr.restaurantIds) ? curr.restaurantIds : [];
+          const updatedRestIds = Array.from(new Set([...currRestIds, 'rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron']));
+          updated[existingIndex] = {
+            ...curr,
+            supplierType: assignedType,
+            registeredVia: assignedVia,
+            hasSignedInMainLogin: isMainSystemLogin,
+            lastLoginAt: new Date().toISOString(),
+            restaurantIds: isMainSystemLogin ? updatedRestIds : curr.restaurantIds,
+          };
+          return updated;
+        } else {
+          // If a supplier user logs in who doesn't have an entry in suppliers yet, auto-create their supplier record
+          const newSupplierRecord = {
+            id: user.supplierId || `sup-${user.id || Date.now()}`,
+            name: user.supplierName || user.companyName || `${user.name} Supplies`,
+            supplierType: assignedType,
+            registeredVia: assignedVia,
+            hasSignedInMainLogin: isMainSystemLogin,
+            contactPerson: user.name || 'Account Representative',
+            email: user.email,
+            phone: user.phone || '+91 98000 00000',
+            address: user.address || 'Registered Partner Warehouse, Pune',
+            categories: ['General Supplies', 'Bakery', 'Dairy'],
+            rating: 4.8,
+            leadTimeDays: 1,
+            paymentTerms: 'Net 30',
+            activeOrdersCount: 0,
+            status: 'active',
+            acceptsReturns: true,
+            returnPolicy: 'accepts_returns',
+            unsoldReturnAllowed: true,
+            returnConditions: { unused: true, damaged: true, spoiled: true },
+            returnWindowHours: 24,
+            maxReturnPercent: 20,
+            settlementMode: 'Credit Note',
+            restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+          };
+          return [newSupplierRecord, ...prev];
+        }
+      });
 
       // Persist updated user in users state
       setUsers((prev) => prev.map((u) => (u.id === user.id ? authenticatedUser : u)));
@@ -1457,6 +1534,11 @@ export const AppProvider = ({ children }) => {
         }
         return prev;
       });
+
+      // Automated Low-Stock Reordering & Supplier Alert
+      setTimeout(() => {
+        triggerAutomatedLowStockReorder({ ingredientId: id, silent: true });
+      }, 150);
     } else {
       // Remove or resolve low stock alerts for this ingredient
       setAlerts(prev => prev.filter(a => !(a.ingredientId === id && (a.type === 'low_stock' || a.type === 'out_of_stock'))));
@@ -1533,6 +1615,11 @@ export const AppProvider = ({ children }) => {
         };
         return [newAlert, ...filtered];
       });
+
+      // Automated Low-Stock Reordering & Supplier Alert
+      setTimeout(() => {
+        triggerAutomatedLowStockReorder({ ingredientId, silent: true });
+      }, 150);
     }
 
     addToast(`Recorded consumption of ${usedAmount} ${ingredient.unit} of ${ingredient.name}. New balance: ${newQty.toFixed(1)} ${ingredient.unit}.`, 'success');
@@ -1577,6 +1664,13 @@ export const AppProvider = ({ children }) => {
     };
     setStockMovements(prev => [newMovement, ...prev]);
 
+    // Automated Low-Stock Reordering on Wastage
+    if (newStatus !== 'in_stock') {
+      setTimeout(() => {
+        triggerAutomatedLowStockReorder({ ingredientId, silent: true });
+      }, 150);
+    }
+
     addToast(`Recorded wastage: ${wastedAmount} ${ingredient.unit} of ${ingredient.name}.`, 'warning');
   };
 
@@ -1600,7 +1694,13 @@ export const AppProvider = ({ children }) => {
     };
 
     setAlerts(prev => [newAlert, ...prev]);
-    addToast(`Low stock report submitted for ${ingredient.name}. Inventory manager notified.`, 'info');
+
+    // Automated Low-Stock Reordering on Kitchen Staff Report
+    setTimeout(() => {
+      triggerAutomatedLowStockReorder({ ingredientId, silent: false });
+    }, 150);
+
+    addToast(`Low stock report submitted for ${ingredient.name}. Automated draft PO & supplier alert triggered.`, 'info');
   };
 
   // ==========================================
@@ -1759,6 +1859,249 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==============================================================
+  // AUTOMATED LOW-STOCK REORDERING & SUPPLIER ALERT ENGINE
+  // ==============================================================
+  const triggerAutomatedLowStockReorder = ({
+    ingredientId = null,
+    restaurantId = null,
+    silent = false,
+  } = {}) => {
+    const targetRestId = restaurantId || currentRestaurantId;
+    const rest = (restaurants || []).find((r) => r.id === targetRestId) || currentRestaurant;
+    const branch =
+      (branches || []).find(
+        (b) =>
+          b.restaurantId === targetRestId &&
+          (b.id === currentBranchId || b.id === 'branch-mango-main' || b.id === 'branch-pune-central')
+      ) || currentBranch;
+
+    // Filter candidate ingredients that are low stock or out of stock
+    const candidates = (ingredients || []).filter((ing) => {
+      if (ingredientId) return ing.id === ingredientId;
+      if (ing.restaurantId !== targetRestId) return false;
+      const minT = Number(ing.minThreshold) || 0;
+      const qty = Number(ing.quantity) || 0;
+      return qty <= minT || ing.status === 'low_stock' || ing.status === 'out_of_stock';
+    });
+
+    if (candidates.length === 0) {
+      if (!silent) {
+        addToast('All inventory items are currently above safety thresholds.', 'info');
+      }
+      return { success: true, count: 0, createdPOs: [] };
+    }
+
+    const createdPOs = [];
+    const newAlerts = [];
+    const newOwnerNotifs = [];
+    const newStaffNotifs = [];
+    const nowIso = new Date().toISOString();
+
+    candidates.forEach((ing) => {
+      // Find matching supplier: explicit supplierId / supplierName or category heuristic
+      let supplier = (suppliers || []).find(
+        (s) => s.id === ing.supplierId || (ing.supplierName && s.name?.toLowerCase() === ing.supplierName.toLowerCase())
+      );
+
+      if (!supplier) {
+        const cat = (ing.category || '').toLowerCase();
+        const ingName = (ing.name || '').toLowerCase();
+        if (cat.includes('dairy') || ingName.includes('paneer') || ingName.includes('milk') || ingName.includes('ghee')) {
+          supplier = (suppliers || []).find((s) => s.id === 'sup-5' || s.name?.toLowerCase().includes('amrit dairy'));
+        } else if (cat.includes('bakery') || ingName.includes('pav') || ingName.includes('bun') || ingName.includes('bread')) {
+          supplier = (suppliers || []).find((s) => s.id === 'sup-4' || s.name?.toLowerCase().includes('golden crust'));
+        } else if (cat.includes('poultry') || cat.includes('meat') || ingName.includes('chicken')) {
+          supplier = (suppliers || []).find((s) => s.id === 'sup-1' || s.name?.toLowerCase().includes('metro food'));
+        } else if (cat.includes('produce') || cat.includes('veg') || ingName.includes('tomato') || ingName.includes('onion')) {
+          supplier = (suppliers || []).find((s) => s.id === 'sup-2' || s.name?.toLowerCase().includes('freshfarm'));
+        } else if (cat.includes('spice') || ingName.includes('pepper') || ingName.includes('masala')) {
+          supplier = (suppliers || []).find((s) => s.id === 'sup-3' || s.name?.toLowerCase().includes('royal spice'));
+        } else {
+          supplier = (suppliers || [])[0];
+        }
+      }
+
+      if (!supplier) return;
+
+      const isTieUp =
+        supplier.supplierType === 'Tie-up Supplier' ||
+        supplier.registeredVia === 'main_system' ||
+        supplier.id === 'sup-4' ||
+        supplier.id === 'sup-5' ||
+        Boolean(supplier.hasSignedInMainLogin);
+
+      const supplierTypeLabel = isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier';
+
+      // Avoid creating duplicate draft/pending POs for this item if one was created recently
+      const hasRecentOpenPO = (purchaseOrders || []).some(
+        (p) =>
+          p.restaurantId === targetRestId &&
+          p.supplierId === supplier.id &&
+          (p.status === 'draft' || p.status === 'pending') &&
+          p.items?.some((it) => it.ingredientId === ing.id)
+      );
+
+      if (hasRecentOpenPO) {
+        return;
+      }
+
+      const minT = Number(ing.minThreshold) || 10;
+      const currQty = Number(ing.quantity) || 0;
+      const shortfall = Math.max(0, minT - currQty);
+      const reorderQty = Math.max(ing.reorderQuantity || Math.ceil(minT * 2), Math.ceil(shortfall + minT * 1.5));
+      const unitCost = Number(ing.costPerUnit || ing.cost || 120);
+      const subtotal = Number((reorderQty * unitCost).toFixed(2));
+      const tax = Number((subtotal * 0.05).toFixed(2));
+      const totalAmount = Number((subtotal + tax).toFixed(2));
+      const poNum = `PO-AUTO-${Math.floor(1000 + (purchaseOrders?.length || 0) + createdPOs.length + Math.random() * 8999)}`;
+
+      const newDraftPO = {
+        id: `po-auto-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        poNumber: poNum,
+        restaurantId: targetRestId,
+        restaurantName: rest?.name || currentRestaurant?.name || 'Active Restaurant',
+        branchId: ing.branchId || branch?.id || currentBranchId,
+        branchName: branch?.name || 'Main Branch',
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        supplierType: supplierTypeLabel,
+        supplierContact: `${supplier.contactPerson || 'Account Rep'} (${supplier.email || supplier.phone || 'N/A'})`,
+        status: 'draft',
+        isAutoReorder: true,
+        triggerReason: `Low-Stock Threshold Breach: ${ing.name} (${currQty} ${ing.unit} <= ${minT} ${ing.unit})`,
+        createdAt: nowIso,
+        expectedDelivery: new Date(Date.now() + (supplier.leadTimeDays || 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        notes: `[AUTOMATED LOW-STOCK REORDER] Auto-generated Draft PO for low stock ingredient: ${ing.name}. Current stock balance is ${currQty} ${ing.unit} against safety threshold of ${minT} ${ing.unit}.`,
+        items: [
+          {
+            ingredientId: ing.id,
+            name: ing.name,
+            quantity: reorderQty,
+            unit: ing.unit,
+            unitCost,
+            totalCost: subtotal,
+            reorderReason: `Safety stock breach (${currQty}/${minT} ${ing.unit})`,
+          },
+        ],
+        subtotal,
+        tax,
+        shippingFee: 0,
+        totalAmount,
+        timeline: [
+          {
+            status: 'draft',
+            timestamp: nowIso,
+            note: `Automated reorder engine generated Draft Purchase Order #${poNum} for ${supplier.name} (${supplierTypeLabel}) due to ${ing.name} shortage.`,
+          },
+        ],
+      };
+
+      createdPOs.push(newDraftPO);
+
+      // 1. Supplier Alert (Sent to tied-up or third-party supplier)
+      newStaffNotifs.push({
+        id: `notif-sup-reorder-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        type: 'low_stock_reorder',
+        targetRole: 'supplier',
+        targetSupplierId: supplier.id,
+        title: `⚠️ Low-Stock Replenishment Notice: ${ing.name}`,
+        message: `${rest?.name || 'Restaurant Client'} is running low on ${ing.name} (Stock: ${currQty} ${ing.unit} ≤ Min: ${minT} ${ing.unit}). Draft Purchase Order #${poNum} for ${reorderQty} ${ing.unit} has been automatically queued.`,
+        severity: currQty === 0 ? 'critical' : 'high',
+        badge: isTieUp ? 'Tie-up Supplier Direct Link' : 'Third-Party Wholesale PO',
+        timestamp: 'Just now',
+        actionLink: '/supplier/orders',
+        actionLabel: 'Review PO',
+        read: false,
+        poId: newDraftPO.id,
+        poNumber: poNum,
+        supplierType: supplierTypeLabel,
+      });
+
+      // 2. Restaurant Operational Alert (Visible to Owner & Inventory Manager)
+      newAlerts.push({
+        id: `alt-auto-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        restaurantId: targetRestId,
+        type: 'low_stock',
+        severity: currQty === 0 ? 'critical' : 'high',
+        title: `⚡ Auto-Reorder: Draft PO Created for ${ing.name}`,
+        message: `${ing.name} reached ${currQty} ${ing.unit} (Below threshold of ${minT} ${ing.unit}). Draft PO #${poNum} created for ${supplier.name} (${supplierTypeLabel}) and supplier notified.`,
+        ingredientId: ing.id,
+        read: false,
+        timestamp: nowIso,
+        actionLink: '/purchase-orders',
+        actionLabel: 'Review Draft PO',
+        badge: 'Auto Reorder',
+        targetRoles: ['restaurant_owner', 'inventory_manager'],
+      });
+
+      // 3. Top-bar Owner Notification
+      newOwnerNotifs.push({
+        id: `notif-owner-reorder-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        type: 'automated_reorder',
+        restaurantId: targetRestId,
+        title: `Automated Reorder: ${ing.name} (Draft PO #${poNum})`,
+        message: `Low stock trigger: Draft PO #${poNum} generated for ${supplier.name} (${supplierTypeLabel}) to replenish ${reorderQty} ${ing.unit} of ${ing.name}.`,
+        severity: 'high',
+        badge: 'Auto Reorder',
+        timestamp: 'Just now',
+        actionLink: '/purchase-orders',
+        actionLabel: 'Review Draft PO',
+        read: false,
+      });
+    });
+
+    if (createdPOs.length > 0) {
+      setPurchaseOrders((prev) => [...createdPOs, ...prev]);
+      setAlerts((prev) => [...newAlerts, ...prev]);
+      setOwnerNotifications((prev) => [...newOwnerNotifs, ...prev]);
+      setStaffNotifications((prev) => [...newStaffNotifs, ...prev]);
+
+      if (!silent) {
+        addToast(
+          `⚡ Auto-reorder triggered: ${createdPOs.length} draft PO(s) generated and alerts dispatched to suppliers!`,
+          'success'
+        );
+      }
+    } else if (!silent) {
+      addToast('Active draft or pending POs are already queued for low-stock items.', 'info');
+    }
+
+    return { success: true, count: createdPOs.length, createdPOs };
+  };
+
+  const submitDraftPO = (poId) => {
+    const targetPO = (purchaseOrders || []).find((p) => p.id === poId);
+    if (!targetPO) return;
+
+    updatePOStatus(poId, 'pending', 'Submitted from Automated Draft', {
+      isAutoReorderApproved: true,
+      approvedAt: new Date().toISOString(),
+      approvedBy: currentUser?.name || 'Authorized Manager',
+    });
+
+    // Notify supplier of approved dispatch request
+    setStaffNotifications((prev) => [
+      {
+        id: `notif-po-approved-${Date.now()}`,
+        type: 'po_approved',
+        targetRole: 'supplier',
+        targetSupplierId: targetPO.supplierId,
+        title: `✅ Purchase Order Approved: ${targetPO.poNumber}`,
+        message: `${targetPO.restaurantName} approved Draft PO #${targetPO.poNumber} (₹${targetPO.totalAmount}). Please prepare for dispatch.`,
+        severity: 'high',
+        badge: 'Order Approved',
+        timestamp: 'Just now',
+        actionLink: '/supplier/orders',
+        actionLabel: 'Accept & Dispatch',
+        read: false,
+      },
+      ...prev,
+    ]);
+
+    addToast(`Draft PO #${targetPO.poNumber} submitted to ${targetPO.supplierName}.`, 'success');
+  };
+
+  // ==============================================================
   // THIRD-PARTY SUPPLIER B2B MARKETPLACE & PROCUREMENT WORKFLOW
   // ==============================================================
 
@@ -1874,6 +2217,17 @@ export const AppProvider = ({ children }) => {
         : 'Strict no-returns policy. All products supplied to restaurants are final sale once accepted at delivery dock.'
     );
 
+    const returnPolicyConsent = acceptsReturns
+      ? (formData.returnPolicyConsent || {
+          agreed: Boolean(formData.consentAgreed ?? true),
+          consentedAt: formData.consentedAt || new Date().toISOString(),
+          signatoryName: formData.signatoryName || formData.contactPerson,
+          signatoryTitle: formData.signatoryTitle || 'Authorized Representative',
+          agreementVersion: '2026.1-RESTAURANT-PROTECTION-SLA',
+          digitalSignatureStamp: `STOCKMATE-SLA-SIG-${Date.now().toString().slice(-6)}`,
+        })
+      : null;
+
     const newSupplier = {
       ...(existingSupplier || {}),
       id: supplierId,
@@ -1915,6 +2269,11 @@ export const AppProvider = ({ children }) => {
       maxReturnPercent: acceptsReturns ? (Number(formData.maxReturnPercent) || 20) : 0,
       settlementMode: acceptsReturns ? (formData.settlementMode || 'Credit Note') : 'No Returns (Dock Inspection Only)',
       returnPolicyNotes,
+      returnPolicyConsent,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      signatoryTitle: acceptsReturns ? (returnPolicyConsent?.signatoryTitle || 'Authorized Representative') : null,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
     };
 
     const newSupplierUser = {
@@ -1938,6 +2297,10 @@ export const AppProvider = ({ children }) => {
       returnConditions,
       returnWindowHours: newSupplier.returnWindowHours,
       settlementMode: newSupplier.settlementMode,
+      returnPolicyConsent,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
     };
 
     // Update Suppliers state without duplicates
@@ -1975,6 +2338,12 @@ export const AppProvider = ({ children }) => {
       settlementMode: newSupplier.settlementMode,
       agreementNotes: newSupplier.returnPolicyNotes,
       active: true,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      signatoryTitle: acceptsReturns ? (returnPolicyConsent?.signatoryTitle || 'Authorized Representative') : null,
+      agreementVersion: acceptsReturns ? (returnPolicyConsent?.agreementVersion || '2026.1-RESTAURANT-PROTECTION-SLA') : null,
+      returnPolicyConsent,
     };
     setSupplierAgreements((prev) => [newAgreement, ...(prev || []).filter((a) => a.supplierId !== supplierId)]);
 
@@ -2008,12 +2377,16 @@ export const AppProvider = ({ children }) => {
           .join(', ')} products (${newSupplier.returnWindowHours}h window, ${newSupplier.settlementMode})`
       : 'Strict No-Returns Policy (all deliveries final)';
 
+    const adminLogDetails = acceptsReturns
+      ? `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Digitally signed Return Policy SLA (Signatory: ${returnPolicyConsent?.signatoryName}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`
+      : `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`;
+
     // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
     const adminLog = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SUPPLIER_ONBOARDED',
-      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`,
+      details: adminLogDetails,
       user: newSupplier.contactPerson,
       role: 'supplier',
     };
@@ -2026,7 +2399,7 @@ export const AppProvider = ({ children }) => {
       type: 'supplier_joined',
       severity: 'high',
       title: `🔔 New Third-Party Supplier Registered: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal offering ${normalizedCats.join(', ')} under ${selectedPlan.name} Plan. Return Policy: ${returnPolicySummary}.`,
+      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal under ${selectedPlan.name} Plan. ${acceptsReturns ? `Mandatory Return Policy SLA signed (${returnPolicySummary})` : `Return Policy: ${returnPolicySummary}`}.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/suppliers',
@@ -6451,7 +6824,21 @@ export const AppProvider = ({ children }) => {
   }, [branchStaff, currentRestaurantId, currentBranchId]);
 
   const restaurantSuppliers = useMemo(() => {
-    return suppliers.filter((s) => !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId));
+    return suppliers.filter((s) => {
+      // Tie-up suppliers (who belong to main page login / platform partner system) are available to partner restaurants
+      const isTieUp =
+        s.supplierType === 'Tie-up Supplier' ||
+        s.registeredVia === 'main_system' ||
+        s.id === 'sup-4' ||
+        s.id === 'sup-5' ||
+        s.hasSignedInMainLogin ||
+        s.name?.toLowerCase().includes('golden crust') ||
+        s.name?.toLowerCase().includes('amrit dairy');
+
+      if (isTieUp) return true;
+
+      return !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId);
+    });
   }, [suppliers, currentRestaurantId]);
 
   // Bank Details Verification Service (Restricted to Restaurant Owner and Restaurant Manager)
@@ -7175,6 +7562,8 @@ export const AppProvider = ({ children }) => {
         createPurchaseOrder,
         updatePOStatus,
         verifyAndReceiveStock,
+        triggerAutomatedLowStockReorder,
+        submitDraftPO,
 
         // Workflow D & Custom Plan System
         updatePlan,

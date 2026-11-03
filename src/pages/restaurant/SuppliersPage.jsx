@@ -90,6 +90,7 @@ export const SuppliersPage = () => {
       sup.registeredVia === 'main_system' ||
       sup.id === 'sup-4' ||
       sup.id === 'sup-5' ||
+      sup.hasSignedInMainLogin ||
       sup.name?.toLowerCase().includes('golden crust') ||
       sup.name?.toLowerCase().includes('amrit dairy')
     ) {
@@ -140,6 +141,12 @@ export const SuppliersPage = () => {
   const renderSupplierTypeBadge = (sup) => {
     const isTieUp = getSupplierType(sup) === 'Tie-up Supplier';
     if (isTieUp) {
+      const isMainLogin =
+        sup.hasSignedInMainLogin ||
+        sup.registeredVia === 'main_system' ||
+        sup.id === 'sup-4' ||
+        sup.id === 'sup-5';
+
       return (
         <div className="flex flex-col items-start gap-0.5">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shadow-2xs">
@@ -147,7 +154,7 @@ export const SuppliersPage = () => {
             <span>Tie-up Supplier</span>
           </span>
           <span className="text-[10px] text-teal-700/80 dark:text-teal-400/80 font-medium">
-            Added via Main System
+            {isMainLogin ? 'Signed in via Main Login' : 'Added via Main System'}
           </span>
         </div>
       );

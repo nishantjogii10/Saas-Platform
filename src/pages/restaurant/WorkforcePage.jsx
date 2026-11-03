@@ -86,6 +86,7 @@ export const WorkforcePage = () => {
   } = useApp();
 
   const isManager = currentUser?.role === 'restaurant_manager';
+  const isOwner = currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin';
   const assignedBranchId = currentUser?.branchId || currentBranchId || 'branch-pune-central';
   const ATTENDANCE_PER_PAGE = 8;
 
