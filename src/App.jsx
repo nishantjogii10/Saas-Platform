@@ -113,7 +113,27 @@ const RoleGuard = ({ allowedRoles, children }) => {
   }
 
   if (!allowedRoles.includes(currentUser.role)) {
-    return <AccessDenied requiredRoles={allowedRoles} currentRole={currentUser.role} />;
+    // When access is not provided, do NOT render the Access Restricted error screen.
+    // Instead, seamlessly redirect the user to their role-appropriate destination.
+    let redirectRoute = getRoleLandingRoute(currentUser.role) || '/dashboard';
+
+    // Context-sensitive resolution: If an unauthorized role attempts to access an invoice or billing path,
+    // redirect them directly to their role-specific invoice/billing workspace.
+    if (location.pathname.includes('/invoices') || location.pathname.includes('/billing')) {
+      if (currentUser.role === 'restaurant_owner' || currentUser.role === 'restaurant_manager') {
+        redirectRoute = '/plans-billing?tab=invoices';
+      } else if (currentUser.role === 'supplier') {
+        redirectRoute = '/supplier/invoices';
+      } else if (currentUser.role === 'inventory_manager') {
+        redirectRoute = '/supplier-billing';
+      }
+    }
+
+    if (redirectRoute === location.pathname) {
+      redirectRoute = '/';
+    }
+
+    return <Navigate to={redirectRoute} replace />;
   }
 
   return children;
@@ -176,6 +196,16 @@ const NotificationsDispatcher = () => {
     default:
       return <OwnerNotificationsPage />;
   }
+};
+
+// Universal Invoices Dispatcher: Routes each role to their dedicated invoice workspace
+const InvoicesDispatcher = () => {
+  const { currentUser } = useApp();
+  if (!currentUser) return <Navigate to="/login" replace />;
+  if (currentUser.role === 'super_admin') return <Navigate to="/admin/finance/invoices" replace />;
+  if (currentUser.role === 'supplier') return <Navigate to="/supplier/invoices" replace />;
+  if (currentUser.role === 'inventory_manager') return <Navigate to="/supplier-billing" replace />;
+  return <Navigate to="/plans-billing?tab=invoices" replace />;
 };
 
 function App() {
@@ -676,6 +706,14 @@ function App() {
           <Route
             path="/billing"
             element={<Navigate to="/plans-billing?tab=invoices" replace />}
+          />
+          <Route
+            path="/owner-billing"
+            element={<Navigate to="/plans-billing?tab=invoices" replace />}
+          />
+          <Route
+            path="/invoices"
+            element={<InvoicesDispatcher />}
           />
 
           {/* Personal Staff Attendance & Shifts */}

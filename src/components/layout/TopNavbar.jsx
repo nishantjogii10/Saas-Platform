@@ -121,10 +121,6 @@ const roleFilteredAlerts = useMemo(() => {
     );
   }, [staffNotifications, currentUser]);
 
-  const sourceNotifications = isKitchenStaff
-    ? myStaffNotifs
-    : roleFilteredOwnerNotifs;
-
   const combinedNotifications = useMemo(() => {
     const alerts = (roleFilteredAlerts || []).map((a) => ({
       id: a.id,
@@ -157,39 +153,30 @@ const roleFilteredAlerts = useMemo(() => {
               !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
                 a.actionLink.startsWith(path)
               );
-            navigate(managerRestricted ? '/alerts' : a.actionLink);
+            const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
+            navigate(managerRestricted ? '/alerts' : resolvedLink);
           }
-          const managerRestricted =
-            currentUser?.role === 'restaurant_manager' &&
-            !['/workforce', '/alerts', '/reports', '/profile'].some((path) =>
-              a.actionLink.startsWith(path)
-            );
-          const resolvedLink = a.actionLink ? a.actionLink.replace('/branch-staff', '/workforce') : a.actionLink;
-          navigate(managerRestricted ? '/alerts' : resolvedLink);
         }
 
         setShowNotifications(false);
       },
     }));
 
-    const sourceNotifications = isKitchenStaff
-      ? (staffNotifications || []).filter((n) => !n.targetStaffId || n.targetStaffId === currentUser?.id)
-      : (ownerNotifications || []);
     // Individually addressed staff notifications targeted at current employee
     const personalStaffNotifs = (staffNotifications || []).filter(
-      (n) => n.targetStaffId === currentUser?.id
+      (n) => !n.targetStaffId || n.targetStaffId === currentUser?.id
     );
 
-    let sourceNotifications = [];
+    let activeNotifications = [];
     if (currentUser?.role === 'restaurant_owner' || currentUser?.role === 'super_admin') {
-      sourceNotifications = ownerNotifications || [];
+      activeNotifications = ownerNotifications || [];
     } else if (currentUser?.role === 'restaurant_manager') {
       const managerBranchNotifs = (ownerNotifications || []).filter(
         (n) => !n.branchId || n.branchId === (currentUser.branchId || currentBranchId)
       );
-      sourceNotifications = [...personalStaffNotifs, ...managerBranchNotifs];
+      activeNotifications = [...personalStaffNotifs, ...managerBranchNotifs];
     } else {
-      sourceNotifications = personalStaffNotifs;
+      activeNotifications = personalStaffNotifs;
     }
 
     // Smart resolver for notification action links to exact tabs
@@ -231,7 +218,7 @@ const roleFilteredAlerts = useMemo(() => {
       return '/workforce';
     };
 
-    const notices = sourceNotifications.map((n) => ({
+    const notices = activeNotifications.map((n) => ({
       ...n,
       id: n.id,
       title: n.title || 'Notification',
@@ -245,7 +232,9 @@ const roleFilteredAlerts = useMemo(() => {
       badge:
         n.actionLink === '/inbox' ? 'Announcement' : n.badge || 'Notice',
       action: () => {
-        if (n.targetStaffId) {
+        if (isKitchenStaff) {
+          markStaffNotificationRead(n.id);
+        } else if (n.targetStaffId) {
           markStaffNotificationRead(n.id);
         } else {
           markOwnerNotificationRead(n.id);
@@ -263,11 +252,14 @@ const roleFilteredAlerts = useMemo(() => {
               navigate('/alerts?tab=notifications');
             }
           } else {
-            navigate(n.actionLink);
+            const resolvedLink = resolveNotificationActionLink(n);
+            navigate(resolvedLink || n.actionLink);
           }
-        const resolvedLink = resolveNotificationActionLink(n);
-        if (resolvedLink) {
-          navigate(resolvedLink);
+        } else {
+          const resolvedLink = resolveNotificationActionLink(n);
+          if (resolvedLink) {
+            navigate(resolvedLink);
+          }
         }
 
         setShowNotifications(false);
@@ -277,7 +269,8 @@ const roleFilteredAlerts = useMemo(() => {
     return [...alerts, ...notices];
   }, [
     roleFilteredAlerts,
-    sourceNotifications,
+    staffNotifications,
+    ownerNotifications,
     isKitchenStaff,
     currentUser,
     currentRestaurant,

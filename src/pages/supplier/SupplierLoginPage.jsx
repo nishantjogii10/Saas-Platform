@@ -51,7 +51,18 @@ export const SupplierLoginPage = () => {
 
   // Registration Form State
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [selectedPlanId, setSelectedPlanId] = useState('plan-sup-pro');
+  const [selectedPlanId, setSelectedPlanId] = useState(null); // Must explicitly select a plan first
+  const [planError, setPlanError] = useState(null);
+  const [consentError, setConsentError] = useState(null);
+
+  // Mandatory Return Policy Consent State
+  const [returnPolicyConsent, setReturnPolicyConsent] = useState({
+    agreed: false,
+    signatoryName: '',
+    signatoryTitle: 'Authorized Representative',
+    consentedAt: null,
+  });
+
   const [regForm, setRegForm] = useState({
     name: '',
     contactPerson: '',
@@ -77,8 +88,25 @@ export const SupplierLoginPage = () => {
   });
 
   const selectedPlan =
-    SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === selectedPlanId) ||
-    SUPPLIER_SUBSCRIPTION_PLANS[1];
+    SUPPLIER_SUBSCRIPTION_PLANS.find((p) => p.id === selectedPlanId) || null;
+
+  const handleSelectPlan = (planId) => {
+    setSelectedPlanId(planId);
+    setPlanError(null);
+    if (authError && (authError.toLowerCase().includes('plan') || authError.toLowerCase().includes('subscription'))) {
+      setAuthError(null);
+    }
+  };
+
+  const handleAttemptProceedWithoutPlan = () => {
+    if (!selectedPlanId) {
+      const err = 'Please select a subscription plan above before accessing or proceeding with the registration form.';
+      setPlanError(err);
+      setAuthError(err);
+      const el = document.getElementById('supplier-plans-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const handleToggleCategory = (cat) => {
     if (cat === 'All Categories') return;
@@ -94,6 +122,12 @@ export const SupplierLoginPage = () => {
   };
 
   const handleSetAcceptsReturns = (accepts) => {
+    if (!accepts) {
+      setConsentError(null);
+      if (authError && (authError.toLowerCase().includes('consent') || authError.toLowerCase().includes('return policy agreement'))) {
+        setAuthError(null);
+      }
+    }
     setRegForm((prev) => ({
       ...prev,
       acceptsReturns: accepts,
@@ -163,10 +197,46 @@ export const SupplierLoginPage = () => {
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
     setAuthError(null);
+    setPlanError(null);
+    setConsentError(null);
 
-    if (!regForm.name.trim() || !regForm.contactPerson.trim() || !regForm.email.trim()) {
-      setAuthError('Please fill in all mandatory business contact fields.');
+    // 1. Mandatory Subscription Plan Validation
+    if (!selectedPlanId || !selectedPlan) {
+      const pErr = 'Subscription Plan Required: You must explicitly select a subscription plan before completing registration.';
+      setPlanError(pErr);
+      setAuthError(pErr);
+      const el = document.getElementById('supplier-plans-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
       return;
+    }
+
+    // 2. Mandatory Business Contact Fields Validation
+    if (!regForm.name.trim() || !regForm.contactPerson.trim() || !regForm.email.trim() || !regForm.password) {
+      setAuthError('Please fill in all mandatory business contact fields (Company Name, Contact Person, Work Email, Password).');
+      return;
+    }
+
+    // 3. Mandatory Return Policy Consent & Agreement Validation (ONLY if supplier accepts returns)
+    let effectiveSigner = null;
+    if (regForm.acceptsReturns) {
+      if (!returnPolicyConsent.agreed) {
+        const cErr = 'Mandatory Return Policy Consent Required: To protect partner restaurants from inventory losses, you must review and check the agreement box confirming strict adherence to your declared return policy.';
+        setConsentError(cErr);
+        setAuthError(cErr);
+        const el = document.getElementById('return-policy-consent-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+
+      effectiveSigner = (returnPolicyConsent.signatoryName || regForm.contactPerson || '').trim();
+      if (!effectiveSigner) {
+        const sErr = 'Authorized Signatory Name is required to digitally sign the Return Policy & Restaurant Protection Agreement.';
+        setConsentError(sErr);
+        setAuthError(sErr);
+        const el = document.getElementById('return-policy-consent-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -180,6 +250,15 @@ export const SupplierLoginPage = () => {
           isFirstTimePortalRegistration: true,
           planId: selectedPlanId,
           billingCycle,
+          returnPolicyConsent: regForm.acceptsReturns
+            ? {
+                agreed: true,
+                signatoryName: effectiveSigner,
+                signatoryTitle: returnPolicyConsent.signatoryTitle?.trim() || 'Authorized Representative',
+                consentedAt: returnPolicyConsent.consentedAt || new Date().toISOString(),
+                agreementVersion: '2026.1-RESTAURANT-PROTECTION-SLA',
+              }
+            : null,
         });
 
         setIsSubmitting(false);
@@ -496,7 +575,7 @@ export const SupplierLoginPage = () => {
             {activeTab === 'register' && (
               <div>
                 {/* STEP 1: Full Interactive Subscription Plans Showcase */}
-                <div className="mb-8">
+                <div id="supplier-plans-section" className="mb-8 scroll-mt-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-800">
                     <div>
                       <div className="flex items-center gap-2">
@@ -504,7 +583,7 @@ export const SupplierLoginPage = () => {
                           1
                         </span>
                         <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
-                          Select Your Third-Party Supplier Subscription Plan
+                          Select Your Third-Party Supplier Subscription Plan *
                         </h2>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">
@@ -548,6 +627,17 @@ export const SupplierLoginPage = () => {
                     </div>
                   </div>
 
+                  {/* Plan Selection Error Banner */}
+                  {planError && (
+                    <div className="mb-5 p-3.5 rounded-2xl bg-amber-950/80 border border-amber-500 text-amber-200 text-xs flex items-start gap-2.5 shadow-lg shadow-amber-500/10 animate-in fade-in">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <span className="font-bold block text-white">Subscription Plan Selection Required</span>
+                        <span className="opacity-95 block mt-0.5">{planError}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 3 Subscription Plan Cards Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     {SUPPLIER_SUBSCRIPTION_PLANS.map((plan) => {
@@ -564,7 +654,7 @@ export const SupplierLoginPage = () => {
                       return (
                         <div
                           key={plan.id}
-                          onClick={() => setSelectedPlanId(plan.id)}
+                          onClick={() => handleSelectPlan(plan.id)}
                           className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-200 cursor-pointer flex flex-col justify-between group ${
                             isSelected
                               ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950/30 border-2 border-emerald-500 ring-4 ring-emerald-500/20 shadow-2xl shadow-emerald-500/10'
@@ -674,7 +764,7 @@ export const SupplierLoginPage = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedPlanId(plan.id);
+                              handleSelectPlan(plan.id);
                             }}
                             className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                               isSelected
@@ -697,39 +787,86 @@ export const SupplierLoginPage = () => {
                   </div>
                 </div>
 
-                {/* STEP 2: Business Credentials & Setup Details */}
-                <div className="pt-2 border-t border-slate-800">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
-                      2
-                    </span>
-                    <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
-                      Company & Business Contact Information
-                    </h2>
-                  </div>
-
-                  {/* Selected Plan Confirmation Banner */}
-                  <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs mb-5">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className="text-slate-200">
-                        Selected Tier: <strong className="text-white">{selectedPlan.name}</strong> •{' '}
-                        <span className="text-emerald-400 font-bold">
-                          {selectedPlan.price === 0
-                            ? 'Free Starter'
-                            : billingCycle === 'yearly'
-                            ? `${formatINR(selectedPlan.yearlyPrice)}/yr`
-                            : `${formatINR(selectedPlan.price)}/mo`}
-                        </span>{' '}
-                        • Commission: <strong>{selectedPlan.commissionRate}%</strong> • Payout SLA: <strong>{selectedPlan.payoutDays}</strong> • SKU Limit: <strong>{selectedPlan.maxProducts}</strong>
+                {/* Gated Placeholder when no plan is selected */}
+                {!selectedPlanId && (
+                  <div className="mt-8 p-6 sm:p-8 rounded-3xl bg-slate-950/70 border-2 border-dashed border-slate-800 text-center flex flex-col items-center justify-center transition-all animate-in fade-in">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-3.5 shadow-lg shadow-amber-500/5">
+                      <Lock className="w-7 h-7" />
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-amber-400 text-xs font-bold mb-2">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Registration Form Locked</span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                      Select a Subscription Plan Above to Unlock Registration Form
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1.5 max-w-lg leading-relaxed">
+                      Third-party vendor registration requires an explicit subscription tier selection. Company credentials, warehouse logistics, and the mandatory return policy consent form remain locked and disabled until a valid tier is chosen.
+                    </p>
+                    <div className="mt-4 flex flex-col sm:flex-row items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleAttemptProceedWithoutPlan}
+                        className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer border border-slate-700 hover:border-slate-600"
+                      >
+                        <span>Proceed to Registration Form</span>
+                        <ArrowRight className="w-4 h-4 text-emerald-400" />
+                      </button>
+                      <span className="text-[11px] text-slate-500">
+                        Choose Free Starter, Pro Vendor, or Enterprise above
                       </span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 self-start sm:self-auto">
-                      {billingCycle === 'yearly' ? 'Annual Billing Active' : 'Monthly Billing Active'}
-                    </span>
                   </div>
+                )}
 
-                  <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                {/* Unlocked Registration Details & Consent: Only shown once a plan is explicitly selected */}
+                {selectedPlanId && selectedPlan && (
+                  <div className="animate-in fade-in duration-300">
+                    {/* STEP 2: Business Credentials & Setup Details */}
+                    <div className="pt-2 border-t border-slate-800">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
+                          2
+                        </span>
+                        <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                          Company & Business Contact Information
+                        </h2>
+                      </div>
+
+                      {/* Selected Plan Confirmation Banner */}
+                      <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs mb-5">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span className="text-slate-200">
+                            Selected Tier: <strong className="text-white">{selectedPlan.name}</strong> •{' '}
+                            <span className="text-emerald-400 font-bold">
+                              {selectedPlan.price === 0
+                                ? 'Free Starter'
+                                : billingCycle === 'yearly'
+                                ? `${formatINR(selectedPlan.yearlyPrice)}/yr`
+                                : `${formatINR(selectedPlan.price)}/mo`}
+                            </span>{' '}
+                            • Commission: <strong>{selectedPlan.commissionRate}%</strong> • Payout SLA: <strong>{selectedPlan.payoutDays}</strong> • SKU Limit: <strong>{selectedPlan.maxProducts}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            ✓ Form Unlocked
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = document.getElementById('supplier-plans-section');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="text-[11px] text-slate-400 hover:text-emerald-400 underline cursor-pointer"
+                          >
+                            Change Plan
+                          </button>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleRegisterSubmit} className="space-y-4">
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
@@ -1146,25 +1283,272 @@ export const SupplierLoginPage = () => {
                     )}
                   </div>
 
-                  {/* Submit Registration Button */}
-                  <Button
-                    type="submit"
-                    variant="brand"
-                    className="w-full justify-center py-2.5 text-xs font-bold mt-2"
-                    disabled={isSubmitting}
-                    iconRight={isSubmitting ? null : ArrowRight}
-                  >
-                    {isSubmitting ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Activating Vendor Account ({selectedPlan.name})...</span>
+                  {/* STEP 3 / MANDATORY RETURN POLICY CONSENT & RESTAURANT PROTECTION AGREEMENT (Only when returns are accepted) */}
+                  {regForm.acceptsReturns && (
+                    <div
+                      id="return-policy-consent-section"
+                      className={`p-5 rounded-2xl border transition-all scroll-mt-6 animate-in fade-in duration-200 ${
+                        consentError
+                          ? 'bg-rose-950/20 border-rose-500/80 ring-2 ring-rose-500/20'
+                          : returnPolicyConsent.agreed
+                          ? 'bg-emerald-950/20 border-emerald-500/50 ring-1 ring-emerald-500/20'
+                          : 'bg-slate-950 border-slate-800'
+                      }`}
+                    >
+                      {/* Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-800">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              returnPolicyConsent.agreed
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                            }`}
+                          >
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                                Return Policy Consent & Agreement Form
+                              </h3>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-bold uppercase tracking-wider">
+                                Mandatory Requirement
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Legally binding agreement to protect partner restaurants from financial losses due to damaged, spoiled, or excess inventory.
+                            </p>
+                          </div>
+                        </div>
+                        {returnPolicyConsent.agreed && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold self-start sm:self-auto">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Consent Confirmed & Signed</span>
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      `Complete Registration & Launch Vendor Portal (${selectedPlan.name})`
+
+                      {/* Agreement Terms Box (Legal Contract Preview) */}
+                      <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 space-y-3.5 mb-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80 text-[11px]">
+                          <div>
+                            <span className="text-slate-400">Supplier Enterprise: </span>
+                            <strong className="text-white">{regForm.name || '[Company Name Pending]'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Beneficiary: </span>
+                            <strong className="text-emerald-400">All StockMate Network Buyer Restaurants</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Governing SLA: </span>
+                            <strong className="text-white">v2026.1 Restaurant Loss Protection</strong>
+                          </div>
+                        </div>
+
+                        {/* Dynamic Summary of the Chosen Return Policy */}
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] space-y-1.5">
+                          <span className="font-bold text-slate-200 block uppercase tracking-wider text-[10px]">
+                            Declared Return Policy Terms To Be Enforced:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+                            <div>
+                              <span className="text-slate-400">Return Policy Status: </span>
+                              <strong className={regForm.acceptsReturns ? 'text-emerald-400' : 'text-rose-400'}>
+                                {regForm.acceptsReturns ? 'Accepts Returns (SLA Active)' : 'Strict No Returns (Final Sale at Dock)'}
+                              </strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Settlement Mode: </span>
+                              <strong className="text-white">
+                                {regForm.acceptsReturns ? regForm.settlementMode : 'Dock Rejection Only (Pre-Acceptance)'}
+                              </strong>
+                            </div>
+                            {regForm.acceptsReturns && (
+                              <>
+                                <div>
+                                  <span className="text-slate-400">Eligible Scenarios: </span>
+                                  <strong className="text-white">
+                                    {[
+                                      regForm.returnConditions.unused ? 'Unused Overstock' : null,
+                                      regForm.returnConditions.damaged ? 'Transit Damage' : null,
+                                      regForm.returnConditions.spoiled ? 'Spoilage / Freshness Fail' : null,
+                                    ].filter(Boolean).join(', ') || 'None Specified'}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Claim Window & Volume Cap: </span>
+                                  <strong className="text-white">
+                                    Within {regForm.returnWindowHours}h • Max {regForm.maxReturnPercent}% of Order
+                                  </strong>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Key Binding Commitments */}
+                        <div className="space-y-2 text-[11px] leading-relaxed">
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">1</span>
+                            <p>
+                              <strong className="text-white">Restaurant Loss Protection Guarantee: </strong>
+                              The supplier acknowledges that client restaurants rely on verified ingredient quality to operate. The supplier guarantees that any deliveries containing transit-damaged packages, broken seals, temperature abuse, or premature spoilage will be credited or replaced in accordance with the specified return SLA without undue delay.
+                            </p>
+                          </div>
+
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">2</span>
+                            <p>
+                              <strong className="text-white">Strict Adherence to Declared Return Terms: </strong>
+                              The supplier confirms that the return parameters chosen during this registration (including eligible conditions, claim window of {regForm.acceptsReturns ? `${regForm.returnWindowHours} hours` : 'dock check'}, and {regForm.acceptsReturns ? regForm.settlementMode : 'dock rejection'}) represent a binding operational commitment. The supplier will not arbitrarily refuse or contest legitimate return claims filed within these boundaries.
+                            </p>
+                          </div>
+
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">3</span>
+                            <p>
+                              <strong className="text-white">Verified GRN & Automated Ledger Settlements: </strong>
+                              Discrepancies identified during restaurant Goods Received Note (GRN) inspection or within the agreed return window will automatically post verified credit adjustments to the supplier ledger and invoice clearing statements.
+                            </p>
+                          </div>
+
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">4</span>
+                            <p>
+                              <strong className="text-white">Compliance & Platform Sanctions: </strong>
+                              Failure to honor agreed return pickups, repeatedly disputing valid damage claims, or delivering sub-standard perishables may lead to merchant rating penalties, withholding of settlement payouts, or suspension of third-party marketplace listing privileges.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Digital Signatory Details & Mandatory Checkbox */}
+                      <div className="space-y-3 pt-2">
+                        {/* Mandatory Checkbox */}
+                        <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer">
+                          <input
+                            type="checkbox"
+                            required
+                            checked={returnPolicyConsent.agreed}
+                            onChange={(e) => {
+                              setReturnPolicyConsent((prev) => ({
+                                ...prev,
+                                agreed: e.target.checked,
+                                consentedAt: e.target.checked ? new Date().toISOString() : null,
+                                signatoryName: prev.signatoryName || regForm.contactPerson,
+                              }));
+                              if (consentError) setConsentError(null);
+                              if (authError && (authError.toLowerCase().includes('consent') || authError.toLowerCase().includes('return'))) {
+                                setAuthError(null);
+                              }
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded-sm border-slate-700 text-emerald-500 focus:ring-emerald-500/20 bg-slate-950 shrink-0 cursor-pointer"
+                          />
+                          <div className="text-xs">
+                            <span className="font-bold text-white block">
+                              Mandatory Return Policy Consent Confirmation *
+                            </span>
+                            <span className="text-slate-300 leading-relaxed block mt-0.5">
+                              I, as an authorized representative of <strong className="text-emerald-400">{regForm.name || 'this supplier business'}</strong>, have carefully reviewed and formally agree to strictly adhere to the declared Return Policy and Restaurant Loss Protection Agreement. I certify that our business will honor all eligible return claims, credit adjustments, and SLA commitments made to client restaurants.
+                            </span>
+                          </div>
+                        </label>
+
+                        {/* Digital Signature Inputs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                              Authorized Signatory Name *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Full Legal Name of Authorized Officer"
+                              value={returnPolicyConsent.signatoryName || regForm.contactPerson}
+                              onChange={(e) => {
+                                setReturnPolicyConsent((prev) => ({ ...prev, signatoryName: e.target.value }));
+                                if (consentError) setConsentError(null);
+                              }}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500"
+                            />
+                            <span className="text-[10px] text-slate-500 mt-0.5 block">
+                              Legal name of director, proprietor, or authorized dispatch manager
+                            </span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                              Signatory Designation / Title *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. Managing Director / Wholesale Partner"
+                              value={returnPolicyConsent.signatoryTitle}
+                              onChange={(e) => setReturnPolicyConsent((prev) => ({ ...prev, signatoryTitle: e.target.value }))}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500"
+                            />
+                            <span className="text-[10px] text-slate-500 mt-0.5 block">
+                              Official role or designation within the supplier enterprise
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Consent Error Display */}
+                        {consentError && (
+                          <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-200 text-xs flex items-start gap-2 shadow-xs">
+                            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                            <span className="font-semibold leading-relaxed">{consentError}</span>
+                          </div>
+                        )}
+
+                        {/* Verified Digital Signature Stamp when agreed */}
+                        {returnPolicyConsent.agreed && (
+                          <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                            <div className="flex items-center gap-2 text-emerald-300">
+                              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>
+                                Digitally Signed by <strong className="text-white">{returnPolicyConsent.signatoryName || regForm.contactPerson || 'Authorized Officer'}</strong> ({returnPolicyConsent.signatoryTitle || 'Representative'}) on {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 self-start sm:self-auto">
+                              SLA-VERIFIED
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Submit Registration Button */}
+                  <div className="space-y-2 pt-2">
+                    <Button
+                      type="submit"
+                      variant="brand"
+                      className="w-full justify-center py-2.5 text-xs font-bold mt-2"
+                      disabled={isSubmitting}
+                      iconRight={isSubmitting ? null : ArrowRight}
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Activating Vendor Account ({selectedPlan?.name || 'Selected Plan'})...</span>
+                        </div>
+                      ) : (
+                        `Complete Registration & Launch Vendor Portal (${selectedPlan?.name || 'Selected Plan'})`
+                      )}
+                    </Button>
+                    {regForm.acceptsReturns && !returnPolicyConsent.agreed && (
+                      <p className="text-center text-[11px] text-amber-400/90 font-medium">
+                        Note: You must review and check the Return Policy Consent Agreement above before registration can be finalized.
+                      </p>
                     )}
-                  </Button>
+                  </div>
                 </form>
               </div>
+            </div>
+          )}
 
               {/* Switch back to Login */}
               <div className="mt-5 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-400">

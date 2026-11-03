@@ -248,6 +248,23 @@ export const SupplierProfilePage = () => {
               icon={RotateCcw}
             />
 
+            {(existingAgreement?.consentAgreed || currentSup?.consentAgreed) && (
+              <div className="mb-4 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Mandatory Return Policy Agreement on File</span>
+                    <span className="text-[11px] opacity-90 block">
+                      Digitally signed by {existingAgreement?.digitallySignedBy || currentSup?.digitallySignedBy || currentSup?.contactPerson} ({existingAgreement?.signatoryTitle || currentSup?.signatoryTitle || 'Authorized Representative'}) • Binding Restaurant Loss Protection Agreement
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono text-[10px] font-bold self-start sm:self-auto">
+                  VERIFIED SLA
+                </span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveReturnPolicy} className="space-y-4">
               {/* Selectable Policy Toggle Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

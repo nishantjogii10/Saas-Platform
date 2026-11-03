@@ -358,33 +358,54 @@ export const AppProvider = ({ children }) => {
 
   const [suppliers, setSuppliers] = useState(() => {
     const loaded = loadStored('suppliers', initialSuppliers);
-    if (Array.isArray(loaded)) {
-      return loaded.map((sup) => {
-        const isTieUp =
-          sup.registeredVia === 'main_system' ||
-          sup.id === 'sup-4' ||
-          sup.id === 'sup-5' ||
-          sup.name?.toLowerCase().includes('golden crust') ||
-          sup.name?.toLowerCase().includes('amrit dairy');
-        const acceptsReturns = sup.acceptsReturns !== undefined
-          ? sup.acceptsReturns
-          : (sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6');
-        return {
-          ...sup,
-          supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
-          registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
-          acceptsReturns,
-          returnPolicy: sup.returnPolicy || (acceptsReturns ? 'accepts_returns' : 'no_returns'),
-          unsoldReturnAllowed: sup.unsoldReturnAllowed !== undefined ? sup.unsoldReturnAllowed : acceptsReturns,
-          returnConditions: sup.returnConditions || {
-            unused: acceptsReturns,
-            damaged: acceptsReturns,
-            spoiled: acceptsReturns,
-          },
-        };
-      });
-    }
-    return initialSuppliers;
+    const defaults = Array.isArray(initialSuppliers) ? initialSuppliers : [];
+    let baseList = Array.isArray(loaded) ? [...loaded] : [...defaults];
+
+    // Ensure initial tie-up suppliers (Golden Crust, Amrit Dairy) are present even if localStorage had an older state
+    defaults.forEach((defSup) => {
+      const exists = baseList.some(
+        (s) => s.id === defSup.id || (defSup.name && s.name?.toLowerCase() === defSup.name.toLowerCase())
+      );
+      if (!exists) {
+        baseList = [defSup, ...baseList];
+      }
+    });
+
+    return baseList.map((sup) => {
+      const isTieUp =
+        sup.registeredVia === 'main_system' ||
+        sup.supplierType === 'Tie-up Supplier' ||
+        sup.id === 'sup-4' ||
+        sup.id === 'sup-5' ||
+        sup.hasSignedInMainLogin ||
+        sup.name?.toLowerCase().includes('golden crust') ||
+        sup.name?.toLowerCase().includes('amrit dairy');
+
+      const currRestIds = Array.isArray(sup.restaurantIds) ? sup.restaurantIds : [];
+      const updatedRestIds = isTieUp
+        ? Array.from(new Set([...currRestIds, 'rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron']))
+        : currRestIds;
+
+      const acceptsReturns = sup.acceptsReturns !== undefined
+        ? sup.acceptsReturns
+        : (sup.id !== 'sup-1' && sup.id !== 'sup-3' && sup.id !== 'sup-6');
+
+      return {
+        ...sup,
+        supplierType: isTieUp ? 'Tie-up Supplier' : 'Third-Party Supplier',
+        registeredVia: isTieUp ? 'main_system' : 'supplier_portal',
+        hasSignedInMainLogin: isTieUp ? true : Boolean(sup.hasSignedInMainLogin),
+        restaurantIds: updatedRestIds,
+        acceptsReturns,
+        returnPolicy: sup.returnPolicy || (acceptsReturns ? 'accepts_returns' : 'no_returns'),
+        unsoldReturnAllowed: sup.unsoldReturnAllowed !== undefined ? sup.unsoldReturnAllowed : acceptsReturns,
+        returnConditions: sup.returnConditions || {
+          unused: acceptsReturns,
+          damaged: acceptsReturns,
+          spoiled: acceptsReturns,
+        },
+      };
+    });
   });
   const [ingredients, setIngredients] = useState(() => loadStored('ingredients', initialIngredients));
   const [purchaseOrders, setPurchaseOrders] = useState(() => loadStored('purchaseOrders', initialPurchaseOrders));
@@ -927,7 +948,10 @@ export const AppProvider = ({ children }) => {
     // Main System / Home Page Login -> "Tie-up Supplier"
     if (user.role === 'supplier') {
       const isPortalLogin = loginOrigin === 'supplier_portal';
-      const isMainSystemLogin = loginOrigin === 'main_system' || (requestedRole === 'supplier' && !isPortalLogin);
+      const isMainSystemLogin =
+        loginOrigin === 'main_system' ||
+        loginOrigin === 'unified_auth_portal' ||
+        (requestedRole === 'supplier' && !isPortalLogin);
 
       const assignedType = isPortalLogin
         ? 'Third-Party Supplier'
@@ -941,25 +965,62 @@ export const AppProvider = ({ children }) => {
         ...user,
         supplierType: assignedType,
         registeredVia: assignedVia,
+        hasSignedInMainLogin: isMainSystemLogin,
       };
 
       // Sync matching supplier record in suppliers state
-      setSuppliers((prev) =>
-        prev.map((s) => {
-          if (
+      setSuppliers((prev) => {
+        const existingIndex = prev.findIndex(
+          (s) =>
             s.id === user.supplierId ||
             (user.supplierName && s.name?.toLowerCase() === user.supplierName.toLowerCase()) ||
             (user.email && s.email?.toLowerCase() === user.email.toLowerCase())
-          ) {
-            return {
-              ...s,
-              supplierType: assignedType,
-              registeredVia: assignedVia,
-            };
-          }
-          return s;
-        })
-      );
+        );
+
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          const curr = updated[existingIndex];
+          const currRestIds = Array.isArray(curr.restaurantIds) ? curr.restaurantIds : [];
+          const updatedRestIds = Array.from(new Set([...currRestIds, 'rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron']));
+          updated[existingIndex] = {
+            ...curr,
+            supplierType: assignedType,
+            registeredVia: assignedVia,
+            hasSignedInMainLogin: isMainSystemLogin,
+            lastLoginAt: new Date().toISOString(),
+            restaurantIds: isMainSystemLogin ? updatedRestIds : curr.restaurantIds,
+          };
+          return updated;
+        } else {
+          // If a supplier user logs in who doesn't have an entry in suppliers yet, auto-create their supplier record
+          const newSupplierRecord = {
+            id: user.supplierId || `sup-${user.id || Date.now()}`,
+            name: user.supplierName || user.companyName || `${user.name} Supplies`,
+            supplierType: assignedType,
+            registeredVia: assignedVia,
+            hasSignedInMainLogin: isMainSystemLogin,
+            contactPerson: user.name || 'Account Representative',
+            email: user.email,
+            phone: user.phone || '+91 98000 00000',
+            address: user.address || 'Registered Partner Warehouse, Pune',
+            categories: ['General Supplies', 'Bakery', 'Dairy'],
+            rating: 4.8,
+            leadTimeDays: 1,
+            paymentTerms: 'Net 30',
+            activeOrdersCount: 0,
+            status: 'active',
+            acceptsReturns: true,
+            returnPolicy: 'accepts_returns',
+            unsoldReturnAllowed: true,
+            returnConditions: { unused: true, damaged: true, spoiled: true },
+            returnWindowHours: 24,
+            maxReturnPercent: 20,
+            settlementMode: 'Credit Note',
+            restaurantIds: ['rest-1', 'rest-2', 'rest-3', 'rest-mango', 'rest-saffron'],
+          };
+          return [newSupplierRecord, ...prev];
+        }
+      });
 
       // Persist updated user in users state
       setUsers((prev) => prev.map((u) => (u.id === user.id ? authenticatedUser : u)));
@@ -1874,6 +1935,17 @@ export const AppProvider = ({ children }) => {
         : 'Strict no-returns policy. All products supplied to restaurants are final sale once accepted at delivery dock.'
     );
 
+    const returnPolicyConsent = acceptsReturns
+      ? (formData.returnPolicyConsent || {
+          agreed: Boolean(formData.consentAgreed ?? true),
+          consentedAt: formData.consentedAt || new Date().toISOString(),
+          signatoryName: formData.signatoryName || formData.contactPerson,
+          signatoryTitle: formData.signatoryTitle || 'Authorized Representative',
+          agreementVersion: '2026.1-RESTAURANT-PROTECTION-SLA',
+          digitalSignatureStamp: `STOCKMATE-SLA-SIG-${Date.now().toString().slice(-6)}`,
+        })
+      : null;
+
     const newSupplier = {
       ...(existingSupplier || {}),
       id: supplierId,
@@ -1915,6 +1987,11 @@ export const AppProvider = ({ children }) => {
       maxReturnPercent: acceptsReturns ? (Number(formData.maxReturnPercent) || 20) : 0,
       settlementMode: acceptsReturns ? (formData.settlementMode || 'Credit Note') : 'No Returns (Dock Inspection Only)',
       returnPolicyNotes,
+      returnPolicyConsent,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      signatoryTitle: acceptsReturns ? (returnPolicyConsent?.signatoryTitle || 'Authorized Representative') : null,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
     };
 
     const newSupplierUser = {
@@ -1938,6 +2015,10 @@ export const AppProvider = ({ children }) => {
       returnConditions,
       returnWindowHours: newSupplier.returnWindowHours,
       settlementMode: newSupplier.settlementMode,
+      returnPolicyConsent,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
     };
 
     // Update Suppliers state without duplicates
@@ -1975,6 +2056,12 @@ export const AppProvider = ({ children }) => {
       settlementMode: newSupplier.settlementMode,
       agreementNotes: newSupplier.returnPolicyNotes,
       active: true,
+      consentAgreed: acceptsReturns ? Boolean(returnPolicyConsent?.agreed) : false,
+      consentedAt: acceptsReturns ? (returnPolicyConsent?.consentedAt || new Date().toISOString()) : null,
+      digitallySignedBy: acceptsReturns ? (returnPolicyConsent?.signatoryName || formData.contactPerson) : null,
+      signatoryTitle: acceptsReturns ? (returnPolicyConsent?.signatoryTitle || 'Authorized Representative') : null,
+      agreementVersion: acceptsReturns ? (returnPolicyConsent?.agreementVersion || '2026.1-RESTAURANT-PROTECTION-SLA') : null,
+      returnPolicyConsent,
     };
     setSupplierAgreements((prev) => [newAgreement, ...(prev || []).filter((a) => a.supplierId !== supplierId)]);
 
@@ -2008,12 +2095,16 @@ export const AppProvider = ({ children }) => {
           .join(', ')} products (${newSupplier.returnWindowHours}h window, ${newSupplier.settlementMode})`
       : 'Strict No-Returns Policy (all deliveries final)';
 
+    const adminLogDetails = acceptsReturns
+      ? `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Digitally signed Return Policy SLA (Signatory: ${returnPolicyConsent?.signatoryName}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`
+      : `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`;
+
     // SYSTEM NOTIFICATION A: To Platform Admin (Activity Logs & Platform Notification)
     const adminLog = {
       id: `log-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SUPPLIER_ONBOARDED',
-      details: `New third-party supplier "${newSupplier.name}" onboarded under ${selectedPlan.name} Plan (${formData.billingCycle || 'monthly'}). Commission rate: ${selectedPlan.commissionRate}%. Primary Categories: ${normalizedCats.join(', ')}. Return Policy: ${returnPolicySummary}.`,
+      details: adminLogDetails,
       user: newSupplier.contactPerson,
       role: 'supplier',
     };
@@ -2026,7 +2117,7 @@ export const AppProvider = ({ children }) => {
       type: 'supplier_joined',
       severity: 'high',
       title: `🔔 New Third-Party Supplier Registered: ${newSupplier.name}`,
-      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal offering ${normalizedCats.join(', ')} under ${selectedPlan.name} Plan. Return Policy: ${returnPolicySummary}.`,
+      message: `${newSupplier.name} (${newSupplier.contactPerson}) has joined the platform via Supplier Portal under ${selectedPlan.name} Plan. ${acceptsReturns ? `Mandatory Return Policy SLA signed (${returnPolicySummary})` : `Return Policy: ${returnPolicySummary}`}.`,
       read: false,
       timestamp: 'Just now',
       actionLink: '/suppliers',
@@ -6451,7 +6542,21 @@ export const AppProvider = ({ children }) => {
   }, [branchStaff, currentRestaurantId, currentBranchId]);
 
   const restaurantSuppliers = useMemo(() => {
-    return suppliers.filter((s) => !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId));
+    return suppliers.filter((s) => {
+      // Tie-up suppliers (who belong to main page login / platform partner system) are available to partner restaurants
+      const isTieUp =
+        s.supplierType === 'Tie-up Supplier' ||
+        s.registeredVia === 'main_system' ||
+        s.id === 'sup-4' ||
+        s.id === 'sup-5' ||
+        s.hasSignedInMainLogin ||
+        s.name?.toLowerCase().includes('golden crust') ||
+        s.name?.toLowerCase().includes('amrit dairy');
+
+      if (isTieUp) return true;
+
+      return !s.restaurantIds || s.restaurantIds.includes(currentRestaurantId);
+    });
   }, [suppliers, currentRestaurantId]);
 
   // Bank Details Verification Service (Restricted to Restaurant Owner and Restaurant Manager)
